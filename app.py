@@ -48,11 +48,17 @@ def is_vercel_runtime() -> bool:
 
 def check_backend() -> None:
     if not OPENROUTER_API_KEY:
+        if is_vercel_runtime():
+            print("⚠️  OPENROUTER_API_KEY not set at build time — will check at runtime")
+            return
         raise RuntimeError("OPENROUTER_API_KEY is required")
     print(f"✓ OpenRouter ready | Model: {OPENROUTER_MODEL}")
 
 
-check_backend()
+# Không chạy check_backend() ngay khi build (Vercel build không có env),
+# nhưng Vercel runtime sẽ chạy lại module khi function được gọi, lúc đó env có sẵn.
+if not is_vercel_runtime():
+    check_backend()
 
 # ── Khởi tạo app ─────────────────────────────────────────
 app = FastAPI(title="Thư viện QNU RAG API", version="2.0.0")
