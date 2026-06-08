@@ -1,12 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["sin1"],
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60,
-      "memory": 512,
-      "includeFiles": "Data/**,pdfs/**,chat(1).html,SHL-logo.png,search_engine.py,text_utils.py,load_pdf.py,pdf_manager.py,app.py,api/index.py",
-      "excludeFiles": ".git/**,.venv/**,venv/**,env/**,__pycache__/**,**/*.pyc,.pytest_cache/**,.mypy_cache/**,.ruff_cache/**,pdf_cache.json,deploy/**,Dockerfile,*.log"
-    }
-  }
+  "regions": ["sin1"]
 }
