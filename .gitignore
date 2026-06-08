@@ -218,3 +218,6 @@ Data/_documents_cache.pkl
 # Vercel demo needs prebuilt indexes to avoid rebuilding them on cold start.
 !Data/_documents_cache.pkl
 !Data/_topic_index.pkl
+
+.vercel
+.env*
