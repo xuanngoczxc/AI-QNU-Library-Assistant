@@ -659,7 +659,7 @@ DOMAIN_PHRASE_EXPANSIONS = {
 
 CATALOG_TOPIC_INDEX: dict[str, dict] = {}
 CATALOG_TOPIC_READY = False
-CATALOG_TOPIC_INDEX_VERSION = 1
+CATALOG_TOPIC_INDEX_VERSION = 2
 
 CATALOG_FIELD_WEIGHTS = {
     "title": 5.0,
@@ -668,6 +668,7 @@ CATALOG_FIELD_WEIGHTS = {
     "course": 8.0,
     "doc_type": 4.0,
     "publisher": 2.0,
+    "author": 7.0,
 }
 
 GENERIC_CATALOG_PHRASES = {
@@ -733,6 +734,9 @@ def split_catalog_segments(value: str, field_name: str) -> list[str]:
         parts = re.split(r"[;#|,\n]+", str(value))
     elif field_name == "title":
         parts = re.split(r"[:;#|\n]+", str(value))
+    elif field_name in {"author", "publisher"}:
+        # Split by comma, semicolon, newline for multi-author/publisher values
+        parts = re.split(r"[,;|\n]+", str(value))
     else:
         parts = [str(value)]
 
@@ -747,14 +751,14 @@ def generate_catalog_phrases(value: str, field_name: str) -> set[str]:
             phrases.add(normalized_segment)
 
         tokens = normalized_segment.split()
-        if field_name in {"title", "subject", "major", "course"} and len(tokens) >= 2:
+        if field_name in {"title", "subject", "major", "course", "author", "publisher"} and len(tokens) >= 2:
             max_n = min(5, len(tokens))
             for n in range(2, max_n + 1):
                 for start in range(0, len(tokens) - n + 1):
                     phrase = " ".join(tokens[start:start + n])
                     if is_valid_catalog_phrase(phrase):
                         phrases.add(phrase)
-        elif field_name in {"subject", "major", "course"}:
+        elif field_name in {"subject", "major", "course", "author", "publisher"}:
             for token in tokens:
                 if is_valid_catalog_phrase(token):
                     phrases.add(token)
@@ -832,7 +836,7 @@ def build_catalog_topic_index() -> None:
         return
 
     CATALOG_TOPIC_INDEX.clear()
-    catalog_fields = ("subject", "major", "course", "doc_type", "title", "publisher")
+    catalog_fields = ("subject", "major", "course", "doc_type", "title", "publisher", "author")
     source_docs = retriever.bm25.documents if hasattr(retriever, "bm25") else documents
     for doc_idx, doc in enumerate(source_docs):
         if str(doc.get("csv_file", "")).startswith("pdf:"):
@@ -867,7 +871,7 @@ def find_catalog_topic_matches(query_text: str, limit: int = 8) -> list[str]:
         item = CATALOG_TOPIC_INDEX.get(phrase, {})
         exact_bonus = 1_000_000.0 if phrase == normalized_query else 0.0
         length_bonus = len(phrase.split()) * 500.0
-        field_bonus = 80.0 if {"subject", "major", "course"} & set(item.get("fields", set())) else 0.0
+        field_bonus = 80.0 if {"subject", "major", "course", "author"} & set(item.get("fields", set())) else 0.0
         return exact_bonus + length_bonus + field_bonus + item.get("score", 0.0)
 
     ranked = sorted(candidates, key=rank_key, reverse=True)
@@ -1021,6 +1025,7 @@ def get_doc_topic_fields(doc: dict) -> dict[str, str]:
 
     fields = [
         ("title", doc.get("title", "")),
+        ("author", doc.get("author", "")),
         ("subject", doc.get("subject", "")),
         ("major", doc.get("major", "")),
         ("course", doc.get("course", "")),
@@ -1080,6 +1085,7 @@ def metadata_search_by_query(query: str, top_k: int = 80) -> list[dict]:
                 continue
             field_weights = {
                 "title": 42.0,
+                "author": 35.0,
                 "subject": 36.0,
                 "major": 34.0,
                 "course": 28.0,
@@ -1183,10 +1189,191 @@ def collapse_catalog_pdf_pages(search_results: list[dict]) -> list[dict]:
     return sorted(collapsed, key=lambda item: item.get("score", 0.0), reverse=True)
 
 
+# ── Author / Publisher Query Detection ──────────────────────
+
+def detect_author_query(query: str) -> bool:
+    """Detect nếu câu hỏi đang tìm tài liệu theo tác giả."""
+    if not query:
+        return False
+    q = normalize_text(query)
+    author_markers = [
+        r"\btac gia\b",
+        r"\btac gia\s+(?:la|co ten|ten)\b",
+        r"\bcua\s+tac gia\b",
+        r"\bsach\s+cua\s+tac gia\b",
+        r"\btai lieu\s+cua\s+tac gia\b",
+        r"\bgiao trinh\s+cua\s+tac gia\b",
+    ]
+    return any(re.search(pattern, q) for pattern in author_markers)
+
+
+def detect_publisher_query(query: str) -> bool:
+    """Detect nếu câu hỏi đang tìm tài liệu theo nhà xuất bản."""
+    if not query:
+        return False
+    q = normalize_text(query)
+    publisher_markers = [
+        r"\bnha xuat ban\b",
+        r"\bnxb\b",
+        r"\bnha xuat ban\s+(?:la|co ten|ten)\b",
+        r"\bcua\s+nha xuat ban\b",
+        r"\bsach\s+cua\s+nxb\b",
+    ]
+    return any(re.search(pattern, q) for pattern in publisher_markers)
+
+
+def extract_author_name(query: str) -> str:
+    """Trích xuất tên tác giả từ câu hỏi như 'sách của tác giả Nguyễn Văn A'."""
+    if not query:
+        return ""
+    # Normalize to handle both có dấu và không dấu
+    q = normalize_text(query).strip()
+    patterns = [
+        r"(?:sach|cua|tai lieu|giao trinh)\s+tac gia\s+(.+)",
+        r"tac gia\s+(.+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, q)
+        if match:
+            name = match.group(1).strip().rstrip(",. ")
+            # Remove trailing queries
+            name = re.sub(r"\s+(?:khong|ko|lam on|hay|vui long|toi|minh|xin|cho|gui)\b.*$", "", name)
+            name = name.strip().rstrip(",. ")
+            # Must contain at least 2 word-like chunks
+            if len(re.findall(r'\w+', name)) >= 2 and len(name) >= 5:
+                return name
+    return ""
+
+
+def extract_publisher_name(query: str) -> str:
+    """Trích xuất tên nhà xuất bản từ câu hỏi."""
+    if not query:
+        return ""
+    q = normalize_text(query).strip()
+    patterns = [
+        r"(?:nha xuat ban|nxb)\s+(.+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, q)
+        if match:
+            name = match.group(1).strip().rstrip(",. ")
+            name = re.sub(r"\s+(?:khong|ko|lam on|hay|vui long|toi|minh|xin|cho|gui)\b.*$", "", name)
+            name = name.strip().rstrip(",. ")
+            if len(name) >= 3:
+                return name
+    return ""
+
+
+def normalize_author_name(name: str) -> str:
+    """Normalize author name for comparison."""
+    if not name:
+        return ""
+    # Remove content after semicolons FIRST (before normalize_text strips them)
+    name = re.sub(r"\s*;.*$", "", name)
+    normalized = normalize_text(name)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    normalized = re.sub(r"\s*\([^)]*\)\s*", " ", normalized)
+    # Also handle content after commas that don't match the query
+    # e.g. "Trần Thị Kim Hoa" should not match "Nguyễn Thị Kim Hoa"
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized
+
+
+def author_name_matches(doc_author: str, query_author: str) -> bool:
+    """Check if doc_author matches query_author.
+    Yêu cầu chặt chẽ: họ (token đầu) và tên (token cuối) phải khớp,
+    và query name phải xuất hiện như một phần trong doc_author.
+    """
+    if not doc_author or not query_author:
+        return False
+    doc_norm = normalize_author_name(doc_author)
+    query_norm = normalize_author_name(query_author)
+    if not doc_norm or not query_norm:
+        return False
+
+    query_tokens = query_norm.split()
+    doc_tokens = doc_norm.split()
+    if not query_tokens or not doc_tokens:
+        return False
+
+    # 1. Exact match
+    if doc_norm == query_norm:
+        return True
+
+    # 2. Query name appears as a whole contiguous phrase in doc name
+    # (e.g. "nguyen thi kim hoa" in "pgs.ts. nguyen thi kim hoa")
+    if query_norm in doc_norm:
+        return True
+
+    # 3. Strict token matching: first token (họ) AND last token (tên) must match
+    #    plus at least 2 other tokens must match
+    first_matches = doc_tokens[0] == query_tokens[0]
+    last_matches = doc_tokens[-1] == query_tokens[-1]
+
+    if first_matches and last_matches:
+        # Count how many query tokens appear in doc tokens
+        doc_set = set(doc_tokens)
+        overlap = sum(1 for t in query_tokens if t in doc_set)
+        # Require that at least all query tokens match (full name match)
+        # or all but one (e.g. missing middle name)
+        if overlap >= len(query_tokens) - 1 and overlap >= 3:
+            return True
+
+    return False
+
+
 def rerank_results_for_query(query: str, search_results: list[dict], prefer_strict: bool = False) -> list[dict]:
-    """Boost/filter results for recognized domains such as AI."""
+    """Boost/filter results for recognized domains such as AI and author/publisher."""
     if not search_results:
         return search_results
+
+    # ── Author/Publisher strict filtering ──────────────────
+    author_name = extract_author_name(query) if detect_author_query(query) else ""
+    publisher_name = extract_publisher_name(query) if detect_publisher_query(query) else ""
+
+    if author_name:
+        # Strict filter: chỉ giữ tài liệu có tác giả matching
+        author_results = []
+        non_author_results = []
+        for result in search_results:
+            doc_author = result.get("doc", {}).get("author", "")
+            if doc_author and author_name_matches(doc_author, author_name):
+                boosted = {**result, "score": result.get("score", 0.0) + 500.0}
+                author_results.append(boosted)
+            else:
+                non_author_results.append(result)
+
+        if author_results:
+            author_results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
+            non_author_results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
+            # In strict mode (list request), chỉ trả về author-matched results
+            if prefer_strict:
+                return author_results
+            # Otherwise, author results first, then rest
+            return author_results + non_author_results[:3]
+        # If no author match at all, fall through to normal search
+
+    if publisher_name:
+        publisher_norm = normalize_text(publisher_name)
+        pub_results = []
+        non_pub_results = []
+        for result in search_results:
+            doc_pub = result.get("doc", {}).get("publisher", "")
+            doc_source = str(result.get("doc", {}).get("source", ""))
+            doc_text = result.get("doc", {}).get("text", "")
+            combined = normalize_text(f"{doc_pub} {doc_source} {doc_text}")
+            if publisher_norm in combined:
+                boosted = {**result, "score": result.get("score", 0.0) + 300.0}
+                pub_results.append(boosted)
+            else:
+                non_pub_results.append(result)
+
+        if pub_results:
+            pub_results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
+            if prefer_strict:
+                return pub_results
+            non_pub_results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
+            return pub_results + non_pub_results[:3]
 
     if detect_ai_domain(query):
         matched = []
@@ -2111,7 +2298,7 @@ async def chat(req: ChatRequest):
         search_results = rerank_results_for_query(
             req.query,
             search_results,
-            prefer_strict=is_list_request
+            prefer_strict=is_list_request or detect_author_query(req.query) or detect_publisher_query(req.query)
         )
         if catalog_mode:
             search_results = collapse_catalog_pdf_pages(search_results)
