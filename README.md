@@ -1,3 +1,13 @@
+---
+title: QNU Library Assistant
+emoji: ??
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_file: app.py
+pinned: false
+---
+
 # Thư viện QNU RAG API
 
 > Trợ lý ảo tra cứu tài liệu thư viện cho Trường Đại học Quy Nhơn (QNU) — hỗ trợ tìm kiếm catalog, đọc nội dung PDF, OCR file scan, và trả lời theo ngữ cảnh qua RAG + LLM.
