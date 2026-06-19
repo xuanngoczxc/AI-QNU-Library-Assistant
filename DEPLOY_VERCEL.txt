@@ -17,7 +17,7 @@ Tai lieu Vercel lien quan:
 
 Can co trong project:
 - app.py
-- chat(1).html
+- chat.html
 - requirements.txt
 - vercel.json
 - runtime.txt

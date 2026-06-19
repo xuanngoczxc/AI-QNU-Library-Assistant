@@ -1,0 +1,226 @@
+[
+  {
+    "khoa": "Khoa ngoại ngữ",
+    "total": 513,
+    "nganh": [
+      {
+        "nganh": "Ngôn ngữ Trung Quốc",
+        "count": 319
+      },
+      {
+        "nganh": "Ngôn ngữ Anh",
+        "count": 194
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa sư phạm",
+    "total": 438,
+    "nganh": [
+      {
+        "nganh": "Sư phạm Lịch sử",
+        "count": 102
+      },
+      {
+        "nganh": "Sư phạm Tin học",
+        "count": 76
+      },
+      {
+        "nganh": "Sư phạm Vật lý",
+        "count": 65
+      },
+      {
+        "nganh": "Sư phạm Toán",
+        "count": 58
+      },
+      {
+        "nganh": "Sư phạm Sinh học",
+        "count": 57
+      },
+      {
+        "nganh": "Sư phạm Địa lý",
+        "count": 51
+      },
+      {
+        "nganh": "Sư phạm Hóa học",
+        "count": 14
+      },
+      {
+        "nganh": "Sư phạm Ngữ văn",
+        "count": 8
+      },
+      {
+        "nganh": "Sư phạm Khoa học tự nhiên",
+        "count": 7
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa kinh tế và kế toán",
+    "total": 408,
+    "nganh": [
+      {
+        "nganh": "Quản trị kinh doanh",
+        "count": 204
+      },
+      {
+        "nganh": "Kế toán",
+        "count": 111
+      },
+      {
+        "nganh": "Quản lý kinh tế",
+        "count": 59
+      },
+      {
+        "nganh": "Kinh tế",
+        "count": 34
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa kỹ thuật và công nghệ",
+    "total": 304,
+    "nganh": [
+      {
+        "nganh": "Kỹ thuật điện",
+        "count": 145
+      },
+      {
+        "nganh": "Công nghệ thực phẩm",
+        "count": 83
+      },
+      {
+        "nganh": "Kỹ thuật xây dựng",
+        "count": 53
+      },
+      {
+        "nganh": "Kỹ thuật ô tô",
+        "count": 19
+      },
+      {
+        "nganh": "Công nghệ kỹ thuật",
+        "count": 4
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa lý luận chính trị - Luật và Quản lý nhà nước",
+    "total": 169,
+    "nganh": [
+      {
+        "nganh": "Luật",
+        "count": 77
+      },
+      {
+        "nganh": "Quản lý nhà nước",
+        "count": 57
+      },
+      {
+        "nganh": "Giáo dục chính trị",
+        "count": 31
+      },
+      {
+        "nganh": "Công tác xã hội",
+        "count": 4
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa tài chính - ngân hàng và quản trị kinh doanh",
+    "total": 124,
+    "nganh": [
+      {
+        "nganh": "Tài chính - Ngân hàng",
+        "count": 124
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa toán và thống kê",
+    "total": 114,
+    "nganh": [
+      {
+        "nganh": "Toán học",
+        "count": 114
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa khoa học xã hội và nhân văn",
+    "total": 97,
+    "nganh": [
+      {
+        "nganh": "Văn học",
+        "count": 40
+      },
+      {
+        "nganh": "Lịch sử",
+        "count": 29
+      },
+      {
+        "nganh": "Triết học",
+        "count": 24
+      },
+      {
+        "nganh": "Tâm lý học",
+        "count": 4
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa khoa học tự nhiên",
+    "total": 92,
+    "nganh": [
+      {
+        "nganh": "Khoa học môi trường",
+        "count": 37
+      },
+      {
+        "nganh": "Hóa học",
+        "count": 25
+      },
+      {
+        "nganh": "Sinh học",
+        "count": 20
+      },
+      {
+        "nganh": "Vật lý",
+        "count": 10
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa công nghệ thông tin",
+    "total": 81,
+    "nganh": [
+      {
+        "nganh": "Công nghệ thông tin",
+        "count": 81
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa giáo dục tiểu học và mần non",
+    "total": 64,
+    "nganh": [
+      {
+        "nganh": "Giáo dục Tiểu học",
+        "count": 34
+      },
+      {
+        "nganh": "Giáo dục Mầm non",
+        "count": 30
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa giáo dục thể chất",
+    "total": 17,
+    "nganh": [
+      {
+        "nganh": "Giáo dục thể chất",
+        "count": 17
+      }
+    ]
+  }
+]

@@ -1,14 +1,25 @@
 ﻿"""
 load_pdf.py — Load tất cả file PDF từ thư mục pdfs/
-Sử dụng pypdf (không langchain) để tương thích Vercel free deploy.
+Sử dụng MarkItDown (Microsoft) để chuyển PDF → Markdown chất lượng cao,
+giữ nguyên cấu trúc bảng biểu, heading, danh sách — phù hợp cho LLM.
+Fallback: dùng pypdf nếu MarkItDown không hoạt động.
 Tối ưu: Extract metadata (page, title, section), normalize text
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Optional
 from text_utils import normalize_text, generate_document_hash, extract_keywords
 
+# ── MarkItDown (Microsoft) — giữ cấu trúc Markdown chất lượng cao ──
+try:
+    from markitdown import MarkItDown
+    _markitdown = MarkItDown()
+except ImportError:
+    _markitdown = None
+
+# ── pypdf (fallback) ─────────────────────────────────────
 try:
     from pypdf import PdfReader
 except ImportError:
@@ -24,8 +35,41 @@ class Document:
         self.metadata = metadata or {}
 
 
+def _read_pdf_with_markitdown(pdf_path: str) -> list[Document]:
+    """
+    Đọc PDF bằng MarkItDown.
+    Output là Markdown với page markers: <!-- page N -->
+    Trả về list[Document] (mỗi trang một Document), nội dung là Markdown.
+    """
+    docs: list[Document] = []
+    if not _markitdown:
+        return docs
+
+    result = _markitdown.convert(pdf_path)
+    markdown_text = result.text_content or ""
+
+    if not markdown_text.strip():
+        return docs
+
+    # Tách theo page markers: <!-- page N --> hoặc <!-- Page N -->
+    pages = re.split(r"<!--\s*[Pp]age\s*\d+\s*-->", markdown_text)
+    pages = [p.strip() for p in pages if p.strip()]
+
+    if not pages:
+        # Nếu không có page marker, xem như 1 trang duy nhất
+        pages = [markdown_text.strip()]
+
+    for i, page_content in enumerate(pages):
+        docs.append(Document(
+            page_content=page_content,
+            metadata={"page": i + 1}
+        ))
+
+    return docs
+
+
 def _read_pdf_with_pypdf(pdf_path: str) -> list[Document]:
-    """Đọc PDF bằng pypdf, trả về list[Document] (mỗi trang một Document)."""
+    """Đọc PDF bằng pypdf (fallback), trả về list[Document] (mỗi trang một Document)."""
     docs: list[Document] = []
     if not PdfReader:
         print("   ⚠️  pypdf not available — skipping PDF text extraction")
@@ -90,7 +134,12 @@ def load_all_pdfs() -> list[Document]:
     for pdf_path in pdf_files:
         try:
             print(f"📄 Đang load: {pdf_path.name}")
-            docs = _read_pdf_with_pypdf(str(pdf_path))
+
+            # Ưu tiên MarkItDown → fallback pypdf
+            docs = _read_pdf_with_markitdown(str(pdf_path))
+            if not docs:
+                docs = _read_pdf_with_pypdf(str(pdf_path))
+
             if not docs:
                 print(f"   ⚠️  Không đọc được nội dung từ {pdf_path.name}")
                 continue

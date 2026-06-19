@@ -33,7 +33,9 @@ class BM25SearchEngine:
         self.vocabulary = Counter()
 
         for doc in self.documents:
-            text = normalize_text(doc.get('text', '')) + " " + normalize_text(doc.get('title', ''))
+            # Ưu tiên flat_text cho BM25 (không có markdown noise)
+            text = normalize_text(doc.get('flat_text', '') or doc.get('text', ''))
+            text = text + " " + normalize_text(doc.get('title', ''))
             tokens = self._tokenize(text)
             self.tokenized_docs.append(tokens)
             self.doc_lengths.append(len(tokens))
@@ -78,6 +80,9 @@ class BM25SearchEngine:
             return []
 
         scores = []
+        # Dynamic minimum score: more tokens → higher bar to filter noise
+        min_score = max(0.3, len(tokens) * 0.15) if len(tokens) >= 2 else 0.1
+
         for doc_idx in range(len(self.documents)):
             bm25_score = self._bm25_score(tokens, doc_idx)
 
@@ -88,8 +93,17 @@ class BM25SearchEngine:
                 if re.search(pattern, doc_text, re.IGNORECASE):
                     regex_boost = 5.0
 
+            # Token coverage: fraction of query tokens found in this doc
+            doc_tokens_set = set(self.tokenized_docs[doc_idx])
+            matched_count = sum(1 for t in tokens if t in doc_tokens_set)
+            coverage = matched_count / len(tokens) if tokens else 0.0
+
+            # Penalize docs with very low token coverage
+            if coverage < 0.25 and len(tokens) >= 2:
+                continue
+
             total_score = bm25_score + regex_boost
-            if total_score > 0:
+            if total_score >= min_score:
                 scores.append((doc_idx, total_score))
 
         scores.sort(key=lambda x: x[1], reverse=True)
@@ -103,6 +117,40 @@ class BM25SearchEngine:
             })
 
         return results
+
+    def count_matching(self, query, use_regex=True):
+        """Count ALL documents matching query without top_k limit."""
+        normalized_query = normalize_text(query)
+        tokens = self._tokenize(normalized_query)
+
+        if not tokens:
+            return 0
+
+        min_score = max(0.3, len(tokens) * 0.15) if len(tokens) >= 2 else 0.1
+        count = 0
+
+        for doc_idx in range(len(self.documents)):
+            bm25_score = self._bm25_score(tokens, doc_idx)
+
+            regex_boost = 0.0
+            if use_regex and len(query) > 3:
+                doc_text = normalize_text(self.documents[doc_idx].get('text', ''))
+                pattern = re.escape(normalized_query)
+                if re.search(pattern, doc_text, re.IGNORECASE):
+                    regex_boost = 5.0
+
+            doc_tokens_set = set(self.tokenized_docs[doc_idx])
+            matched_count = sum(1 for t in tokens if t in doc_tokens_set)
+            coverage = matched_count / len(tokens) if tokens else 0.0
+
+            if coverage < 0.25 and len(tokens) >= 2:
+                continue
+
+            total_score = bm25_score + regex_boost
+            if total_score >= min_score:
+                count += 1
+
+        return count
 
 
 class DocumentIndexer:
@@ -142,52 +190,65 @@ class DocumentIndexer:
         # ── Full load ────────────────────────────────────────
         documents = []
 
-        # 1. Load CSV (clean_BaoCao_DsTaiLieuSo.csv)
-        csv_file = data_path / "clean_BaoCao_DsTaiLieuSo.csv"
-        if csv_file.exists():
-            try:
-                csv_docs = DocumentIndexer._load_csv(str(csv_file))
-                documents.extend(csv_docs)
-                print(f"✅ Loaded {len(csv_docs)} documents from {csv_file.name}")
-            except Exception as e:
-                print(f"⚠️ Error loading {csv_file.name}: {e}")
-        else:
-            print(f"⚠️  File not found: {csv_file}")
+        # 1. Load CSV (clean_BaoCao_DsTaiLieuSo.csv) — DISABLED: chỉ dùng 1 file qnu-allITEM
+        # csv_file = data_path / "clean_BaoCao_DsTaiLieuSo.csv"
+        # if csv_file.exists():
+        #     try:
+        #         csv_docs = DocumentIndexer._load_csv(str(csv_file))
+        #         documents.extend(csv_docs)
+        #         print(f"✅ Loaded {len(csv_docs)} documents from {csv_file.name}")
+        #     except Exception as e:
+        #         print(f"⚠️ Error loading {csv_file.name}: {e}")
+        # else:
+        #     print(f"⚠️  File not found: {csv_file}")
 
-        # 2. Load XLSX (tailieu_templates_AI.xlsx)
-        xlsx_file = data_path / "tailieu_templates_AI.xlsx"
+        # 2. Load XLSX — chỉ dùng 1 file `qnu-allITEM-*-chuan-hoa.xlsx`
+        new_xlsx = None
+        for candidate in sorted(data_path.glob("qnu-allITEM-*-chuan-hoa.xlsx")):
+            new_xlsx = candidate
+            break
+
+        legacy_xlsx = data_path / "tailieu_templates_AI.xlsx"
+
         xlsx_docs = []
-        if xlsx_file.exists():
-            try:
-                xlsx_docs = DocumentIndexer._load_xlsx(str(xlsx_file))
-                documents.extend(xlsx_docs)
-                print(f"✅ Loaded {len(xlsx_docs)} documents from {xlsx_file.name}")
-            except Exception as e:
-                print(f"⚠️ Error loading {xlsx_file.name}: {e}")
-        else:
-            print(f"⚠️  File not found: {xlsx_file}")
+        xlsx_source_name = None
 
-        # 3. Cross-reference: gán link từ CSV vào XLSX dựa trên tên sách
-        csv_link_map = {}
-        for doc in documents:
-            if 'csv' in doc.get('source', '') and doc.get('link'):
-                norm = normalize_text(doc['title'])
-                if norm and len(norm) > 5:
-                    csv_link_map[norm] = doc['link']
+        if new_xlsx is not None:
+            try:
+                xlsx_docs = DocumentIndexer._load_xlsx_marc(str(new_xlsx))
+                documents.extend(xlsx_docs)
+                xlsx_source_name = new_xlsx.name
+                print(f"✅ Loaded {len(xlsx_docs)} documents from {new_xlsx.name} (MARC structure, markdown text)")
+            except Exception as e:
+                print(f"⚠️ Error loading {new_xlsx.name}: {e}")
+        else:
+            print(f"⚠️  No qnu-allITEM-*-chuan-hoa.xlsx found in {data_path}")
+
+        # 3. Cross-reference: gán link từ CSV vào XLSX dựa trên tên sách (DISABLED khi không dùng CSV)
+        # csv_link_map = {}
+        # for doc in documents:
+        #     if 'csv' in doc.get('source', '') and doc.get('link'):
+        #         norm = normalize_text(doc['title'])
+        #         if norm and len(norm) > 5:
+        #             csv_link_map[norm] = doc['link']
 
         link_count = 0
         for doc in documents:
             if 'xlsx' in doc.get('source', '') and not doc.get('link'):
                 norm = normalize_text(doc['title'])
-                if norm in csv_link_map:
-                    doc['link'] = csv_link_map[norm]
-                    link_count += 1
-                else:
-                    for csv_norm, csv_link in csv_link_map.items():
-                        if len(csv_norm) > 10 and (csv_norm in norm or norm in csv_norm):
-                            doc['link'] = csv_link
-                            link_count += 1
-                            break
+                if not norm or len(norm) <= 5:
+                    continue
+                # if norm in csv_link_map:
+                #     doc['link'] = csv_link_map[norm]
+                #     link_count += 1
+                # else:
+                #     for csv_norm, csv_link in csv_link_map.items():
+                #         if len(csv_norm) > 10 and (csv_norm in norm or norm in csv_norm):
+                #             doc['link'] = csv_link
+                #             link_count += 1
+                #             break
+                # Fallback: nếu XLSX row đã có 856$u thì doc['link'] đã được set
+                pass
 
         if link_count:
             print(f"🔗 Cross-referenced {link_count} links from CSV to XLSX documents")
@@ -366,6 +427,253 @@ class DocumentIndexer:
 
         return documents
 
+    @staticmethod
+    def _parse_marc_subfields(value):
+        """Split a MARC value like '$aFoo :$bBar /$cBaz' into {'a': 'Foo :', 'b': 'Bar /', 'c': 'Baz'}."""
+        if not isinstance(value, str) or not value.strip():
+            return {}
+        parts = re.split(r'(\$[a-z])', value)
+        result = {}
+        current_key = None
+        for p in parts:
+            if not p:
+                continue
+            if re.match(r'^\$[a-z]$', p):
+                current_key = p[1]
+                result.setdefault(current_key, '')
+            elif current_key:
+                result[current_key] = (result[current_key] + ' ' + p).strip()
+        for k in result:
+            result[k] = re.sub(r'\s+', ' ', result[k]).strip(' ,;/:').strip()
+        return result
+
+    @staticmethod
+    def _doc_to_markdown(title, bilingual, subtitle, edition, author, co_authors,
+                         place, publisher, year, major, doc_type, course, abstract,
+                         keywords, locations):
+        """Convert parsed MARC fields into a single markdown block (used as searchable text).
+
+        245 (title), 246 (bilingual), 250 (edition) are grouped on the same heading line.
+        260 (publication), 291 (course), 526 (major + doc_type), 650 (keywords), 700 (author)
+        are kept as separate fields.
+        """
+        # ── Line 1: tiêu đề | tên song ngữ (nếu có) | lần xuất bản (nếu có) ──
+        heading_parts = []
+        if title:
+            heading_parts.append(f"## {title}")
+        if bilingual:
+            heading_parts.append(f"*Song ngữ: {bilingual}*")
+        if edition:
+            heading_parts.append(f"*Lần XB: {edition}*")
+        if heading_parts:
+            lines = [" | ".join(heading_parts), ""]
+        else:
+            lines = [""]
+        if author:
+            lines.append(f"**Tác giả:** {author}")
+        if co_authors:
+            lines.append(f"**Đồng tác giả:** {', '.join(co_authors)}")
+        if publisher:
+            lines.append(f"**Nhà xuất bản:** {publisher}")
+        if place:
+            lines.append(f"**Nơi xuất bản:** {place}")
+        if year:
+            lines.append(f"**Năm xuất bản:** {year}")
+        if doc_type:
+            lines.append(f"**Loại tài liệu:** {doc_type}")
+        if major:
+            lines.append(f"**Chuyên ngành:** {major}")
+        if course:
+            lines.append(f"**Học phần:** {course}")
+        if keywords:
+            lines.append(f"**Từ khóa:** {', '.join(keywords)}")
+        if locations:
+            lines.append("")
+            lines.append("### Vị trí & Mã kho")
+            for loc in locations:
+                lines.append(f"- {loc}")
+        if abstract:
+            lines.append("")
+            lines.append("### Tóm tắt")
+            lines.append(abstract)
+        return "\n".join(lines).strip()
+
+    @staticmethod
+    def _load_xlsx_marc(filepath):
+        """
+        Load documents from new XLSX file `qnu-allITEM-*-chuan-hoa.xlsx` (MARC structure).
+        Mỗi record → dict có title, author, year, publisher, place, edition, bilingual_title,
+        subtitle, major, doc_type, course, keywords, locations, link, text (markdown).
+        """
+        documents = []
+        df = pd.read_excel(filepath, header=0, dtype=str)
+
+        tag_cols = {str(c).strip(): c for c in df.columns if str(c).strip().isdigit()}
+        location_cols = [c for c in df.columns
+                         if not str(c).strip().isdigit() and str(c) != 'ItemId']
+
+        def _clean_str(v):
+            if pd.isna(v):
+                return ''
+            return re.sub(r'\s+', ' ', str(v)).strip()
+
+        def _split_list(v, sep=','):
+            if not v:
+                return []
+            return [s.strip() for s in re.split(r'[,;|]', v) if s.strip()]
+
+        for idx, row in df.iterrows():
+            try:
+                f100 = DocumentIndexer._parse_marc_subfields(_clean_str(row.get(tag_cols.get('100'))))
+                f245 = DocumentIndexer._parse_marc_subfields(_clean_str(row.get(tag_cols.get('245'))))
+                f246 = DocumentIndexer._parse_marc_subfields(_clean_str(row.get(tag_cols.get('246'))))
+                f250 = DocumentIndexer._parse_marc_subfields(_clean_str(row.get(tag_cols.get('250'))))
+                f260 = DocumentIndexer._parse_marc_subfields(_clean_str(row.get(tag_cols.get('260'))))
+                f291 = _clean_str(row.get(tag_cols.get('291')))
+                f520 = DocumentIndexer._parse_marc_subfields(_clean_str(row.get(tag_cols.get('520'))))
+                f526 = DocumentIndexer._parse_marc_subfields(_clean_str(row.get(tag_cols.get('526'))))
+                f650 = _clean_str(row.get(tag_cols.get('650')))
+                f700 = _clean_str(row.get(tag_cols.get('700')))
+                f856 = DocumentIndexer._parse_marc_subfields(_clean_str(row.get(tag_cols.get('856'))))
+
+                title = f245.get('a', '').strip(' :/')
+                subtitle = f245.get('b', '').strip(' :/')
+                bilingual = f246.get('a', '').strip(' :/')
+                edition = f250.get('a', '').strip(' :/')
+                author_245c = f245.get('c', '').strip(' :/')
+                place = f260.get('a', '').strip(' :/')
+                publisher = f260.get('b', '').strip(' ,/')
+                year = re.sub(r'\D', '', f260.get('c', ''))
+                major = f526.get('a', '').strip(' :/')
+                doc_type = f526.get('b', '').strip(' :/')
+                course = re.sub(r'^\$[a-z]\s*', '', f291).strip() if f291 else ''
+                abstract = f520.get('a', '').strip(' :/')
+                link = f856.get('u', '').strip()
+
+                # Authors: 100$a + 700$a + 245$c. Strip MARC prefix and role qualifiers.
+                # Each source may contain a single author OR multiple separated by ";" or "/" or newlines
+                f700_parsed = DocumentIndexer._parse_marc_subfields(f700)
+                author_candidates = []
+                for raw in [f100.get('a', ''), f700_parsed.get('a', ''), author_245c]:
+                    if not raw:
+                        continue
+                    # Authors are typically separated by ";" or "/" (but keep comma inside "Last, First")
+                    parts = re.split(r'[;/]|\sand\s', raw)
+                    for a in parts:
+                        a_clean = re.sub(r'^\$[a-z]\s*', '', a).strip(' :,').strip()
+                        # Strip role qualifiers in parens like (b.s.), (ch.b.), (bìa sách)
+                        a_clean = re.sub(r'\s*\([^)]{1,20}\)\s*$', '', a_clean).strip()
+                        # Strip trailing ", Jr." or "Jr"
+                        a_clean = re.sub(r',?\s*Jr\.?\s*$', '', a_clean, flags=re.IGNORECASE).strip()
+                        if a_clean and len(a_clean) > 1 and a_clean not in author_candidates:
+                            author_candidates.append(a_clean)
+                # Prefer full "Last, First" form; avoid "First" only or "Last" only
+                author = ''
+                co_authors = []
+                for cand in author_candidates:
+                    if ',' in cand and len(cand.split(',')) == 2:
+                        # Standard "Last, First" form
+                        if not author:
+                            author = cand
+                        else:
+                            co_authors.append(cand)
+                    elif not author:
+                        # First non-empty becomes primary if no comma form
+                        author = cand
+                    else:
+                        if cand not in co_authors:
+                            co_authors.append(cand)
+
+                keywords = []
+                for kw in _split_list(f650, sep=';'):
+                    kw_clean = re.sub(r'^\$[a-z]\s*', '', kw).strip()
+                    if kw_clean and kw_clean.lower() != 'nan' and kw_clean not in keywords:
+                        keywords.append(kw_clean)
+
+                locations = []
+                for col in location_cols:
+                    val = _clean_str(row.get(col))
+                    if val and val.lower() != 'nan':
+                        acc_numbers = _split_list(val)
+                        if acc_numbers:
+                            locations.append({
+                                'room': str(col).strip(),
+                                'accession_numbers': acc_numbers,
+                                'count': len(acc_numbers),
+                            })
+
+                if not title and not author:
+                    continue
+
+                loc_strings = []
+                for loc in locations:
+                    accs = ', '.join(loc['accession_numbers'][:5])
+                    if len(loc['accession_numbers']) > 5:
+                        accs += f" ... (+{len(loc['accession_numbers'])-5})"
+                    loc_strings.append(f"**{loc['room']}**: {accs} (tổng: {loc['count']})")
+
+                text = DocumentIndexer._doc_to_markdown(
+                    title=title,
+                    bilingual=bilingual,
+                    subtitle=subtitle,
+                    edition=edition,
+                    author=author,
+                    co_authors=co_authors,
+                    place=place,
+                    publisher=publisher,
+                    year=year,
+                    major=major,
+                    doc_type=doc_type,
+                    course=course,
+                    abstract=abstract,
+                    keywords=keywords,
+                    locations=loc_strings,
+                )
+
+                flat_parts = [title, subtitle, author, ' '.join(co_authors), publisher, place, year,
+                              edition, major, doc_type, course, ' '.join(keywords)]
+                flat_text = ' '.join(p for p in flat_parts if p)
+
+                location_display = ' ; '.join(
+                    f"{loc['room']}: {', '.join(loc['accession_numbers'][:3])}"
+                    f"{' ...' if loc['count'] > 3 else ''} (SL: {loc['count']})"
+                    for loc in locations
+                )
+
+                document = {
+                    'title': title,
+                    'author': author,
+                    'co_authors': co_authors,
+                    'authors': [author] + co_authors if author else co_authors,
+                    'year': year if year else 'N/A',
+                    'subject': (keywords[0] if keywords else ''),
+                    'link': link,
+                    'doc_type': doc_type if doc_type else 'Sách',
+                    'format': 'Sách',
+                    'publisher': publisher,
+                    'place': place,
+                    'edition': edition,
+                    'major': major,
+                    'bilingual_title': bilingual,
+                    'subtitle': subtitle,
+                    'course': course,
+                    'keywords': keywords,
+                    'abstract': abstract,
+                    'locations': locations,
+                    'location': location_display,
+                    'source': str(filepath),
+                    'csv_file': str(filepath),
+                    'text': text,
+                    'flat_text': flat_text,
+                }
+                documents.append(document)
+            except Exception as e:
+                if idx < 5:
+                    print(f"⚠️ Error parsing row {idx}: {e}")
+                continue
+
+        return documents
+
 
 class HybridSearchEngine:
     """Wrapper combining BM25 + regex + filtering"""
@@ -375,6 +683,10 @@ class HybridSearchEngine:
 
     def search_by_query(self, query, top_k=6):
         return self.bm25.search(query, top_k=top_k, use_regex=True)
+
+    def count_matching(self, query):
+        """Count ALL documents matching query (no top_k limit)."""
+        return self.bm25.count_matching(query, use_regex=True)
 
     def search_by_author(self, author, query, top_k=5):
         results = self.bm25.search(query, top_k=top_k*2)
@@ -396,6 +708,48 @@ class HybridSearchEngine:
         results = self.bm25.search(query, top_k=top_k*2)
 
         if filters:
+            try:
+                import json as _json
+                _tree_path = Path("Data") / "_khoa_nganh_tree.json"
+                with open(_tree_path, "r", encoding="utf-8") as _f:
+                    _tree = _json.load(_f) or []
+            except Exception:
+                _tree = []
+            _all_canonicals: set[str] = set()
+            for _fac in (_tree if isinstance(_tree, list) else []):
+                for _ng in (_fac.get("nganh") or []):
+                    _cn = normalize_text(_ng.get("nganh", ""))
+                    if _cn:
+                        _all_canonicals.add(_cn)
+            _ACCEPT_PREFIXES = (
+                "thac si ", "thac si ngành ", "ngành ",
+                "bo mon ", "cong nghe ", "cong nghe ky thuat ",
+            )
+
+            def _major_matches_filter(fmajor: str, doc_major: str) -> bool:
+                if not doc_major:
+                    return False
+                if fmajor == doc_major:
+                    return True
+                f_tokens = set(fmajor.split())
+                candidates = {fmajor}
+                for cn in _all_canonicals:
+                    if cn == fmajor:
+                        candidates.add(cn)
+                for c in candidates:
+                    if c and c in doc_major:
+                        return True
+                    if c and doc_major.startswith(c + " "):
+                        return True
+                    if c and doc_major.startswith(c + ","):
+                        return True
+                # Prefix variations
+                for c in candidates:
+                    for pfx in _ACCEPT_PREFIXES:
+                        if doc_major == (pfx.rstrip() + " " + c).strip():
+                            return True
+                return False
+
             for result in results[:]:
                 doc = result['doc']
 
@@ -410,6 +764,13 @@ class HybridSearchEngine:
                 if 'year' in filters:
                     doc_year = str(doc.get('year', ''))
                     if str(filters['year']) not in doc_year:
+                        results.remove(result)
+                        continue
+
+                if 'major' in filters and filters['major']:
+                    fmajor = normalize_text(filters['major']).strip()
+                    doc_major = normalize_text(str(doc.get('major', '')))
+                    if not _major_matches_filter(fmajor, doc_major):
                         results.remove(result)
                         continue
 

@@ -1,0 +1,31 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start uvicorn backend",
+			"type": "shell",
+			"command": "uvicorn app:app --host 127.0.0.1 --port 8000",
+			"args": [
+				"--reload",
+				"--host",
+				"127.0.0.1",
+				"--port",
+				"8000"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "Start uvicorn backend (python -m)",
+			"type": "shell",
+			"command": "python -m uvicorn app:app --host 127.0.0.1 --port 8000",
+			"args": [
+				"app:app",
+				"--host",
+				"127.0.0.1",
+				"--port",
+				"8000"
+			],
+			"isBackground": true
+		}
+	]
+}

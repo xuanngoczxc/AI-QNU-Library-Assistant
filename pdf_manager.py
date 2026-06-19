@@ -4,14 +4,38 @@ pdf_manager.py — Quản lý PDF: metadata, chapters, preview
 
 import os
 import json
+import threading
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 
+# ── MarkItDown (Microsoft) — đọc nội dung chất lượng cao ──
+try:
+    from markitdown import MarkItDown
+    _markitdown = MarkItDown()
+except ImportError:
+    _markitdown = None
+
+# ── pypdf (fallback / metadata / outline) ────────────────
 try:
     from pypdf import PdfReader
 except ImportError:
     PdfReader = None
+
+# ── OCR (Giai đoạn 3) — fallback cho PDF scan ────────────
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+    _ocr_available = True
+except ImportError:
+    _ocr_available = False
+    pytesseract = None
+    convert_from_path = None
+
+# Tesseract command path trên Windows
+_TESSERACT_CMD = os.getenv("TESSERACT_CMD", "").strip()
+if _TESSERACT_CMD and pytesseract:
+    pytesseract.pytesseract.tesseract_cmd = _TESSERACT_CMD
 
 
 class PDFManager:
@@ -22,11 +46,20 @@ class PDFManager:
         self.cache_file = cache_file
         self.pdf_cache = self._load_cache()
         
+        # MarkItDown text cache: {file_path: markdown_text}
+        self._md_text_cache: dict[str, str] = {}
+
+        # OCR cache: {file_path: {page_num: ocr_text}}
+        self._ocr_cache: dict[str, dict[int, str]] = {}
+        self._ocr_cache_lock = threading.Lock()
+        
         # Đảm bảo thư mục pdfs tồn tại
         self.pdf_dir.mkdir(exist_ok=True)
     
     def list_all_pdfs(self) -> List[Dict]:
         """Liệt kê tất cả PDF với metadata"""
+        # Xoá MarkItDown cache khi danh sách file thay đổi
+        self._md_text_cache.clear()
         pdfs = []
         
         if not self.pdf_dir.exists():
@@ -229,25 +262,74 @@ class PDFManager:
         except:
             return []
     
+    def _load_markitdown_text(self, pdf_path: str) -> str | None:
+        """Đọc toàn bộ PDF bằng MarkItDown, cache kết quả."""
+        if pdf_path in self._md_text_cache:
+            return self._md_text_cache[pdf_path]
+        
+        if not _markitdown:
+            return None
+        
+        try:
+            result = _markitdown.convert(pdf_path)
+            text = (result.text_content or "").strip()
+            if text:
+                self._md_text_cache[pdf_path] = text
+            return text or None
+        except Exception as e:
+            print(f"  ⚠️ MarkItDown error for {Path(pdf_path).name}: {e}")
+            return None
+    
     def get_chapter_text(self, pdf_path: str, start_page: int, end_page: int) -> str:
-        """Trích xuất văn bản từ một chương cụ thể"""
+        """
+        Trích xuất nội dung từ PDF.
+        Ưu tiên dùng MarkItDown (Markdown chất lượng cao).
+        Fallback sang pypdf nếu cần đọc theo trang cụ thể.
+        """
+        # Nếu đọc toàn bộ hoặc 1 khoảng lớn → dùng MarkItDown
+        is_full_read = (end_page - start_page) >= 3 or end_page >= 9999
+        
+        # Thử MarkItDown trước
+        md_text = self._load_markitdown_text(pdf_path)
+        if md_text:
+            if is_full_read:
+                # MarkItDown trả về toàn bộ Markdown
+                return md_text
+            else:
+                # Đọc 1-2 trang cụ thể → thử pypdf trước (chính xác theo trang)
+                if PdfReader:
+                    try:
+                        with open(pdf_path, 'rb') as f:
+                            reader = PdfReader(f)
+                            text = ""
+                            for page_num in range(max(0, start_page), min(end_page, len(reader.pages))):
+                                try:
+                                    page = reader.pages[page_num]
+                                    text += page.extract_text() + "\n"
+                                except:
+                                    text += f"[Trang {page_num + 1}: Không thể trích xuất]\n"
+                            if text.strip():
+                                return text
+                    except:
+                        pass
+                # Fallback: trả về MarkItDown full text
+                return md_text
+        
+        # Fallback: pypdf
         if not PdfReader:
-            return "[pypdf not available - cannot extract text]"
+            return "[MarkItDown và pypdf đều không khả dụng]"
         
         try:
             with open(pdf_path, 'rb') as f:
                 reader = PdfReader(f)
                 text = ""
-                
                 for page_num in range(max(0, start_page), min(end_page, len(reader.pages))):
                     try:
                         page = reader.pages[page_num]
                         text += page.extract_text() + "\n"
                     except:
                         text += f"[Trang {page_num + 1}: Không thể trích xuất]\n"
-                
                 return text if text.strip() else "[Không có nội dung]"
-        
         except Exception as e:
             print(f"Lỗi trích xuất text từ PDF: {e}")
             return f"[Lỗi: {str(e)}]"
@@ -344,3 +426,129 @@ class PDFManager:
                 json.dump(self.pdf_cache, f, indent=2, ensure_ascii=False)
         except Exception as e:
             print(f"Lỗi lưu cache: {e}")
+
+    # ═══════════════════════════════════════════════════════
+    # Giai đoạn 3 — OCR cho PDF scan
+    # ═══════════════════════════════════════════════════════
+
+    def is_scanned_pdf(self, pdf_path: str, sample_pages: int = 3) -> bool:
+        """
+        Heuristic: PDF scan = text extraction trả về rất ít text.
+        Kiểm tra vài trang đầu; nếu tất cả < 50 chars → có thể là scan.
+        """
+        if not PdfReader:
+            return False
+
+        try:
+            with open(pdf_path, 'rb') as f:
+                reader = PdfReader(f)
+                total = min(sample_pages, len(reader.pages))
+                if total == 0:
+                    return False
+                low_text_pages = 0
+                for i in range(total):
+                    try:
+                        t = (reader.pages[i].extract_text() or "").strip()
+                        if len(t) < 50:
+                            low_text_pages += 1
+                    except Exception:
+                        low_text_pages += 1
+                # ≥ 2/3 trang đầu rỗng → coi như scan
+                return low_text_pages >= max(1, int(total * 0.66))
+        except Exception:
+            return False
+
+    def _ocr_page(self, pdf_path: str, page_num: int, lang: str = "vie+eng") -> str:
+        """OCR 1 trang PDF cụ thể bằng Tesseract. Có cache."""
+        if not _ocr_available:
+            return ""
+
+        cache_key = (pdf_path, page_num)
+        with self._ocr_cache_lock:
+            if pdf_path in self._ocr_cache and page_num in self._ocr_cache[pdf_path]:
+                return self._ocr_cache[pdf_path][page_num]
+
+        try:
+            images = convert_from_path(
+                pdf_path,
+                dpi=200,
+                first_page=page_num + 1,
+                last_page=page_num + 1,
+            )
+            if not images:
+                return ""
+            text = pytesseract.image_to_string(images[0], lang=lang) or ""
+            text = text.strip()
+        except Exception as e:
+            print(f"  ⚠️ OCR error page {page_num + 1} of {Path(pdf_path).name}: {e}")
+            text = ""
+
+        with self._ocr_cache_lock:
+            self._ocr_cache.setdefault(pdf_path, {})[page_num] = text
+        return text
+
+    def get_chapter_text_with_ocr_fallback(
+        self, pdf_path: str, start_page: int, end_page: int, lang: str = "vie+eng"
+    ) -> Dict:
+        """
+        Đọc PDF với fallback OCR:
+        1. Thử MarkItDown (markdown chất lượng cao)
+        2. Nếu rỗng/ngắn → thử pypdf theo trang
+        3. Nếu vẫn rỗng → OCR bằng Tesseract
+
+        Returns: dict với text, method (markitdown/pypdf/ocr), scanned (bool)
+        """
+        # 1. MarkItDown
+        md_text = self._load_markitdown_text(pdf_path) or ""
+        if md_text and len(md_text.strip()) >= 50:
+            return {"text": md_text, "method": "markitdown", "scanned": False}
+
+        # 2. pypdf
+        pypdf_text = ""
+        if PdfReader:
+            try:
+                with open(pdf_path, "rb") as f:
+                    reader = PdfReader(f)
+                    for p in range(max(0, start_page), min(end_page, len(reader.pages))):
+                        try:
+                            pypdf_text += (reader.pages[p].extract_text() or "") + "\n"
+                        except Exception:
+                            pypdf_text += f"[Trang {p + 1}: lỗi trích xuất]\n"
+            except Exception:
+                pass
+
+        if pypdf_text.strip() and len(pypdf_text.strip()) >= 50:
+            return {"text": pypdf_text, "method": "pypdf", "scanned": False}
+
+        # 3. OCR fallback
+        if not _ocr_available:
+            return {
+                "text": pypdf_text or "[PDF scan — text rỗng. Cài pytesseract + pdf2image + Tesseract OCR để đọc.]",
+                "method": "none",
+                "scanned": True,
+            }
+
+        scanned = self.is_scanned_pdf(pdf_path)
+        if not scanned:
+            scanned = True  # text rỗng → fallback là scan
+
+        ocr_texts = []
+        for p in range(max(0, start_page), min(end_page, self.get_page_count(pdf_path) or end_page)):
+            ocr_texts.append(self._ocr_page(pdf_path, p, lang=lang))
+        ocr_text = "\n\n".join([t for t in ocr_texts if t])
+
+        return {
+            "text": ocr_text or "[OCR không trích xuất được text]",
+            "method": "ocr",
+            "scanned": scanned,
+        }
+
+    def get_page_count(self, pdf_path: str) -> int:
+        """Số trang PDF, fallback 0 nếu lỗi."""
+        if not PdfReader:
+            return 0
+        try:
+            with open(pdf_path, "rb") as f:
+                return len(PdfReader(f).pages)
+        except Exception:
+            return 0
