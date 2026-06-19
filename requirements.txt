@@ -1,0 +1,36 @@
+# Web Framework
+fastapi
+starlette
+
+# ASGI server for production
+uvicorn
+
+# Data Processing
+pandas
+openpyxl
+pydantic
+
+# PDF Processing
+markitdown[pdf]>=0.1.6
+pypdf>=3.0
+
+# Utilities
+python-dotenv
+requests
+numpy
+typing-extensions
+python-multipart
+
+# Giai đoạn 3 — OCR (PDF scan)
+pytesseract
+pdf2image
+
+# Giai đoạn 3 — Semantic search (multilingual)
+# Cài riêng vì torch rất nặng:
+#   pip install sentence-transformers torch --index-url https://download.pytorch.org/whl/cpu
+# (Comment out nếu không dùng để giữ image nhỏ)
+
+# Giai đoạn 3 — Voice input (Whisper)
+# Cài riêng:
+#   pip install faster-whisper
+# (Comment out nếu không dùng)

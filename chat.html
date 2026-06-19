@@ -1,0 +1,2431 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tra cứu Sách – Thư viện QNU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#F0F4F8;
+      --surface:#FFFFFF;
+      --surface-hover:#F8FAFD;
+      --border:#DCE4EC;
+      --border-light:#E8EEF4;
+      --text-primary:#1A2A3A;
+      --text-secondary:#4A5B6E;
+      --text-tertiary:#8A9BAE;
+      --accent:#2E6B8A;
+      --accent-hover:#3D7FA0;
+      --accent-soft:#E6F0F6;
+      --accent-muted:#CDE0EB;
+      --accent-warm:#C17B4E;
+      --accent-warm-light:#F5EDE6;
+      --pastel-blue:#D6E8F5;
+      --pastel-green:#D4EDDA;
+      --pastel-green-text:#2D6B3F;
+      --pastel-yellow:#FDF0D5;
+      --pastel-yellow-text:#8A6E1F;
+      --pastel-red:#F8DDDD;
+      --pastel-red-text:#9E3A3A;
+      --shadow-card:0 1px 3px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.02);
+      --shadow-elevated:0 8px 25px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
+      --font-sans:'Outfit', 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-serif:'Fraunces', 'Instrument Serif', Georgia, serif;
+      --radius-sm:8px;
+      --radius-md:12px;
+      --radius-lg:20px;
+      --radius-xl:28px;
+      --transition:200ms cubic-bezier(0.16,1,0.3,1);
+      --transition-slow:500ms cubic-bezier(0.16,1,0.3,1);
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{
+      font-family:var(--font-sans);
+      font-weight:400;
+      background:var(--bg);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:12px;
+      color:var(--text-primary);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .shell{
+      width:100%;max-width:1440px;height:calc(100vh - 24px);
+      display:flex;border-radius:var(--radius-lg);
+      overflow:hidden;
+      box-shadow:var(--shadow-elevated);
+      background:var(--surface);
+      border:1px solid var(--border);
+    }
+    /* ── Sidebar ── */
+    .sidebar{
+      width:320px;flex-shrink:0;
+      background:var(--text-primary);
+      display:flex;flex-direction:column;
+      padding:20px 14px;min-height:0;overflow:hidden;
+    }
+    .sidebar-scroll{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding-bottom:4px;}
+    .sidebar-scroll::-webkit-scrollbar{width:3px;}
+    .sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px;}
+    .sidebar-sticky{flex-shrink:0;padding-top:12px;margin-top:auto;border-top:1px solid rgba(255,255,255,0.08);}
+    .brand{
+      display:flex;align-items:center;gap:12px;
+      padding-bottom:16px;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+    }
+    .brand-mark{
+      width:40px;height:40px;
+      background:var(--surface);
+      border-radius:var(--radius-sm);
+      display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;padding:4px;
+    }
+    .brand-logo{width:100%;height:100%;object-fit:contain;border-radius:4px;display:block;}
+    .brand-text h1{font-size:15px;font-weight:700;color:#fff;line-height:1.3;letter-spacing:-0.01em;}
+    .brand-text p{font-size:11px;color:rgba(255,255,255,0.45);margin-top:2px;font-weight:400;}
+    .new-chat-btn{
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      padding:10px 16px;
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.1);
+      border-radius:var(--radius-sm);
+      color:#fff;font-size:13px;font-weight:600;
+      cursor:pointer;
+      transition:var(--transition);
+      letter-spacing:-0.01em;
+    }
+    .new-chat-btn:hover{background:rgba(255,255,255,0.13);border-color:rgba(255,255,255,0.18);}
+    .new-chat-btn:active{transform:scale(0.98);}
+    .new-chat-btn svg{width:16px;height:16px;flex-shrink:0;}
+    .section-title{
+      font-size:10.5px;font-weight:700;letter-spacing:0.08em;
+      text-transform:uppercase;color:rgba(255,255,255,0.45);
+      margin-top:14px;margin-bottom:8px;padding:0 4px;
+    }
+    .section-card{border:none;padding:0;background:transparent;}
+    .chips{display:flex;flex-direction:column;gap:4px;}
+    .chip{
+      padding:8px 10px;
+      background:rgba(255,255,255,0.05);
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:var(--radius-sm);
+      color:rgba(255,255,255,0.75);
+      font-size:12px;line-height:1.4;font-weight:500;
+      cursor:pointer;text-align:left;
+      transition:var(--transition);
+    }
+    .chip:hover{background:rgba(255,255,255,0.1);color:#fff;}
+    .chip:active{transform:scale(0.98);}
+    /* Faculty tree */
+    /* Faculty tree — không đặt overflow ở đây; cha .sidebar-scroll mới là vùng cuộn duy nhất */
+    .faculty-tree{display:flex;flex-direction:column;gap:4px;min-height:240px;padding-right:4px;}
+    .faculty-tree-loading{font-size:11px;color:rgba(255,255,255,0.45);padding:6px 4px;}
+    .faculty-group{border:1px solid rgba(255,255,255,0.06);border-radius:var(--radius-sm);overflow:hidden;background:rgba(255,255,255,0.015);}
+    .faculty-header{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;
+      padding:9px 11px;cursor:pointer;
+      background:rgba(255,255,255,0.04);
+      color:rgba(255,255,255,0.85);
+      font-size:12.5px;font-weight:600;letter-spacing:0.01em;
+      transition:var(--transition);
+      border:none;width:100%;text-align:left;font-family:inherit;
+    }
+    .faculty-header:hover{background:rgba(255,255,255,0.09);color:#fff;}
+    .faculty-header.open{background:rgba(46,107,138,0.25);color:#fff;border-bottom:1px solid rgba(255,255,255,0.05);}
+    .faculty-chevron{width:12px;height:12px;flex-shrink:0;opacity:0.55;transition:transform var(--transition);}
+    .faculty-header.open .faculty-chevron{transform:rotate(180deg);opacity:0.95;}
+    .faculty-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .faculty-total{
+      font-size:10px;font-weight:500;color:rgba(255,255,255,0.4);
+      background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:8px;flex-shrink:0;
+    }
+    .faculty-children{display:none;flex-direction:column;background:rgba(0,0,0,0.22);}
+    .faculty-group.open .faculty-children{display:flex;}
+    .faculty-row{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;
+      padding:7px 11px 7px 26px;
+      color:rgba(255,255,255,0.75);font-size:12px;font-weight:400;
+      background:transparent;border:none;width:100%;text-align:left;cursor:pointer;
+      transition:var(--transition);font-family:inherit;
+      border-top:1px solid rgba(255,255,255,0.04);
+    }
+    .faculty-row:hover{background:rgba(46,107,138,0.15);color:#fff;}
+    .faculty-row.active{background:rgba(46,107,138,0.38);color:#fff;font-weight:500;}
+    .faculty-row .dot{width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.35);flex-shrink:0;}
+    .faculty-row .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .faculty-row .count{
+      font-size:10px;font-weight:500;color:rgba(255,255,255,0.45);flex-shrink:0;
+      background:rgba(255,255,255,0.04);padding:0 5px;border-radius:6px;min-width:18px;text-align:center;
+    }
+    .faculty-row.active .count{background:rgba(255,255,255,0.18);color:#fff;}
+    .faculty-clear{
+      display:none;align-items:center;justify-content:space-between;gap:6px;
+      padding:6px 9px;margin-top:4px;
+      background:rgba(193,123,78,0.12);
+      border:1px solid rgba(193,123,78,0.25);
+      color:var(--accent-warm);font-size:11px;font-weight:600;
+      border-radius:var(--radius-sm);cursor:pointer;
+      transition:var(--transition);font-family:inherit;
+    }
+    .faculty-clear.show{display:flex;}
+    .faculty-clear:hover{background:rgba(193,123,78,0.18);color:#fff;}
+    .status-panel{display:none;}
+    .status-dot{width:6px;height:6px;border-radius:50%;background:var(--pastel-green);display:inline-block;margin-right:6px;}
+    .status-dot.error{background:var(--pastel-red-text);}
+    .status-dot.loading{background:var(--pastel-yellow-text);animation:pulse 1s infinite;}
+    .status-text{font-size:11px;color:rgba(255,255,255,0.45);}
+    .book-count{font-size:11px;color:rgba(255,255,255,0.35);font-weight:500;}
+    /* PDF list */
+    .pdf-list{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;}
+    .pdf-list::-webkit-scrollbar{width:3px;}
+    .pdf-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px;}
+    .pdf-item{
+      padding:8px 10px;
+      background:rgba(255,255,255,0.04);
+      border:1px solid rgba(255,255,255,0.06);
+      border-radius:var(--radius-sm);
+      color:rgba(255,255,255,0.8);
+      font-size:12px;cursor:pointer;
+      transition:var(--transition);
+    }
+    .pdf-item:hover{background:rgba(255,255,255,0.09);}
+    .pdf-item.active{background:rgba(255,255,255,0.95);color:var(--text-primary);}
+    .pdf-item-row{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;}
+    .pdf-item-title{font-weight:600;line-height:1.3;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+    .pdf-item-subtitle{margin-top:2px;font-size:10px;color:rgba(255,255,255,0.5);}
+    .pdf-item.active .pdf-item-subtitle{color:var(--text-tertiary);}
+    .pdf-delete-btn{
+      display:none;align-items:center;justify-content:center;
+      width:22px;height:22px;flex-shrink:0;
+      border:1px solid rgba(255,255,255,0.1);
+      border-radius:6px;background:rgba(255,255,255,0.06);
+      color:rgba(255,255,255,0.55);cursor:pointer;
+      transition:var(--transition);
+    }
+    .pdf-delete-btn:hover{background:var(--pastel-red);border-color:var(--pastel-red);color:var(--pastel-red-text);}
+    .pdf-item.active .pdf-delete-btn{border-color:var(--border);background:var(--surface);color:var(--text-tertiary);}
+    .pdf-item.active .pdf-delete-btn:hover{background:var(--pastel-red);border-color:var(--pastel-red);color:var(--pastel-red-text);}
+    .admin-active .pdf-delete-btn{display:flex;}
+    /* Ẩn phần PDF section mặc định; chỉ hiện khi admin đã login */
+    .pdf-section{display:none;}
+    .pdf-section-title{display:none;}
+    .sidebar.show-pdf .pdf-section{display:flex;}
+    .sidebar.show-pdf .pdf-section-title{display:block;}
+
+    /* ── Admin Section ── */
+    .admin-section{padding:0;}
+    .admin-login-row{display:flex;gap:4px;}
+    .admin-input{flex:1;padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;font-size:12px;outline:none;transition:var(--transition);font-family:var(--font-sans);}
+    .admin-input::placeholder{color:rgba(255,255,255,0.35);}
+    .admin-input:focus{border-color:var(--accent-warm);background:rgba(255,255,255,0.09);}
+    .admin-btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.08);color:#fff;font-size:11px;font-weight:600;cursor:pointer;transition:var(--transition);white-space:nowrap;font-family:var(--font-sans);letter-spacing:-0.01em;}
+    .admin-btn:hover{background:rgba(255,255,255,0.14);border-color:rgba(255,255,255,0.2);}
+    .admin-btn:active{transform:scale(0.97);}
+    .admin-btn.primary{background:var(--accent-warm);border-color:var(--accent-warm);color:#fff;}
+    .admin-btn.primary:hover{background:#7a5f44;border-color:#7a5f44;}
+    .admin-btn.small{padding:4px 8px;font-size:10px;background:transparent;border:none;color:rgba(255,255,255,0.35);}
+    .admin-btn.small:hover{color:rgba(255,255,255,0.7);background:transparent;}
+    .admin-upload-area{display:none;margin-top:6px;padding:8px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px dashed rgba(255,255,255,0.1);}
+    .admin-upload-btn{width:100%;padding:8px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);font-size:11px;font-weight:600;cursor:pointer;transition:var(--transition);font-family:var(--font-sans);}
+    .admin-upload-btn:hover{background:rgba(255,255,255,0.1);color:#fff;}
+    .admin-upload-btn:active{transform:scale(0.98);}
+    .admin-msg{font-size:10px;color:var(--pastel-green);margin-top:4px;min-height:14px;}
+    .admin-msg.error{color:var(--pastel-red-text);}
+    .admin-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;margin-bottom:4px;}
+
+    /* ── Chat Panel ── */
+    .chat-panel{
+      flex:1;display:flex;flex-direction:column;
+      background:var(--surface);overflow:hidden;
+    }
+    .chat-header{
+      padding:16px 24px;
+      border-bottom:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;
+      background:var(--surface);
+    }
+    .chat-header-left .eyebrow{
+      font-size:10px;color:var(--text-tertiary);
+      letter-spacing:0.04em;text-transform:uppercase;font-weight:600;
+    }
+    .chat-header-left h2{
+      font-size:20px;color:var(--text-primary);
+      margin-top:1px;font-weight:700;letter-spacing:-0.02em;
+    }
+    .clear-btn{
+      width:32px;height:32px;border-radius:var(--radius-sm);
+      border:1px solid var(--border);background:transparent;
+      cursor:pointer;font-size:18px;color:var(--text-tertiary);
+      display:flex;align-items:center;justify-content:center;
+      transition:var(--transition);font-family:var(--font-sans);
+    }
+    .clear-btn:hover{background:var(--accent-soft);color:var(--text-primary);}
+    .clear-btn:active{transform:scale(0.95);}
+
+    /* ── Messages ── */
+    .messages{
+      flex:1;overflow-y:auto;padding:20px 24px;
+      display:flex;flex-direction:column;gap:16px;
+      scroll-behavior:smooth;
+      background:var(--bg);
+    }
+    .messages::-webkit-scrollbar{width:4px;}
+    .messages::-webkit-scrollbar-track{background:transparent;}
+    .messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+    .msg{
+      display:flex;gap:12px;
+      animation:fadeSlideIn 0.4s cubic-bezier(0.16,1,0.3,1);
+      animation-fill-mode:both;
+    }
+    .msg.user{flex-direction:row-reverse;}
+    .avatar{
+      width:34px;height:34px;
+      border-radius:var(--radius-sm);
+      display:flex;align-items:center;justify-content:center;
+      font-size:16px;flex-shrink:0;
+      box-shadow:var(--shadow-card);
+    }
+    .msg.bot .avatar{background:var(--pastel-blue);}
+    .msg.user .avatar{background:var(--accent);color:#fff;}
+    .bubble{
+      max-width:74%;
+      padding:12px 16px;
+      border-radius:var(--radius-md);
+      font-size:13.5px;line-height:1.65;
+      word-wrap:break-word;overflow-x:auto;
+      letter-spacing:-0.005em;
+    }
+    .msg.bot .bubble{
+      background:var(--surface);
+      color:var(--text-primary);
+      border:1px solid var(--border);
+      border-bottom-left-radius:4px;
+      box-shadow:var(--shadow-card);
+    }
+    .msg.user .bubble{
+      background:var(--accent);
+      color:#fff;
+      border-bottom-right-radius:4px;
+    }
+    .bubble .cursor{
+      display:inline-block;width:2px;height:1em;
+      background:var(--accent);margin-left:2px;
+      animation:blink 0.8s infinite;vertical-align:text-bottom;
+    }
+    .msg.user .bubble .cursor{background:rgba(255,255,255,0.8);}
+
+    /* ── Book Cards (taste-skill: Double-Bezel + Bento) ── */
+    .book-card{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius-md);
+      padding:16px 18px;
+      margin:10px 0;
+      font-size:13px;
+      transition:var(--transition);
+      box-shadow:var(--shadow-card);
+      min-width:0;
+      overflow:hidden;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+    .book-card:hover{
+      border-color:var(--text-tertiary);
+      box-shadow:var(--shadow-elevated);
+      transform:translateY(-1px);
+    }
+    .book-card.pdf-source{cursor:pointer;}
+    .book-card.pdf-source:hover{border-color:var(--accent);}
+    .source-pdf-badge{
+      display:inline-flex;align-items:center;gap:4px;
+      margin-bottom:6px;padding:3px 8px;
+      border:1px solid var(--accent-muted);
+      border-radius:999px;
+      background:var(--accent-soft);
+      color:var(--accent);
+      font-size:10.5px;font-weight:700;
+    }
+    .book-card .book-title{
+      font-weight:600;color:var(--text-primary);
+      margin-bottom:4px;font-size:14px;letter-spacing:-0.01em;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+    .book-field{
+      font-size:12px;
+      color:var(--text-secondary);
+      line-height:1.35;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      white-space:normal;
+      min-width:0;
+    }
+    .more-grid .book-field{font-size:11px;}
+    .source-attach-btn{
+      display:inline-flex;align-items:center;gap:4px;
+      margin-top:8px;padding:4px 9px;
+      border:1px solid var(--border);
+      border-radius:var(--radius-sm);
+      background:var(--accent-soft);
+      color:var(--accent);
+      font-size:11px;font-weight:600;
+      cursor:pointer;
+      font-family:var(--font-sans);
+      transition:var(--transition);
+    }
+    .source-attach-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .book-card .book-meta{color:var(--text-secondary);font-size:12px;margin-bottom:4px;}
+    .book-card a{
+      color:#fff;font-size:12px;text-decoration:none;
+      display:inline-flex;align-items:center;gap:4px;
+      background:var(--accent);padding:6px 12px;
+      border-radius:var(--radius-sm);font-weight:600;
+      transition:var(--transition);letter-spacing:-0.01em;
+    }
+    .book-card a:hover{background:var(--accent-hover);}
+    .book-card a:active{transform:scale(0.97);}
+
+    /* ── Composer ── */
+    .composer{
+      position:relative;
+      padding:12px 24px 16px;
+      border-top:1px solid var(--border);
+      display:flex;gap:10px;align-items:flex-end;
+      background:var(--surface);
+    }
+    .composer textarea{
+      flex:1;
+      padding:10px 14px;
+      border:1.5px solid var(--border);
+      border-radius:var(--radius-sm);
+      font-size:13.5px;font-family:var(--font-sans);
+      color:var(--text-primary);resize:none;outline:none;
+      min-height:42px;max-height:120px;line-height:1.5;
+      transition:var(--transition);background:var(--bg);
+    }
+    .composer textarea:focus{border-color:var(--accent);background:var(--surface);}
+    .composer textarea::placeholder{color:var(--text-tertiary);}
+    .send-btn{
+      padding:10px 22px;height:42px;
+      background:var(--accent);color:#fff;
+      border:none;border-radius:var(--radius-sm);
+      font-size:13px;font-weight:700;font-family:var(--font-sans);
+      cursor:pointer;flex-shrink:0;
+      transition:var(--transition);letter-spacing:-0.01em;
+    }
+    .send-btn:hover{background:var(--accent-hover);}
+    .send-btn:active{transform:scale(0.97);}
+    .send-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
+
+    /* ── Mic (voice) button ── */
+    .mic-btn{
+      padding:10px;height:42px;width:42px;
+      background:var(--bg);color:var(--text-secondary);
+      border:1px solid var(--border);border-radius:var(--radius-sm);
+      cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+      transition:var(--transition);
+    }
+    .mic-btn:hover{background:var(--surface);color:var(--accent);border-color:var(--accent);}
+    .mic-btn.recording{
+      background:#ef4444;color:#fff;border-color:#ef4444;
+      animation:pulse-mic 1.4s ease-in-out infinite;
+    }
+    .mic-btn:disabled{opacity:0.4;cursor:not-allowed;}
+    @keyframes pulse-mic{
+      0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5);}
+      50%{box-shadow:0 0 0 8px rgba(239,68,68,0);}
+    }
+    .mic-hint{
+      position:absolute;bottom:60px;left:50%;transform:translateX(-50%);
+      background:rgba(0,0,0,0.85);color:#fff;padding:6px 12px;border-radius:6px;
+      font-size:12px;white-space:nowrap;opacity:0;pointer-events:none;
+      transition:opacity 0.2s;z-index:10;
+    }
+    .mic-hint.show{opacity:1;}
+    /* (mic CSS is inside the .composer block above for clarity) */
+    /* (duplicate .composer{position:relative} removed; see main .composer block) */
+
+    /* ── Typing ── */
+    .typing-indicator{display:flex;gap:5px;align-items:center;padding:6px 0;}
+    .typing-indicator span{
+      width:8px;height:8px;border-radius:50%;
+      background:var(--text-tertiary);
+      animation:bounce 1s infinite ease-in-out;
+    }
+    .typing-indicator span:nth-child(2){animation-delay:0.12s;}
+    .typing-indicator span:nth-child(3){animation-delay:0.24s;}
+
+    /* ── More Section ── */
+    .more-section{border-top:1px solid var(--border);background:var(--surface);}
+    .more-toggle{
+      width:100%;padding:14px 24px;
+      background:var(--bg);border:none;
+      font-size:13px;font-weight:600;font-family:var(--font-sans);
+      color:var(--text-secondary);cursor:pointer;
+      display:flex;align-items:center;gap:8px;
+      transition:var(--transition);letter-spacing:-0.01em;
+    }
+    .more-toggle:hover{background:var(--border-light);color:var(--text-primary);}
+    .more-body{display:none;max-height:420px;overflow-y:auto;padding:16px 24px 20px;}
+    .more-body.open{display:block;}
+    .more-search-row{padding-bottom:12px;}
+    .more-search{
+      width:100%;padding:10px 14px;
+      border:1.5px solid var(--border);
+      border-radius:var(--radius-sm);font-size:13px;font-family:var(--font-sans);
+      outline:none;color:var(--text-primary);background:var(--bg);
+      transition:var(--transition);
+    }
+    .more-search:focus{border-color:var(--accent);background:var(--surface);}
+    .more-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:12px;min-width:0;}
+    .more-grid .book-card{margin:0;font-size:12.5px;padding:14px 16px;}
+    .more-grid .book-card .book-title{font-size:13.5px;}
+    .more-loading{font-size:13px;color:var(--text-tertiary);padding:24px;text-align:center;}
+    .more-pagination{display:flex;align-items:center;justify-content:center;gap:8px;padding-top:16px;}
+    .more-pagination button{
+      padding:7px 14px;border:1px solid var(--border);
+      border-radius:var(--radius-sm);background:var(--surface);
+      font-size:12px;font-family:var(--font-sans);
+      color:var(--text-secondary);cursor:pointer;font-weight:600;
+      transition:var(--transition);
+    }
+    .more-pagination button:hover{background:var(--accent-soft);color:var(--text-primary);}
+    .more-pagination button:disabled{opacity:0.4;cursor:default;}
+    .more-pagination span{font-size:12px;color:var(--text-tertiary);font-weight:500;}
+
+    /* ── Animations ── */
+    @keyframes fadeSlideIn{
+      from{opacity:0;transform:translateY(10px);}
+      to{opacity:1;transform:none;}
+    }
+    @keyframes bounce{
+      0%,60%,100%{transform:translateY(0);}
+      30%{transform:translateY(-8px);}
+    }
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+    /* ── Highlight ── */
+    strong{color:var(--text-primary);font-weight:700;}
+    .bubble p{margin:0 0 8px;}
+    .bubble p:last-child{margin-bottom:0;}
+    .bubble .answer-heading{
+      margin-top:12px;
+      margin-bottom:4px;
+      font-size:14px;
+      line-height:1.45;
+    }
+    .bubble ul,.bubble ol{margin:7px 0 10px 18px;padding-left:14px;}
+    .bubble li{margin:4px 0;padding-left:2px;}
+    .bubble li::marker{color:var(--accent);font-weight:700;}
+
+    /* ── Follow-up Suggestions ── */
+    .follow-up-chips{
+      display:flex;flex-wrap:wrap;gap:8px;
+      margin-top:10px;
+    }
+    .follow-up-chip{
+      padding:7px 14px;
+      background:var(--accent-soft);
+      border:1px solid var(--border);
+      border-radius:var(--radius-xl);
+      color:var(--accent);
+      font-size:12.5px;font-weight:600;
+      cursor:pointer;
+      font-family:var(--font-sans);
+      transition:var(--transition);
+      letter-spacing:-0.01em;
+      white-space:nowrap;
+    }
+    .follow-up-chip:hover{
+      background:var(--accent);border-color:var(--accent);
+      color:#fff;
+      transform:translateY(-1px);
+      box-shadow:0 2px 8px rgba(46,107,138,0.2);
+    }
+    .follow-up-chip:active{transform:scale(0.97);}
+    .follow-up-label{
+      font-size:11px;color:var(--text-tertiary);font-weight:600;
+      margin-bottom:6px;letter-spacing:0.02em;
+    }
+
+    /* ── PDF Chat Overlay ── */
+    .pdf-overlay{
+      position:fixed;inset:0;z-index:1000;
+      display:none;
+      align-items:center;justify-content:center;
+      background:rgba(0,0,0,0.4);
+      backdrop-filter:blur(3px);
+      animation:overlayFadeIn 0.25s ease;
+    }
+    .pdf-overlay.open{display:flex;}
+    .pdf-overlay-backdrop{
+      position:absolute;inset:0;
+      cursor:pointer;
+    }
+    .pdf-overlay-panel{
+      position:relative;z-index:1;
+      width:680px;max-width:calc(100vw - 48px);max-height:calc(100vh - 48px);
+      height:80vh;
+      display:flex;flex-direction:column;
+      background:var(--surface);
+      border-radius:var(--radius-lg);
+      box-shadow:0 20px 60px rgba(0,0,0,0.2), 0 4px 16px rgba(0,0,0,0.08);
+      animation:overlayScaleIn 0.3s cubic-bezier(0.16,1,0.3,1);
+    }
+    .pdf-overlay-header{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 18px;
+      border-bottom:1px solid var(--border);
+      background:var(--surface);flex-shrink:0;
+    }
+    .pdf-overlay-header-left{
+      display:flex;align-items:center;gap:10px;min-width:0;
+    }
+    .pdf-overlay-header-left svg{flex-shrink:0;color:var(--accent);}
+    .pdf-overlay-header-left .pdf-overlay-title{
+      font-size:14px;font-weight:700;color:var(--text-primary);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      max-width:340px;
+    }
+    .pdf-overlay-header-left .pdf-overlay-meta{
+      font-size:11px;color:var(--text-tertiary);font-weight:500;flex-shrink:0;
+    }
+    .pdf-overlay-close{
+      width:32px;height:32px;border-radius:var(--radius-sm);
+      border:1px solid var(--border);background:transparent;
+      cursor:pointer;font-size:18px;color:var(--text-tertiary);
+      display:flex;align-items:center;justify-content:center;
+      transition:var(--transition);font-family:var(--font-sans);flex-shrink:0;
+    }
+    .pdf-overlay-close:hover{background:var(--pastel-red);border-color:var(--pastel-red);color:var(--pastel-red-text);}
+    .pdf-overlay-messages{
+      flex:1;overflow-y:auto;padding:16px 18px;
+      display:flex;flex-direction:column;gap:14px;
+      background:var(--bg);
+    }
+    .pdf-overlay-messages::-webkit-scrollbar{width:4px;}
+    .pdf-overlay-messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+    .pdf-overlay-msg{
+      display:flex;gap:10px;
+      animation:fadeSlideIn 0.3s cubic-bezier(0.16,1,0.3,1);
+    }
+    .pdf-overlay-msg.user{flex-direction:row-reverse;}
+    .pdf-overlay-msg .avatar{
+      width:30px;height:30px;border-radius:var(--radius-sm);
+      display:flex;align-items:center;justify-content:center;
+      font-size:14px;flex-shrink:0;
+    }
+    .pdf-overlay-msg.bot .avatar{background:var(--pastel-blue);}
+    .pdf-overlay-msg.user .avatar{background:var(--accent);color:#fff;}
+    .pdf-overlay-msg .bubble{
+      max-width:82%;padding:10px 14px;
+      border-radius:var(--radius-md);
+      font-size:13px;line-height:1.6;word-wrap:break-word;
+      letter-spacing:-0.005em;
+    }
+    .pdf-overlay-msg.bot .bubble{
+      background:var(--surface);color:var(--text-primary);
+      border:1px solid var(--border);border-bottom-left-radius:4px;
+      box-shadow:var(--shadow-card);
+    }
+    .pdf-overlay-msg.user .bubble{
+      background:var(--accent);color:#fff;border-bottom-right-radius:4px;
+    }
+    .pdf-overlay-msg .bubble p{margin:0 0 6px;}
+    .pdf-overlay-msg .bubble p:last-child{margin-bottom:0;}
+    .pdf-overlay-msg .bubble ul,.pdf-overlay-msg .bubble ol{margin:6px 0 8px 16px;padding-left:12px;}
+    .pdf-overlay-msg .bubble li{margin:3px 0;}
+    .pdf-overlay-msg .bubble li::marker{color:var(--accent);font-weight:700;}
+    .pdf-overlay-composer{
+      padding:10px 16px 14px;border-top:1px solid var(--border);
+      display:flex;gap:8px;align-items:flex-end;
+      background:var(--surface);flex-shrink:0;
+    }
+    .pdf-overlay-composer textarea{
+      flex:1;padding:9px 12px;
+      border:1.5px solid var(--border);border-radius:var(--radius-sm);
+      font-size:13px;font-family:var(--font-sans);
+      color:var(--text-primary);resize:none;outline:none;
+      min-height:38px;max-height:100px;line-height:1.5;
+      transition:var(--transition);background:var(--bg);
+    }
+    .pdf-overlay-composer textarea:focus{border-color:var(--accent);background:var(--surface);}
+    .pdf-overlay-composer textarea::placeholder{color:var(--text-tertiary);}
+    .pdf-overlay-composer .send-btn{
+      padding:9px 18px;height:38px;
+      background:var(--accent);color:#fff;
+      border:none;border-radius:var(--radius-sm);
+      font-size:13px;font-weight:700;font-family:var(--font-sans);
+      cursor:pointer;flex-shrink:0;
+      transition:var(--transition);
+    }
+    .pdf-overlay-composer .send-btn:hover{background:var(--accent-hover);}
+    .pdf-overlay-composer .send-btn:disabled{opacity:0.4;cursor:not-allowed;}
+    @keyframes overlayFadeIn{from{opacity:0;}to{opacity:1;}}
+    @keyframes overlayScaleIn{from{opacity:0;transform:scale(0.95);}to{opacity:1;transform:none;}}
+
+    @media (max-width:768px){
+      body{padding:0;}
+      .shell{border-radius:0;height:100vh;border:none;max-width:100%;}
+      .sidebar{width:48px;padding:12px 5px;}
+      .sidebar .brand-text,.sidebar .section-title,.sidebar .section-card,.sidebar .chips,.sidebar .pdf-list,.sidebar .new-chat-btn span,.sidebar .sidebar-sticky{display:none;}
+      .sidebar .new-chat-btn{padding:8px;font-size:0;gap:0;}
+      .sidebar .new-chat-btn::before{content:'+';font-size:18px;font-weight:700;}
+      .brand-mark{width:32px;height:32px;padding:3px;}
+      .chat-header{padding:12px 16px;}
+      .chat-header-left h2{font-size:17px;}
+      .messages{padding:14px 16px;}
+      .bubble{max-width:88%;font-size:13px;}
+      .composer{padding:10px 14px 14px;}
+      .composer textarea{font-size:13px;}
+      .more-body{padding:12px 14px 16px;}
+      .more-grid{grid-template-columns:1fr;}
+      .pdf-overlay-panel{width:calc(100vw - 16px);max-height:calc(100vh - 16px);height:90vh;border-radius:var(--radius-md);}
+    }
+  </style>
+</head>
+<body>
+<!-- SVG Icon Sprite -->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <symbol id="ic-lib" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <path d="M8 7h8M8 11h6"/>
+    </symbol>
+    <symbol id="ic-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    </symbol>
+    <symbol id="ic-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="ic-attach" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+    </symbol>
+    <symbol id="ic-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+    </symbol>
+    <symbol id="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+    </symbol>
+    <symbol id="ic-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>
+    </symbol>
+    <symbol id="ic-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </symbol>
+    <symbol id="ic-pdf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      <path d="M9 15h6M10 11v4M14 11v4"/>
+    </symbol>
+    <symbol id="ic-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </symbol>
+    <symbol id="ic-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </symbol>
+    <symbol id="ic-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+    <symbol id="ic-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </symbol>
+    <symbol id="ic-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+    </symbol>
+    <symbol id="ic-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+  </defs>
+</svg>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sidebar-scroll">
+    <div class="brand">
+      <div class="brand-mark">
+        <img class="brand-logo" src="/static/SHL-logo.png" alt="QNU Library"/>
+      </div>
+      <div class="brand-text">
+        <h1>Trung tâm Số và Học liệu QNU</h1>
+        <p>Tra cứu sách</p>
+      </div>
+    </div>
+    <button class="new-chat-btn" onclick="newChat()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Đối thoại mới</span>
+    </button>
+    <p class="section-title pdf-section-title">Tài liệu PDF</p>
+    <div class="section-card pdf-section">
+      <div id="pdfList" class="pdf-list">
+        <div style="font-size:11px;color:rgba(255,255,255,0.45);">Đang tải...</div>
+      </div>
+    </div>
+    <div class="section-card">
+      <p class="section-title">Tra cứu theo ngành</p>
+      <div class="faculty-tree" id="facultyTree"></div>
+    </div>
+    <!-- Tra cứu nhanh đã ẩn để dành không gian cho cây khoa→ngành -->
+    <div class="section-card" style="display:none;">
+      <p class="section-title">Tra cứu nhanh</p>
+      <div class="chips">
+        <button class="chip" onclick="quickAsk(this)">Kinh tế vi mô</button>
+        <button class="chip" onclick="quickAsk(this)">Lịch sử Việt Nam</button>
+        <button class="chip" onclick="quickAsk(this)">Luật dân sự</button>
+        <button class="chip" onclick="quickAsk(this)">Công tác xã hội</button>
+        <button class="chip" onclick="quickAsk(this)">Giải tích</button>
+      </div>
+    </div>
+    <div class="status-panel">
+      <div>
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">Đang kết nối...</span>
+      </div>
+      <span class="book-count" id="bookCount">--</span>
+    </div>
+    </div>
+    <div class="sidebar-sticky">
+    <div class="admin-section" id="adminPdfArea">
+        <div class="admin-badge">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Quản trị
+        </div>
+        <div class="admin-login-row" id="adminLoginRow">
+          <input type="password" class="admin-input" id="adminPwd" placeholder="Mật khẩu" autocomplete="new-password">
+          <button class="admin-btn primary" onclick="adminLogin()">Đăng nhập</button>
+        </div>
+        <div class="admin-msg" id="adminLoginMsg" style="margin-top:4px;"></div>
+        <div class="admin-upload-area" id="adminUploadArea">
+          <input type="file" id="pdfUploadInput" accept=".pdf" style="display:none;" onchange="uploadPdf(this)">
+          <button class="admin-upload-btn" onclick="document.getElementById('pdfUploadInput').click()">+ Upload PDF</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+            <div class="admin-msg" id="uploadMsg"></div>
+            <button class="admin-btn small" onclick="adminLogout()">Đăng xuất</button>
+          </div>
+        </div>
+      </div>
+  </aside>
+
+  <main class="chat-panel">
+    <header class="chat-header">
+      <div class="chat-header-left">
+        <p class="eyebrow">Trường Đại học Quy Nhơn</p>
+        <h2>Tra cứu tài liệu</h2>
+      </div>
+      <button class="clear-btn" onclick="newChat()" title="Đối thoại mới">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </header>
+    <section class="messages" id="messages">
+      <div class="msg bot">
+        <div class="avatar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        </div>
+        <div class="bubble">
+          Xin chào! Tôi là trợ lý tra cứu của <strong>Thư viện QNU</strong>.<br><br>
+          Bạn có thể hỏi tôi về:<br>
+          • Tìm sách theo tên, tác giả, chủ đề<br>
+          • Tra cứu tài liệu số<br>
+          • Gợi ý sách theo ngành học<br>
+          • Đọc nội dung trực tiếp từ file PDF<br><br>
+          Bạn cần tìm tài liệu gì?
+        </div>
+      </div>
+    </section>
+    <form class="composer" onsubmit="return false;">
+      <button type="button" class="mic-btn" id="micBtn" title="Nhấn để nói (Whisper)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+      <div class="mic-hint" id="micHint">Đang nghe... Nhấn lại để dừng</div>
+      <textarea id="questionInput" rows="1" placeholder="Hỏi về sách, tài liệu... (hoặc nhấn mic để nói)" autocomplete="off"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </form>
+    <!-- TẠM ẨN: Phần "Xem thêm tài liệu" ở cuối màn hình
+    <div class="more-section">
+      <button class="more-toggle" id="moreToggle" onclick="toggleMoreSection()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Xem thêm tài liệu
+      </button>
+      <div class="more-body" id="moreBody">
+        <div class="more-search-row">
+          <input class="more-search" id="moreSearch" placeholder="Tìm trong danh sách..." oninput="debounceSearch()">
+        </div>
+        <div class="more-grid" id="moreGrid">
+          <div class="more-loading">Đang tải...</div>
+        </div>
+        <div class="more-pagination" id="morePagination"></div>
+      </div>
+    </div>
+    END TẠM ẨN -->
+  </main>
+
+  <!-- PDF Chat Overlay Panel -->
+  <div class="pdf-overlay" id="pdfOverlay">
+    <div class="pdf-overlay-backdrop" onclick="closePdfOverlay()"></div>
+    <div class="pdf-overlay-panel">
+      <div class="pdf-overlay-header">
+        <div class="pdf-overlay-header-left">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6M10 11v4M14 11v4"/></svg>
+          <span class="pdf-overlay-title" id="pdfOverlayTitle">--</span>
+          <span class="pdf-overlay-meta" id="pdfOverlayMeta"></span>
+        </div>
+        <button class="pdf-overlay-close" onclick="closePdfOverlay()" title="Đóng">✕</button>
+      </div>
+      <div class="pdf-overlay-messages" id="pdfOverlayMessages">
+        <div class="pdf-overlay-msg bot">
+          <div class="avatar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          </div>
+          <div class="bubble" id="pdfOverlayWelcome">
+            Đang tải thông tin tài liệu...
+          </div>
+        </div>
+      </div>
+      <form class="pdf-overlay-composer" onsubmit="return false;">
+        <textarea id="pdfOverlayInput" rows="1" placeholder="Hỏi nội dung trong tài liệu này..." autocomplete="off"></textarea>
+        <button class="send-btn" id="pdfOverlaySendBtn" onclick="sendPdfOverlayMessage()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- (PDF preview panel removed) -->
+</div>
+
+<!-- __FACULTIES_TREE_INJECT__ -->
+<script>
+const BACKEND = window.location.protocol === "file:" ? "http://localhost:8000" : window.location.origin;
+const SESSION_KEY = "qnu_session_id";
+const CHAT_TIMEOUT_MS = 3600000;
+const PDF_CHAT_TIMEOUT_MS = 3600000;
+let currentSelectedPdf = null;
+let pdfCache = {};
+window.__selectedMajor = null;
+window.__selectedKhoa  = null;
+
+function getSessionId() {
+  let sid = localStorage.getItem(SESSION_KEY);
+  if (!sid) {
+    sid = "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2,8);
+    localStorage.setItem(SESSION_KEY, sid);
+  }
+  return sid;
+}
+let sessionId = getSessionId();
+let allPdfItems = [];
+let backendReadOnly = false;
+let voiceAvailable = false;
+
+window.addEventListener("load", async () => {
+  try {
+    const res  = await fetch(BACKEND + "/");
+    const data = await res.json();
+    backendReadOnly = Boolean(data.read_only);
+    configureReadOnlyMode();
+    setStatus("ok", "Sẵn sàng");
+    document.getElementById("bookCount").textContent =
+      data.csv_records ? data.csv_records.toLocaleString() + " sách" : "Sẵn sàng";
+  } catch {
+    setStatus("error", "Backend offline");
+    document.getElementById("bookCount").textContent = "Offline";
+    appendMsg("bot", `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Backend chưa chạy!<br>Mở terminal và chạy:<br><code>uvicorn app:app --reload --port 8000</code>`);
+  }
+
+  // Check voice availability + setup mic
+  setupVoiceInput();
+
+  // Load PDF list (chỉ hiển thị khi admin login)
+  if (adminToken && !backendReadOnly) {
+    document.querySelector(".sidebar")?.classList.add("show-pdf");
+    loadPdfList();
+  }
+
+  // Load faculty tree
+  loadFacultyTree();
+});
+
+// ── Voice Input (Giai đoạn 3) ──────────────────────────────
+
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+async function setupVoiceInput() {
+  const micBtn = document.getElementById("micBtn");
+  if (!micBtn) return;
+
+  // Check voice status from backend
+  try {
+    const res = await fetch(BACKEND + "/api/voice/status");
+    if (res.ok) {
+      const data = await res.json();
+      voiceAvailable = Boolean(data.available);
+    }
+  } catch {
+    voiceAvailable = false;
+  }
+
+  if (!voiceAvailable) {
+    // Vẫn hiển thị nút mic nhưng disabled + tooltip hướng dẫn cài
+    micBtn.title = "Voice input chưa được kích hoạt. Cài: pip install faster-whisper rồi restart backend.";
+    micBtn.disabled = true;
+    micBtn.style.opacity = "0.4";
+    micBtn.style.cursor = "not-allowed";
+    return;
+  }
+
+  micBtn.addEventListener("click", toggleRecording);
+}
+
+async function toggleRecording() {
+  const micBtn = document.getElementById("micBtn");
+  const hint = document.getElementById("micHint");
+
+  if (isRecording) {
+    stopRecording();
+    return;
+  }
+
+  // Kiểm tra trình duyệt có hỗ trợ không
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    appendMsg("bot", "Trình duyệt không hỗ trợ microphone. Hãy dùng Chrome/Edge mới nhất, mở bằng http://localhost:8000 (không phải file://).");
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Chọn mimeType hỗ trợ (ưu tiên webm, fallback mp4)
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : (MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "");
+
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    audioChunks = [];
+
+    mediaRecorder.addEventListener("dataavailable", (e) => {
+      if (e.data && e.data.size > 0) audioChunks.push(e.data);
+    });
+
+    mediaRecorder.addEventListener("stop", sendAudioToBackend);
+
+    mediaRecorder.start();
+    isRecording = true;
+    micBtn.classList.add("recording");
+    hint.classList.add("show");
+    setStatus("loading", "Đang nghe...");
+  } catch (err) {
+    console.error("Mic error:", err);
+    let msg = "Không thể truy cập microphone. ";
+    if (err.name === "NotAllowedError") {
+      msg += "Bạn đã từ chối cấp quyền. Hãy mở khóa mic trong cài đặt trình duyệt.";
+    } else if (err.name === "NotFoundError") {
+      msg += "Không tìm thấy microphone. Hãy cắm mic rồi thử lại.";
+    } else if (err.name === "NotReadableError") {
+      msg += "Microphone đang bận (ứng dụng khác đang dùng).";
+    } else if (err.name === "SecurityError") {
+      msg += "Lỗi bảo mật — chỉ hoạt động trên https:// hoặc http://localhost.";
+    } else {
+      msg += `Lỗi: ${err.message || err.name}`;
+    }
+    appendMsg("bot", msg);
+  }
+}
+
+function stopRecording() {
+  const micBtn = document.getElementById("micBtn");
+  const hint = document.getElementById("micHint");
+
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+  // Stop tracks để tắt đèn mic
+  if (mediaRecorder && mediaRecorder.stream) {
+    mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+  }
+  isRecording = false;
+  micBtn.classList.remove("recording");
+  hint.classList.remove("show");
+  setStatus("loading", "Đang nhận dạng giọng nói...");
+}
+
+async function sendAudioToBackend() {
+  const mimeType = mediaRecorder ? mediaRecorder.mimeType : "audio/webm";
+  const ext = mimeType.includes("mp4") ? "m4a" : "webm";
+  const blob = new Blob(audioChunks, { type: mimeType });
+
+  if (blob.size < 1000) {
+    setStatus("ok", "Sẵn sàng");
+    appendMsg("bot", "Audio quá ngắn, vui lòng thử lại.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("audio", blob, `voice.${ext}`);
+  formData.append("language", "vi");
+
+  try {
+    const res = await fetch(BACKEND + "/api/voice/transcribe", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const text = (data.text || "").trim();
+    const ta = document.getElementById("questionInput");
+
+    if (text) {
+      ta.value = text;
+      ta.style.height = "auto";
+      ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+      ta.focus();
+      setStatus("ok", `Đã nhận dạng (${data.language || "vi"})`);
+      // Auto-send sau 600ms để user kịp nhìn
+      setTimeout(() => sendMessage(), 600);
+    } else {
+      appendMsg("bot", "Không nhận dạng được giọng nói. Vui lòng thử lại.");
+    }
+  } catch (err) {
+    console.error("Voice error:", err);
+    appendMsg("bot", `Lỗi nhận dạng giọng nói: ${err.message}`);
+  } finally {
+    setStatus("ok", "Sẵn sàng");
+  }
+}
+
+// ── PDF Management Functions ──────────────────────────────────
+
+async function loadPdfList() {
+  try {
+    const res = await fetch(BACKEND + "/api/pdfs");
+    if (!res.ok) throw new Error("Failed to load PDFs");
+    
+    const data = await res.json();
+    const pdfListDiv = document.getElementById("pdfList");
+    allPdfItems = data.pdfs || [];
+    pdfListDiv.classList.toggle("admin-active", Boolean(adminToken) && !backendReadOnly);
+    
+    if (allPdfItems.length === 0) {
+      pdfListDiv.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:11px;">Không có PDF</div>';
+      return;
+    }
+    
+    renderPdfList(allPdfItems);
+  } catch (error) {
+    console.error("Error loading PDFs:", error);
+    document.getElementById("pdfList").innerHTML = '<div style="color:red;font-size:11px;">Lỗi tải</div>';
+  }
+}
+
+function renderPdfList(pdfs) {
+  const pdfListDiv = document.getElementById("pdfList");
+  pdfListDiv.classList.toggle("admin-active", Boolean(adminToken) && !backendReadOnly);
+  pdfListDiv.innerHTML = '';
+
+  pdfs.forEach(pdf => {
+    const item = document.createElement("div");
+    item.className = "pdf-item";
+    item.dataset.pdfId = pdf.id;
+    if (currentSelectedPdf && currentSelectedPdf.id === pdf.id) {
+      item.classList.add("active");
+    }
+    const displayName = pdf.display_name || pdf.file_stem || pdf.file_name || pdf.title;
+    const metaTitle = pdf.original_title && pdf.original_title !== displayName ? pdf.original_title : "";
+    const subtitleParts = [pdf.year && pdf.year !== 'N/A' ? `Năm xuất bản: ${pdf.year}` : '']
+      .filter(Boolean)
+      .join(" • ");
+
+    const subtitleText = metaTitle || subtitleParts;
+    const deleteButton = adminToken && !backendReadOnly ? `
+      <button type="button" class="pdf-delete-btn" title="Xóa PDF" aria-label="Xóa PDF">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/>
+        </svg>
+      </button>
+    ` : "";
+    item.innerHTML = `
+      <div class="pdf-item-row">
+        <div class="pdf-item-title">${esc(displayName)}</div>
+        ${deleteButton}
+      </div>
+      ${subtitleText ? `<div class="pdf-item-subtitle">${esc(subtitleText)}</div>` : ''}
+    `;
+    item.title = pdf.file_name || displayName;
+    item.onclick = () => selectPdf(pdf);
+    const deleteBtn = item.querySelector(".pdf-delete-btn");
+    if (deleteBtn) {
+      deleteBtn.onclick = (event) => deletePdf(pdf, event);
+    }
+    pdfListDiv.appendChild(item);
+    pdfCache[pdf.id] = pdf;
+  });
+
+}
+
+async function selectPdf(pdf) {
+  // Open PDF in overlay panel
+  openPdfOverlay(pdf);
+  
+  // Update sidebar highlight
+  document.querySelectorAll(".pdf-item").forEach((item) => {
+    if (item.dataset.pdfId === pdf.id) {
+      item.classList.add("active");
+    } else {
+      item.classList.remove("active");
+    }
+  });
+}
+
+function findPdfItem(pdfId, fileName, title) {
+  const norm = (value) => String(value || "").trim().toLowerCase();
+  const id = norm(pdfId);
+  const file = norm(fileName);
+  const name = norm(title);
+
+  if (id && pdfCache[pdfId]) return pdfCache[pdfId];
+
+  return allPdfItems.find((pdf) => {
+    const candidates = [
+      pdf.id,
+      pdf.file_name,
+      pdf.file_stem,
+      pdf.title,
+      pdf.display_name,
+      pdf.original_title
+    ].map(norm);
+    return (id && candidates.includes(id)) ||
+      (file && candidates.includes(file)) ||
+      (name && candidates.includes(name));
+  }) || null;
+}
+
+async function attachSourcePdf(pdfId, fileName, title) {
+  let pdf = findPdfItem(pdfId, fileName, title);
+  if (!pdf) {
+    await loadPdfList();
+    pdf = findPdfItem(pdfId, fileName, title);
+  }
+  if (!pdf) return;
+  selectPdf(pdf);
+}
+
+function updateAttachedDocument(pdf) {
+  // No-op: attach UI removed
+}
+
+function detachDocument() {
+  // No-op: attach UI removed
+}
+
+async function sendMessage() {
+  const ta    = document.getElementById("questionInput");
+  const query = ta.value.trim();
+  if (!query) return;
+
+  ta.value = "";
+  ta.style.height = "auto";
+  document.getElementById("sendBtn").disabled = true;
+  appendMsg("user", esc(query));
+  const botId = "bot_" + Date.now();
+  createStreamBubble(botId);
+  // ── Status message: nếu là follow-up liệt kê chủ đề thì hiện thông báo chờ ──
+  if (query.startsWith("__LIST_TOPIC__:")) {
+    setStatus("loading", "Đang tìm tài liệu, có thể tốn một chút thời gian, vui lòng chờ...");
+  } else {
+    setStatus("loading", "Đang trả lời...");
+  }
+
+  try {
+    // ── Timeout 60 giây ──────────────────────────────────
+    const controller = new AbortController();
+    const timeout    = setTimeout(() => controller.abort("timeout"), CHAT_TIMEOUT_MS);
+
+    const res = await fetch(BACKEND +"/chat", {
+      method:  "POST",
+      headers: {"Content-Type": "application/json"},
+      body:    JSON.stringify({
+        query: query,
+        session_id: sessionId
+        // major: đã bỏ ghim — chỉ dùng khi user vừa bấm chọn ngành trong cây khoa→ngành,
+        // các câu hỏi tiếp theo sẽ tìm sách liên quan tự do, không bị khoá theo ngành đã chọn.
+      }),
+      signal:  controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    // ── Đọc response (JSON hoặc SSE) ─────────────────────
+    const contentType = res.headers.get("content-type") || "";
+
+    if (contentType.includes("text/event-stream")) {
+      // Streaming mode
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "", fullText = "", sources = [], totalFound = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.type === "chunk") {
+              fullText += payload.text;
+              updateStreamBubble(botId, fullText, true);
+            } else if (payload.type === "sources") {
+              sources = payload.sources || [];
+              if (sources.length) {
+                const s = sources[0];
+                const ctx = (s.subject || s.title || "").trim();
+                if (ctx && ctx !== "N/A") lastQueryContext = ctx;
+              }
+              // Fallback: use raw query if no subject/title available
+              if (!lastQueryContext) lastQueryContext = query;
+            } else if (payload.type === "total_found") {
+              totalFound = payload.total_found || 0;
+            } else if (payload.type === "follow_ups") {
+              followUps = payload.follow_up_suggestions || [];
+            } else if (payload.type === "done") {
+              updateStreamBubble(botId, fullText, false);
+              if (sources.length && !answerHasNoInformation(fullText)) appendSources(botId, sources, totalFound, followUps);
+            } else if (payload.type === "error") {
+              throw new Error(payload.message);
+            }
+          } catch(e) {}
+        }
+      }
+    } else {
+      // Non-streaming mode (JSON thường)
+      const data        = await res.json();
+      const reply       = data.answer || "Xin lỗi, không có phản hồi.";
+      const bookResults = data.sources || [];
+      const summary     = data.summary || "";
+      const totalFound  = data.total_found || bookResults.length;
+      const followUps   = data.follow_up_suggestions || [];
+      
+      // Save context for related suggestions (prefer subject, fallback to title or query)
+      if (bookResults.length) {
+        const s = bookResults[0];
+        const ctx = (s.subject || s.title || "").trim();
+        if (ctx && ctx !== "N/A") lastQueryContext = ctx;
+      }
+      if (!lastQueryContext) lastQueryContext = query || "";
+      
+      updateStreamBubble(botId, reply, false);
+      
+      // Hiển thị tóm tắt nếu có
+      if (summary) {
+        const bubble = document.getElementById(botId);
+        if (bubble) {
+          const summaryHtml = `<div style="margin-top:12px; padding:10px 14px; background:var(--accent-soft); border:1px solid var(--border); border-radius:var(--radius-sm);">
+            <div style="font-weight:600; color:var(--text-primary); margin-bottom:6px; font-size:13px;">Tóm tắt nội dung</div>
+            <div style="color:var(--text-secondary); line-height:1.6; font-size:13px;">${esc(summary)}</div>
+          </div>`;
+          bubble.innerHTML += summaryHtml;
+        }
+      }
+      
+      if (bookResults.length && !answerHasNoInformation(reply)) appendSources(botId, bookResults, totalFound, followUps);
+    }
+
+    setStatus("ok", "Sẵn sàng");
+
+  } catch(err) {
+    const msg = err?.message || String(err || "");
+    const lowerMsg = msg.toLowerCase();
+    let errHtml = `<div style="display:flex;align-items:flex-start;gap:6px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;color:var(--pastel-red-text);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>`;
+    // Ẩn thông báo "Quá thời gian chờ" — để trống cho gọn
+    errHtml += `Yêu cầu chưa hoàn tất, vui lòng thử lại.`;
+    if (msg.includes("Failed to fetch")) {
+      errHtml += "Không kết nối được backend.<br>Chạy: <code>uvicorn app:app --reload --port 8000</code>";
+    } else if (msg.includes("503")) {
+      errHtml += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Ollama quá tải hoặc chưa khởi động.`;
+    } else if (msg.includes("429")) {
+      errHtml += `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Quá nhiều yêu cầu, thử lại sau.`;
+    } else {
+      errHtml += `Lỗi: ${esc(msg)}`;
+    }
+    errHtml += `</span></div>`;
+    updateStreamBubble(botId, errHtml, false);
+    setStatus("error", "Lỗi");
+  }
+
+  document.getElementById("sendBtn").disabled = false;
+  document.getElementById("messages").scrollTop = 99999;
+}
+
+function createStreamBubble(id) {
+  const msgs = document.getElementById("messages");
+  const d    = document.createElement("div");
+  d.className = "msg bot";
+  d.innerHTML = `<div class="avatar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </div>
+    <div class="bubble" id="${id}">
+      <div class="typing-indicator"><span></span><span></span><span></span></div>
+    </div>`;
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function updateStreamBubble(id, text, showCursor) {
+  const bubble = document.getElementById(id);
+  if (!bubble) return;
+  let html = markdownToHtml(text);
+  if (showCursor) html += '<span class="cursor"></span>';
+  bubble.innerHTML = html;
+  document.getElementById("messages").scrollTop = 99999;
+}
+
+function appendSources(afterId, sources, totalFound, followUps) {
+  const bubble = document.getElementById(afterId);
+  if (!bubble || !sources.length) return;
+
+  const ITEMS_PER_PAGE = 6;
+  const total = totalFound || sources.length;
+  const totalPages = Math.ceil(sources.length / ITEMS_PER_PAGE);
+  let currentPage = 1;
+  const containerId = 'sources-' + afterId;
+
+  // ── Tạo container chính ──
+  let html = '<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">';
+  html += `<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">`;
+  // html += `<div style="font-weight:600; color:var(--text-primary); font-size:13px;">Tài liệu tham khảo</div>`;
+  html += `<div id="${containerId}-count" style="font-size:11px; color:var(--text-tertiary); font-weight:500;"></div>`;
+  html += `</div>`;
+
+  // Grid container for cards
+  html += `<div id="${containerId}-grid"></div>`;
+  // Follow-up suggestions (outside cards, works for ALL result types)
+  html += `<div id="${containerId}-followups" style="margin-top:10px;"></div>`;
+  // Pagination controls
+  html += `<div id="${containerId}-pagination" style="display:flex; align-items:center; justify-content:center; gap:8px; padding-top:12px;"></div>`;
+  html += '</div>';
+
+  bubble.innerHTML += html;
+
+  function field(label, val) {
+    if (val && val !== 'Unknown' && val !== 'N/A' && val !== 'Không xác định' && val !== 'nan')
+      return `<div class="book-field"><span style="color:var(--text-tertiary);">${label}:</span> ${esc(val)}</div>`;
+    return '';
+  }
+
+  function fieldArray(label, val) {
+    if (Array.isArray(val) && val.length > 0) {
+      return `<div class="book-field"><span style="color:var(--text-tertiary);">${label}:</span> ${val.map(esc).join(', ')}</div>`;
+    }
+    return '';
+  }
+
+  function bookCard(b, idx) {
+    let linkUrl = b.link || "";
+    let linkMatch = null;
+    if (!linkUrl && b.description) {
+      linkMatch = b.description.match(/(https?:\/\/[^\s]+)/);
+      if (linkMatch) linkUrl = linkMatch[1];
+    }
+    const canAttachPdf = Boolean(b.pdf_id || b.file_name || (b.is_pdf && b.source));
+    const cardClass = canAttachPdf ? "book-card pdf-source" : "book-card";
+    const pdfId = b.pdf_id || "";
+    const pdfFileName = b.file_name || b.source || "";
+    const pdfTitle = b.display_name || b.title || "";
+    const attachAttrs = canAttachPdf
+      ? ` data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}" title="Click để xem nội dung"`
+      : "";
+
+    // Follow-up chips are rendered outside cards in the followups container
+    let followUpHtml = '';
+
+    return `<div class="${cardClass}"${attachAttrs}>
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <div style="font-size:20px; flex-shrink:0; margin-top:2px; color:var(--accent);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </div>
+        <div style="flex:1; min-width:0;">
+          ${canAttachPdf ? `
+            <div class="source-pdf-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              PDF có thể đọc nội dung
+            </div>
+          ` : ''}
+          <div class="book-title">${esc(b.title||"Tài liệu")}</div>
+          ${field('Tên song ngữ', b.bilingual_title || '')}
+          ${field('Tác giả', b.author)}
+          ${field('Năm XB', b.year)}
+          ${field('Lần XB', b.edition || '')}
+          ${field('NXB', b.publisher)}
+          ${field('Nơi XB', b.place || '')}
+          ${field('Loại tài liệu', b.doc_type)}
+          ${field('Chuyên ngành', b.major)}
+          ${field('Học phần', b.course || '')}
+          ${fieldArray('Từ khóa', b.keywords)}
+          ${field('Từ khóa', b.subject)}
+          ${field('DDC', b.ddc)}
+          ${field('Vị trí', b.location || '')}
+          ${b.abstract ? `
+            <div id="abstract-${containerId}-${idx}" style="display:none; font-size:12px; color:var(--text-secondary); margin:6px 0; padding:8px 10px; background:var(--accent-soft); border:1px solid var(--border); border-radius:var(--radius-sm); line-height:1.5;">${esc(b.abstract)}</div>
+            <button onclick="toggleAbstractById('abstract-${containerId}-${idx}')" style="font-size:11px; color:var(--text-secondary); background:var(--accent-soft); border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm); cursor:pointer; font-weight:500; margin-bottom:6px; transition:var(--transition); font-family:var(--font-sans);" onmouseover="this.style.background='var(--border-light)'" onmouseout="this.style.background='var(--accent-soft)'">
+              <span id="abstract-btn-${containerId}-${idx}">Xem tóm tắt</span>
+            </button>
+          ` : ''}
+          ${linkUrl && linkUrl.startsWith('http') ? `
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+              <a href="${esc(linkUrl)}" target="_blank" rel="noopener">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Mở tài liệu
+              </a>
+              <button onclick="copyLink('${esc(linkUrl)}')" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-tertiary); background:var(--accent-soft); border:1px solid var(--border); padding:5px 10px; border-radius:var(--radius-sm); font-size:11px; cursor:pointer; font-weight:500; transition:var(--transition); font-family:var(--font-sans);" onmouseover="this.style.background='var(--border-light)'" onmouseout="this.style.background='var(--accent-soft)'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy link
+              </button>
+            </div>
+          ` : ''}
+          ${canAttachPdf ? `
+            <button type="button" class="source-attach-btn" data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Xem nội dung tài liệu
+            </button>
+          ` : ''}
+          ${followUpHtml}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderPage(page) {
+    currentPage = page;
+    const start = (page - 1) * ITEMS_PER_PAGE;
+    const end = Math.min(start + ITEMS_PER_PAGE, sources.length);
+    const pageItems = sources.slice(start, end);
+
+    const gridEl = document.getElementById(containerId + '-grid');
+    const countEl = document.getElementById(containerId + '-count');
+    const pagEl = document.getElementById(containerId + '-pagination');
+
+    if (!gridEl) return;
+
+    // Render cards
+    let cardsHtml = '';
+    pageItems.forEach((b, i) => {
+      cardsHtml += bookCard(b, start + i);
+    });
+    gridEl.innerHTML = cardsHtml;
+
+    // Update count
+    if (countEl) {
+      countEl.textContent = `Trang ${page}/${totalPages} • ${total} tài liệu`;
+    }
+
+    // Render pagination
+    if (pagEl && totalPages > 1) {
+      const fnName = containerId + '_goPage';
+      let pHtml = '';
+      pHtml += `<button onclick="window['${fnName}'](${page - 1})" ${page <= 1 ? 'disabled' : ''} style="padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); font-size:12px; font-family:var(--font-sans); color:var(--text-secondary); cursor:pointer; font-weight:600; transition:var(--transition);" onmouseover="this.style.background='var(--accent-soft)'" onmouseout="this.style.background='var(--surface)'">‹ Trước</button>`;
+      pHtml += `<span style="font-size:12px; color:var(--text-tertiary); font-weight:500; padding:0 4px;">${page} / ${totalPages}</span>`;
+      pHtml += `<button onclick="window['${fnName}'](${page + 1})" ${page >= totalPages ? 'disabled' : ''} style="padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); font-size:12px; font-family:var(--font-sans); color:var(--text-secondary); cursor:pointer; font-weight:600; transition:var(--transition);" onmouseover="this.style.background='var(--accent-soft)'" onmouseout="this.style.background='var(--surface)'">Sau ›</button>`;
+      pagEl.innerHTML = pHtml;
+    } else if (pagEl) {
+      pagEl.innerHTML = '';
+    }
+
+    // Bind PDF attach buttons
+    bindSourcePdfCards(gridEl);
+    document.getElementById("messages").scrollTop = 99999;
+  }
+
+  // Expose pagination function globally via window (avoids minus-sign issue in onclick)
+  window[containerId + '_goPage'] = function(page) {
+    if (page >= 1 && page <= totalPages) renderPage(page);
+  };
+
+  // Render follow-up suggestions outside the cards (works for all result types)
+  const followupsEl = document.getElementById(containerId + '-followups');
+  if (followupsEl && followUps && followUps.length) {
+    let chipsHtml = '<div style="padding-top:8px; border-top:1px solid var(--border-light);">';
+    chipsHtml += '<div class="follow-up-label">💡 Bạn muốn biết thêm gì?</div>';
+    chipsHtml += '<div class="follow-up-chips">';
+    followUps.forEach((item) => {
+      if (item.query === "__SUGGEST_RELATED__") {
+        chipsHtml += `<button class="follow-up-chip" onclick="showRelatedSuggestions()">${esc(item.label || item)}</button>`;
+      } else {
+        chipsHtml += `<button class="follow-up-chip" onclick="askFollowUp(this)" data-query="${attr(item.query || item)}">${esc(item.label || item)}</button>`;
+      }
+    });
+    chipsHtml += '</div></div>';
+    followupsEl.innerHTML = chipsHtml;
+  }
+
+  // Initial render
+  renderPage(1);
+}
+
+function bindSourcePdfCards(scope) {
+  scope.querySelectorAll(".source-attach-btn").forEach((btn) => {
+    btn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      attachSourcePdf(btn.dataset.pdfId, btn.dataset.pdfFile, btn.dataset.pdfTitle);
+    };
+  });
+
+  scope.querySelectorAll(".book-card.pdf-source").forEach((card) => {
+    card.onclick = (event) => {
+      if (event.target.closest("a,button")) return;
+      attachSourcePdf(card.dataset.pdfId, card.dataset.pdfFile, card.dataset.pdfTitle);
+    };
+  });
+}
+
+function renderFollowUpSuggestions(afterId, suggestions) {
+  const bubble = document.getElementById(afterId);
+  if (!bubble || !suggestions || !suggestions.length) return;
+
+  let html = '<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">';
+  html += '<div class="follow-up-label">💡 Gợi ý tiếp theo:</div>';
+  html += '<div class="follow-up-chips">';
+  suggestions.forEach((text) => {
+    html += `<button class="follow-up-chip" onclick="askFollowUp(this)">${esc(text)}</button>`;
+  });
+  html += '</div></div>';
+  bubble.innerHTML += html;
+  document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+}
+
+function askFollowUp(btn) {
+  const query = btn.dataset.query || btn.textContent.trim();
+  // Special: suggest related documents
+  if (query === "__SUGGEST_RELATED__") {
+    showRelatedSuggestions();
+    return;
+  }
+  // Special: view PDF content
+  if (query.startsWith("__VIEW_PDF__:")) {
+    const parts = query.split(":");
+    const pdfId = parts[1] || "";
+    const pdfTitle = parts.slice(2).join(":") || "";
+    // Click the PDF card to trigger open content view
+    const pdfCard = document.querySelector(`.book-card[data-pdf-id="${pdfId}"]`);
+    if (pdfCard) {
+      pdfCard.click();
+    }
+    return;
+  }
+  // Special: list topic from existence-question follow-up
+  // Backend sẽ tự chuyển "__LIST_TOPIC__:topic" thành câu truy vấn tìm sách
+  if (query.startsWith("__LIST_TOPIC__:")) {
+    // Hiển thị status "đang tìm tài liệu" để user biết là đang xử lý
+    setStatus("loading", "Đang tìm tài liệu, có thể tốn một chút thời gian, vui lòng chờ...");
+    const ta = document.getElementById("questionInput");
+    ta.value = query;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+    sendMessage();
+    return;
+  }
+  document.getElementById("questionInput").value = query;
+  document.getElementById("questionInput").style.height = "auto";
+  document.getElementById("questionInput").style.height = Math.min(document.getElementById("questionInput").scrollHeight, 120) + "px";
+  sendMessage();
+}
+
+// Track last query context and shown related titles for related suggestions
+let lastQueryContext = "";
+let shownRelatedTitles = [];
+
+async function showRelatedSuggestions() {
+  appendMsg("bot", `<div class="typing-indicator"><span></span><span></span><span></span></div>`);
+
+  try {
+    const res = await fetch(BACKEND + "/suggest-related", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "",
+        author: "",
+        subject: lastQueryContext || "",
+        top_k: 8,
+        exclude_titles: shownRelatedTitles
+      })
+    });
+    const data = await res.json();
+    const suggestions = data.suggestions || [];
+
+    const msgs = document.getElementById("messages");
+    if (msgs.lastChild) msgs.removeChild(msgs.lastChild);
+
+    if (!suggestions.length) {
+      appendMsg("bot", "Không còn tài liệu liên quan nào khác.");
+      return;
+    }
+
+    // Track shown titles to avoid repeats
+    suggestions.forEach(s => shownRelatedTitles.push(s.title));
+
+    // Render book cards
+    const d = document.createElement("div");
+    d.className = "msg bot";
+    d.innerHTML = `<div class="avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><div class="bubble" id="relatedResult"></div>`;
+    msgs.appendChild(d);
+
+    const bubble = document.getElementById("relatedResult");
+
+    // Group by reason
+    const groups = {};
+    suggestions.forEach(s => {
+      const reason = s.reason || "Liên quan";
+      if (!groups[reason]) groups[reason] = [];
+      groups[reason].push(s);
+    });
+
+    let html = '<div style="margin-bottom:8px;font-weight:600;color:var(--text-primary);font-size:13px;">📚 Tài liệu liên quan</div>';
+    for (const [reason, docs] of Object.entries(groups)) {
+      html += `<div style="margin-bottom:6px;"><span style="font-weight:700;color:var(--accent);font-size:11px;letter-spacing:0.03em;">${esc(reason)}</span></div>`;
+      docs.forEach((d) => {
+        const year = d.year && d.year !== 'N/A' ? d.year : '';
+        const author = d.author && d.author !== 'Unknown' ? d.author : '';
+        const major = d.major || '';
+        const subject = d.subject || '';
+        const publisher = d.publisher || '';
+        const docType = d.doc_type || '';
+        const ddc = d.ddc || '';
+        const location = d.location || '';
+        const abstract = d.abstract || '';
+        const linkUrl = d.link || '';
+        html += `<div class="book-card" style="margin-bottom:8px;"><div style="display:flex;gap:10px;align-items:flex-start;"><div style="font-size:20px;flex-shrink:0;margin-top:2px;color:var(--accent);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>`;
+        html += `<div style="flex:1;min-width:0;"><div class="book-title">${esc(d.title || "Tài liệu")}</div>`;
+        if (author) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Tác giả:</span> ${esc(author)}</div>`;
+        if (year) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Năm:</span> ${esc(year)}</div>`;
+        if (docType) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Loại:</span> ${esc(docType)}</div>`;
+        if (major) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Ngành:</span> ${esc(major)}</div>`;
+        if (subject) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Từ khóa:</span> ${esc(subject)}</div>`;
+        if (ddc) html += `<div class="book-field"><span style="color:var(--text-tertiary);">DDC:</span> ${esc(ddc)}</div>`;
+        if (publisher) html += `<div class="book-field"><span style="color:var(--text-tertiary);">NXB:</span> ${esc(publisher)}</div>`;
+        if (location) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Vị trí:</span> ${esc(location.substring(0, 120))}</div>`;
+        if (abstract) {
+          const absId = "rel-abs-" + Math.random().toString(36).slice(2, 8);
+          html += `<div id="${absId}" style="display:none;font-size:12px;color:var(--text-secondary);margin:6px 0;padding:8px 10px;background:var(--accent-soft);border:1px solid var(--border);border-radius:var(--radius-sm);line-height:1.5;">${esc(abstract)}</div>`;
+          html += `<button onclick="toggleAbstractById('${absId}')" style="font-size:11px;color:var(--text-secondary);background:var(--accent-soft);border:1px solid var(--border);padding:4px 10px;border-radius:var(--radius-sm);cursor:pointer;font-weight:500;margin-bottom:6px;font-family:var(--font-sans);">Xem tóm tắt</button>`;
+        }
+        if (linkUrl && linkUrl.startsWith('http')) {
+          html += `<div style="margin-top:4px;"><a href="${esc(linkUrl)}" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a></div>`;
+        }
+        html += `</div></div></div>`;
+      });
+    }
+
+    // "Xem thêm" chip
+    html += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border-light);"><div class="follow-up-chips"><button class="follow-up-chip" onclick="showRelatedSuggestions()">Xem thêm tài liệu liên quan</button></div></div>`;
+
+    bubble.innerHTML = html;
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch (e) {
+    const msgs = document.getElementById("messages");
+    if (msgs.lastChild) msgs.removeChild(msgs.lastChild);
+    appendMsg("bot", "Lỗi khi tìm tài liệu liên quan.");
+  }
+}
+
+async function askFollowUpPdf(pdfId, btn) {
+  const query = btn.dataset.query || btn.textContent.trim();
+  if (query === "__SUGGEST_RELATED__") {
+    // Close overlay first, show related in main chat
+    closePdfOverlay();
+    await showRelatedSuggestions();
+    return;
+  }
+  let pdf = findPdfItem(pdfId);
+  if (!pdf) {
+    await loadPdfList();
+    pdf = findPdfItem(pdfId);
+  }
+  if (!pdf) return;
+  openPdfOverlay(pdf);
+  document.getElementById("pdfOverlayInput").value = query;
+  sendPdfOverlayMessage();
+}
+
+// ── PDF Overlay Panel ──
+let currentOverlayPdf = null;
+
+function openPdfOverlay(pdf) {
+  currentOverlayPdf = pdf;
+  const overlay = document.getElementById("pdfOverlay");
+  const titleEl = document.getElementById("pdfOverlayTitle");
+  const metaEl = document.getElementById("pdfOverlayMeta");
+  const msgsEl = document.getElementById("pdfOverlayMessages");
+
+  titleEl.textContent = pdf.display_name || pdf.title || "Tài liệu";
+  metaEl.textContent = [pdf.year && pdf.year !== 'N/A' ? `Năm: ${pdf.year}` : '']
+    .filter(Boolean).join(' • ');
+
+  msgsEl.innerHTML = `
+    <div class="pdf-overlay-msg bot">
+      <div class="avatar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      <div class="bubble">
+        Mình đã mở tài liệu <strong>${esc(titleEl.textContent)}</strong>. Bạn muốn hỏi nội dung gì?
+      </div>
+    </div>`;
+
+  overlay.classList.add("open");
+  document.getElementById("pdfOverlayInput").focus();
+}
+
+function closePdfOverlay() {
+  document.getElementById("pdfOverlay").classList.remove("open");
+  currentOverlayPdf = null;
+}
+
+async function sendPdfOverlayMessage() {
+  if (!currentOverlayPdf) return;
+  const input = document.getElementById("pdfOverlayInput");
+  const query = input.value.trim();
+  if (!query) return;
+
+  input.value = ""; input.style.height = "auto";
+  document.getElementById("pdfOverlaySendBtn").disabled = true;
+
+  // Add user message
+  const userMsg = document.createElement("div");
+  userMsg.className = "pdf-overlay-msg user";
+  userMsg.innerHTML = `<div class="avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="bubble">${esc(query)}</div>`;
+  document.getElementById("pdfOverlayMessages").appendChild(userMsg);
+
+  // Add bot loading
+  const botMsg = document.createElement("div");
+  botMsg.className = "pdf-overlay-msg bot";
+  botMsg.innerHTML = `<div class="avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><div class="bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
+  document.getElementById("pdfOverlayMessages").appendChild(botMsg);
+  document.getElementById("pdfOverlayMessages").scrollTop = 99999;
+
+  try {
+    const res = await fetch(BACKEND + "/chat/with-document", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: query,
+        pdf_id: currentOverlayPdf.id,
+        session_id: sessionId + "_overlay",
+        search_type: "full_pdf"
+      }),
+      signal: AbortSignal.timeout(PDF_CHAT_TIMEOUT_MS)
+    });
+
+    if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`);
+    const data = await res.json();
+
+    const bubble = botMsg.querySelector(".bubble");
+    bubble.innerHTML = markdownToHtml(data.answer || "Không có câu trả lời.");
+
+    // Add follow-up suggestions inside the message
+    if (data.follow_up_suggestions && data.follow_up_suggestions.length) {
+      let chipsHtml = '<div class="follow-up-chips" style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border-light);">';
+      data.follow_up_suggestions.forEach((item) => {
+        chipsHtml += `<button class="follow-up-chip" onclick="askFollowUpOverlay(this)" data-query="${attr(item.query || item)}">${esc(item.label || item)}</button>`;
+      });
+      chipsHtml += '</div>';
+      bubble.innerHTML += chipsHtml;
+    }
+
+  } catch (error) {
+    const bubble = botMsg.querySelector(".bubble");
+    bubble.innerHTML = `<div style="color:var(--pastel-red-text);">Lỗi: ${esc(error.message)}</div>`;
+  } finally {
+    document.getElementById("pdfOverlaySendBtn").disabled = false;
+    document.getElementById("pdfOverlayMessages").scrollTop = 99999;
+  }
+}
+
+async function askFollowUpOverlay(btn) {
+  const query = btn.dataset.query || btn.textContent.trim();
+  if (query === "__SUGGEST_RELATED__") {
+    closePdfOverlay();
+    await showRelatedSuggestions();
+    return;
+  }
+  document.getElementById("pdfOverlayInput").value = query;
+  sendPdfOverlayMessage();
+}
+
+function toggleAbstractById(id) {
+  const el = document.getElementById(id);
+  const btn = document.getElementById(id.replace('abstract-', 'abstract-btn-'));
+  if (!el) return;
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'block' : 'none';
+  if (btn) btn.textContent = isHidden ? 'Ẩn tóm tắt' : 'Tóm tắt';
+}
+
+function copyLink(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    alert('Đã copy link vào clipboard!');
+  }).catch(err => {
+    console.error('Copy failed:', err);
+  });
+}
+
+function toggleAbstract(idx) {
+  const el = document.getElementById('abstract-' + idx);
+  const btn = document.getElementById('abstract-btn-' + idx);
+  if (!el) return;
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'block' : 'none';
+  if (btn) btn.textContent = isHidden ? 'Ẩn tóm tắt' : 'Tóm tắt';
+}
+
+function markdownInline(text) {
+  let html = esc(text)
+    .replace(/`(.*?)`/g, "<code style='background:var(--accent-soft); padding:2px 6px; border-radius:4px; font-family:monospace; font-size:0.9em;'>$1</code>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*(?!\s)([^*]+?)\*/g, "$1<em>$2</em>");
+
+  return html.replace(/\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g,
+    '<a href="$2" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline; text-underline-offset:2px; cursor:pointer;">$1</a>');
+}
+
+function markdownToHtml(text) {
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  let html = "";
+  let listType = "";
+  let paragraph = [];
+
+  function closeList() {
+    if (listType) {
+      html += `</${listType}>`;
+      listType = "";
+    }
+  }
+
+  function flushParagraph() {
+    if (!paragraph.length) return;
+    closeList();
+    html += `<p>${paragraph.map(markdownInline).join("<br>")}</p>`;
+    paragraph = [];
+  }
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      closeList();
+      return;
+    }
+
+    const bullet = trimmed.match(/^[-*•]\s+(.+)$/);
+    const numbered = trimmed.match(/^\d+[\.)]\s+(.+)$/);
+
+    if (bullet || numbered) {
+      flushParagraph();
+      const nextType = bullet ? "ul" : "ol";
+      if (listType !== nextType) {
+        closeList();
+        html += `<${nextType}>`;
+        listType = nextType;
+      }
+      html += `<li>${markdownInline((bullet || numbered)[1])}</li>`;
+      return;
+    }
+
+    if (/^\*\*.+\*\*:?\s*$/.test(trimmed)) {
+      flushParagraph();
+      closeList();
+      html += `<p class="answer-heading">${markdownInline(trimmed)}</p>`;
+      return;
+    }
+
+    paragraph.push(trimmed);
+  });
+
+  flushParagraph();
+  closeList();
+  return html;
+}
+
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function attr(s){ return esc(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+function answerHasNoInformation(text) {
+  const normalized = String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return [
+    "tai lieu khong cung cap",
+    "khong cung cap thong tin",
+    "khong co thong tin",
+    "khong du thong tin",
+    "khong tim thay thong tin",
+    "khong tim thay tai lieu",
+    "khong co tai lieu"
+  ].some(phrase => normalized.includes(phrase));
+}
+
+function appendMsg(role, html) {
+  const msgs = document.getElementById("messages");
+  const d    = document.createElement("div");
+  d.className = `msg ${role}`;
+  const isBot = role === "bot";
+  const svg = isBot
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>'
+    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  d.innerHTML = `<div class="avatar">${svg}</div><div class="bubble">${html}</div>`;
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function setStatus(state, text) {
+  const dot = document.getElementById("statusDot");
+  dot.className = "status-dot" + (state !== "ok" ? " " + state : "");
+  document.getElementById("statusText").textContent = text;
+}
+
+async function newChat() {
+  currentSelectedPdf = null;
+  shownRelatedTitles = [];
+  document.querySelectorAll(".pdf-item").forEach(item => item.classList.remove("active"));
+  document.getElementById("messages").innerHTML = `<div class="msg bot">
+    <div class="avatar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </div>
+    <div class="bubble">Cuộc trò chuyện mới. Bạn cần tìm tài liệu gì?</div>
+  </div>`;
+}
+
+function quickAsk(btn) {
+  document.getElementById("questionInput").value = btn.textContent;
+  sendMessage();
+}
+
+// ── Faculty tree (Khoa → Ngành) — inlined server-side, renders synchronously ──
+let __facultiesCache = null;
+function loadFacultyTree(force=false) {
+  const root = document.getElementById("facultyTree");
+  if (!root) return;
+  if (!force && __facultiesCache) {
+    renderFacultyTree(__facultiesCache);
+    return;
+  }
+  let data = null;
+  // 1) Prefer the inlined JSON block injected by the server
+  const inline = document.getElementById("__FACULTIES_TREE_DATA");
+  if (inline && inline.textContent) {
+    try { data = JSON.parse(inline.textContent); } catch (e) { data = null; }
+  }
+  // 2) Fallback: fetch from the API (only on first load if inlining failed)
+  if (data) {
+    __facultiesCache = data;
+    renderFacultyTree(data);
+    return;
+  }
+  fetch(BACKEND + "/api/faculties")
+    .then((r) => r.json())
+    .then((d) => { __facultiesCache = d; renderFacultyTree(d); })
+    .catch(() => {
+      root.innerHTML = '<div class="faculty-tree-loading">Không tải được cây khoa.</div>';
+    });
+}
+
+function renderFacultyTree(data) {
+  const root = document.getElementById("facultyTree");
+  if (!root) return;
+  const faculties = (data && data.faculties) || [];
+  if (!faculties.length) {
+    root.innerHTML = '<div class="faculty-tree-loading">Chưa có dữ liệu khoa.</div>';
+    return;
+  }
+  const sorted = faculties.slice().sort((a, b) => (b.total || 0) - (a.total || 0));
+  let html = "";
+  sorted.forEach((f, idx) => {
+    const kId  = "fk_" + idx;
+    const nganh = (f.nganh || []).slice().sort((a, b) => (b.count || 0) - (a.count || 0));
+    html += `<div class="faculty-group" data-khoa="${esc(f.khoa)}">`;
+    html += `  <button class="faculty-header" data-target="${kId}" aria-expanded="false">`;
+    html += `    <svg class="faculty-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+    html += `    <span class="faculty-name">${esc(f.khoa)}</span>`;
+    // (đã bỏ badge số tổng tài liệu của khoa theo yêu cầu)
+    html += `  </button>`;
+    html += `  <div class="faculty-children" id="${kId}">`;
+    nganh.forEach((ng) => {
+      html += `    <button class="faculty-row" data-nganh="${esc(ng.nganh)}" data-khoa="${esc(f.khoa)}">`;
+      html += `      <span class="dot"></span>`;
+      html += `      <span class="name">${esc(ng.nganh)}</span>`;
+      // (đã bỏ badge số tài liệu của ngành theo yêu cầu)
+      html += `    </button>`;
+    });
+    html += `  </div>`;
+    html += `</div>`;
+  });
+  // Bỏ hiển thị "Đang lọc: …" ở sidebar — user không còn bị ghim bộ lọc ngành.
+  // (logic clear/refreshMajorUI vẫn còn để tránh lỗi tham chiếu nếu có nơi khác gọi)
+  root.innerHTML = html;
+
+  // Bind toggles
+  root.querySelectorAll(".faculty-header").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const group = btn.closest(".faculty-group");
+      const open  = group.classList.toggle("open");
+      btn.classList.toggle("open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+  // Bind ngành selection
+  root.querySelectorAll(".faculty-row").forEach((row) => {
+    row.addEventListener("click", () => {
+      const nganh = row.getAttribute("data-nganh");
+      const khoa  = row.getAttribute("data-khoa");
+      selectMajor(nganh, khoa);
+    });
+  });
+  // Bind clear
+  const clearBtn = document.getElementById("facultyClearBtn");
+  if (clearBtn) clearBtn.addEventListener("click", clearMajor);
+  refreshMajorUI();
+}
+
+function selectMajor(nganh, khoa) {
+  window.__selectedMajor = nganh;
+  window.__selectedKhoa  = khoa;
+  // Open the group containing this ngành
+  document.querySelectorAll(".faculty-group").forEach((g) => {
+    const rows = g.querySelectorAll(".faculty-row");
+    let hasMatch = false;
+    rows.forEach((r) => {
+      const match = r.getAttribute("data-nganh") === nganh;
+      r.classList.toggle("active", match);
+      if (match) hasMatch = true;
+    });
+    if (hasMatch) {
+      g.classList.add("open");
+      const hdr = g.querySelector(".faculty-header");
+      if (hdr) {
+        hdr.classList.add("open");
+        hdr.setAttribute("aria-expanded", "true");
+      }
+    }
+  });
+  const label = document.getElementById("facultyClearLabel");
+  if (label) label.textContent = khoa ? `${khoa} – ${nganh}` : nganh;
+  const clearBtn = document.getElementById("facultyClearBtn");
+  if (clearBtn) clearBtn.classList.add("show");
+  // Auto-send greeting prompt
+  const ta = document.getElementById("questionInput");
+  if (ta) {
+    ta.value = `Tìm sách thuộc ngành ${nganh}`;
+    ta.focus();
+    sendMessage();
+  }
+}
+
+function clearMajor() {
+  window.__selectedMajor = null;
+  window.__selectedKhoa  = null;
+  refreshMajorUI();
+}
+
+function refreshMajorUI() {
+  document.querySelectorAll(".faculty-row").forEach((r) => r.classList.remove("active"));
+  const clearBtn = document.getElementById("facultyClearBtn");
+  const label    = document.getElementById("facultyClearLabel");
+  if (clearBtn) clearBtn.classList.remove("show");
+  if (label)    label.textContent = "";
+}
+
+// ── Xem thêm section ──
+let morePage = 1, moreTotal = 0, moreSearchTerm = "";
+async function loadMoreDocs(page, search) {
+  const grid = document.getElementById("moreGrid");
+  const pg   = document.getElementById("morePagination");
+  grid.innerHTML = '<div class="more-loading">Đang tải...</div>';
+  pg.innerHTML = "";
+  try {
+    let url = BACKEND + "/documents?page=" + page + "&limit=20";
+    const r = await fetch(url);
+    const d = await r.json();
+    if (d.error) { grid.innerHTML = '<div class="more-loading">Lỗi: ' + d.error + '</div>'; return; }
+    const items = d.results || [];
+    moreTotal = d.total || 0;
+    morePage = page;
+    if (!items.length) { grid.innerHTML = '<div class="more-loading">Không có tài liệu</div>'; return; }
+    let html = "";
+    items.forEach(function(b) {
+      let linkUrl = b.link || "";
+      function field(label, val) {
+        if (val && val !== 'Unknown' && val !== 'N/A' && val !== 'Không xác định')
+          return '<div class="book-field"><span style="color:var(--text-tertiary);">' + label + ':</span> ' + esc(val).substring(0,160) + '</div>';
+        return '';
+      }
+      html += '<div class="book-card"><div style="display:flex;gap:10px;align-items:flex-start;">' +
+        '<div style="font-size:16px;flex-shrink:0;margin-top:2px;color:var(--accent);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>' +
+        '<div style="flex:1;min-width:0;">' +
+        '<div class="book-title">' + esc(b.title||"Tài liệu") + '</div>' +
+        field('Tác giả', b.author) +
+        field('Năm', b.year) +
+        field('Loại', b.doc_type) +
+        field('Ngành', b.major) +
+        field('Chủ đề', b.subject) +
+        field('DDC', b.ddc) +
+        field('NXB', b.publisher) +
+        field('Vị trí', b.location ? b.location.substring(0,120) : '') +
+        (linkUrl && linkUrl.startsWith('http') ? '<div style="margin-top:4px;"><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a></div>' : '') +
+        '</div></div></div>';
+    });
+    grid.innerHTML = html;
+    // Pagination
+    const totalPages = Math.ceil(moreTotal / 20);
+    if (totalPages > 1) {
+      let phtml = '<button onclick="loadMoreDocs(1)" ' + (page<=1?'disabled':'') + '>Đầu</button>';
+      phtml += '<button onclick="loadMoreDocs(' + (page-1) + ')" ' + (page<=1?'disabled':'') + '>‹</button>';
+      phtml += '<span>Trang ' + page + '/' + totalPages + '</span>';
+      phtml += '<button onclick="loadMoreDocs(' + (page+1) + ')" ' + (page>=totalPages?'disabled':'') + '>›</button>';
+      phtml += '<button onclick="loadMoreDocs(' + totalPages + ')" ' + (page>=totalPages?'disabled':'') + '>Cuối</button>';
+      pg.innerHTML = phtml;
+    }
+  } catch(e) {
+    grid.innerHTML = '<div class="more-loading">Lỗi kết nối</div>';
+  }
+}
+function toggleMoreSection() {
+  const body = document.getElementById("moreBody");
+  const btn  = document.getElementById("moreToggle");
+  const open = body.classList.toggle("open");
+  btn.innerHTML = open
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Thu gọn'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Xem thêm tài liệu';
+  if (open && !document.getElementById("moreGrid").querySelector(".book-card")) {
+    loadMoreDocs(1);
+  }
+}
+let searchTimer = null;
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(function() {
+    const q = document.getElementById("moreSearch").value.trim();
+    const grid = document.getElementById("moreGrid");
+    if (!q) { loadMoreDocs(1); return; }
+    grid.innerHTML = '<div class="more-loading">Đang tìm...</div>';
+    fetch(BACKEND + "/chat", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ query: q, session_id: "browse_" + Date.now() })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      const items = d.sources || [];
+      if (!items.length) { grid.innerHTML = '<div class="more-loading">Không tìm thấy</div>'; return; }
+      let html = "";
+      items.forEach(function(b) {
+        let linkUrl = b.link || "";
+        function field(label, val) {
+          if (val && val !== 'Unknown' && val !== 'N/A' && val !== 'Không xác định')
+            return '<div class="book-field"><span style="color:var(--text-tertiary);">' + label + ':</span> ' + esc(val).substring(0,160) + '</div>';
+          return '';
+        }
+        html += '<div class="book-card"><div style="display:flex;gap:10px;align-items:flex-start;">' +
+          '<div style="font-size:16px;flex-shrink:0;margin-top:2px;color:var(--accent);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>' +
+          '<div style="flex:1;min-width:0;">' +
+          '<div class="book-title">' + esc(b.title||"Tài liệu") + '</div>' +
+          field('Tác giả', b.author) +
+          field('Năm', b.year) +
+          field('Loại', b.doc_type) +
+          field('Ngành', b.major) +
+          field('Chủ đề', b.subject) +
+          field('DDC', b.ddc) +
+          field('NXB', b.publisher) +
+          field('Vị trí', b.location ? b.location.substring(0,120) : '') +
+          (linkUrl && linkUrl.startsWith('http') ? '<div style="margin-top:4px;"><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a></div>' : '') +
+          '</div></div></div>';
+      });
+      document.getElementById("morePagination").innerHTML = "";
+      grid.innerHTML = html;
+    }).catch(function(){ grid.innerHTML = '<div class="more-loading">Lỗi kết nối</div>'; });
+  }, 300);
+}
+
+document.getElementById("questionInput").addEventListener("input", function(){
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 120) + "px";
+});
+document.getElementById("questionInput").addEventListener("keydown", function(e){
+  if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+});
+// PDF Overlay keyboard handlers
+document.getElementById("pdfOverlayInput").addEventListener("input", function(){
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 100) + "px";
+});
+document.getElementById("pdfOverlayInput").addEventListener("keydown", function(e){
+  // Bỏ qua khi đang dùng IME
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendPdfOverlayMessage(); }
+});
+document.getElementById("pdfOverlay").addEventListener("keydown", function(e){
+  if (e.key === "Escape") closePdfOverlay();
+});
+document.getElementById("adminPwd").addEventListener("input", function(){
+  document.getElementById("adminLoginMsg").textContent = "";
+});
+
+// ── Admin Functions ──────────────────────────────────────
+let adminToken = localStorage.getItem("qnu_admin_token") || "";
+
+// Auto-show upload area if token exists
+if (adminToken && !backendReadOnly) {
+  document.getElementById("adminLoginRow").style.display = "none";
+  document.getElementById("adminUploadArea").style.display = "block";
+}
+
+function configureReadOnlyMode() {
+  if (!backendReadOnly) return;
+  adminToken = "";
+  localStorage.removeItem("qnu_admin_token");
+  const area = document.getElementById("adminPdfArea");
+  if (!area) return;
+  area.innerHTML = `
+    <div class="admin-badge">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Demo read-only
+    </div>
+    <div class="admin-msg" style="color:rgba(255,255,255,0.55);line-height:1.4;">
+      Upload và xóa PDF bị tắt trên Vercel Free.
+    </div>
+  `;
+}
+
+async function adminLogin() {
+  const pwd = document.getElementById("adminPwd").value.trim();
+  if (!pwd) return;
+  try {
+    const res = await fetch(BACKEND + "/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pwd })
+    });
+    if (!res.ok) {
+      const el = document.getElementById("adminLoginMsg");
+      el.textContent = "Sai mật khẩu!";
+      el.className = "admin-msg error";
+      document.getElementById("adminPwd").value = "";
+      document.getElementById("adminPwd").focus();
+      return;
+    }
+    const data = await res.json();
+  adminToken = data.token;
+  localStorage.setItem("qnu_admin_token", adminToken);
+  document.getElementById("adminLoginRow").style.display = "none";
+  // Hiện section PDF sau khi login thành công
+  document.querySelector(".sidebar")?.classList.add("show-pdf");
+  if (!backendReadOnly) await loadPdfList();
+    document.getElementById("adminUploadArea").style.display = "block";
+    renderPdfList(allPdfItems);
+    showUploadMsg("Đã đăng nhập", false);
+  } catch(e) {
+    showUploadMsg("Lỗi: " + e.message, true);
+  }
+}
+
+function adminLogout() {
+  adminToken = "";
+  localStorage.removeItem("qnu_admin_token");
+  document.getElementById("adminLoginRow").style.display = "flex";
+  document.getElementById("adminPwd").value = "";
+  document.getElementById("adminUploadArea").style.display = "none";
+  document.getElementById("adminLoginMsg").textContent = "";
+  // Ẩn section PDF khi logout
+  document.querySelector(".sidebar")?.classList.remove("show-pdf");
+  document.getElementById("pdfList").innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,0.45);">Đang tải...</div>';
+  localStorage.removeItem("qnu_admin_token");
+  document.getElementById("adminLoginRow").style.display = "flex";
+  document.getElementById("adminUploadArea").style.display = "none";
+  document.getElementById("adminPwd").value = "";
+  renderPdfList(allPdfItems);
+  showUploadMsg("", false);
+}
+
+function showUploadMsg(text, isError) {
+  const el = document.getElementById("uploadMsg");
+  el.textContent = text;
+  el.className = "admin-msg" + (isError ? " error" : "");
+}
+
+async function deletePdf(pdf, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  if (!adminToken) {
+    showUploadMsg("Cần đăng nhập admin", true);
+    return;
+  }
+
+  const label = pdf.display_name || pdf.file_stem || pdf.file_name || pdf.title || "PDF";
+  if (!confirm(`Xóa PDF "${label}"?`)) return;
+
+  showUploadMsg("Đang xóa...", false);
+  try {
+    const res = await fetch(BACKEND + "/api/admin/pdfs/" + encodeURIComponent(pdf.id), {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: adminToken })
+    });
+    const data = await res.json();
+    if (!res.ok) { throw new Error(data.detail || "Xóa thất bại"); }
+
+    if (currentSelectedPdf && currentSelectedPdf.id === pdf.id) {
+      currentSelectedPdf = null;
+      document.querySelectorAll(".pdf-item").forEach(item => item.classList.remove("active"));
+    }
+    showUploadMsg("✓ Đã xóa " + (data.file_name || label), false);
+    loadPdfList();
+  } catch(e) {
+    showUploadMsg("Lỗi: " + e.message, true);
+  }
+}
+
+async function uploadPdf(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".pdf")) {
+    showUploadMsg("Chỉ chấp nhận file PDF!", true); return;
+  }
+  showUploadMsg("Đang upload...", false);
+
+  const formData = new FormData();
+  formData.append("token", adminToken);
+  formData.append("file", file);
+
+  try {
+    const res = await fetch(BACKEND + "/api/admin/upload", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) { throw new Error(data.detail || "Upload thất bại"); }
+    showUploadMsg("✓ " + data.file_name, false);
+    input.value = "";
+    // Reload PDF list
+    loadPdfList();
+  } catch(e) {
+    showUploadMsg("Lỗi: " + e.message, true);
+  }
+}
+</script>
+</body>
+</html>

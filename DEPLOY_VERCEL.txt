@@ -1,0 +1,136 @@
+DEPLOY QNU LIBRARY ASSISTANT LEN VERCEL FREE / HOBBY
+
+Muc tieu:
+- Deploy demo FastAPI tren Vercel Free/Hobby.
+- Giu duoc chat, tim tai lieu, goi y tai lieu, doc PDF co san trong repo.
+- Upload/xoa PDF se bi tat trong moi truong Vercel vi filesystem cua Vercel Functions la read-only, chi co /tmp tam thoi.
+- Da loai bo langchain (PyPDFLoader) -> thay bang pypdf de giam dung luong.
+- Giam maxDuration xuong 60s (phu hop Vercel free). 
+
+Tai lieu Vercel lien quan:
+- FastAPI on Vercel: https://vercel.com/docs/frameworks/backend/fastapi
+- Python Runtime: https://vercel.com/docs/functions/runtimes/python
+- Functions runtime/filesystem: https://vercel.com/docs/functions/runtimes
+- Function limits: https://vercel.com/docs/functions/limitations
+
+1. Dieu kien truoc khi deploy
+
+Can co trong project:
+- app.py
+- chat.html
+- requirements.txt
+- vercel.json
+- runtime.txt
+- .vercelignore
+- Data/clean_BaoCao_DsTaiLieuSo.csv
+- Data/tailieu_templates_AI.xlsx
+- Data/_documents_cache.pkl
+- Data/_topic_index.pkl
+- pdfs/*.pdf
+- search_engine.py
+- text_utils.py
+- load_pdf.py
+- pdf_manager.py
+
+Luu y quan trong:
+- Neu deploy qua GitHub, cac file trong Data/ va pdfs/ phai duoc commit len repo.
+- Neu Data/ khong duoc commit, Vercel se deploy thieu du lieu va chatbot khong tra cuu dung.
+- Neu deploy bang Vercel CLI tu may local, .vercelignore se giu lai Data/ va pdfs/ nhung bo .venv/cache/log.
+
+2. Tao project tren Vercel bang GitHub
+
+Buoc 1: Day source len GitHub.
+
+git add .
+git commit -m "Configure Vercel demo deploy"
+git push
+
+Buoc 2: Vao https://vercel.com/new
+
+Buoc 3: Import repo GitHub.
+
+Buoc 4: Framework Preset de Other.
+
+Buoc 5: Khong can Build Command.
+
+Buoc 6: Them Environment Variables:
+
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENROUTER_MODEL=poolside/laguna-xs.2:free
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_APP_TITLE=QNU Library Assistant
+OPENROUTER_HTTP_REFERER=https://ten-project.vercel.app
+ADMIN_PASSWORD=mat-khau-admin-demo
+
+Buoc 7: Deploy.
+
+3. Deploy bang Vercel CLI
+
+Cai Vercel CLI neu chua co:
+
+npm i -g vercel
+
+Dang nhap:
+
+vercel login
+
+Deploy preview:
+
+vercel
+
+Deploy production:
+
+vercel --prod
+
+Them env bang CLI neu muon:
+
+vercel env add OPENROUTER_API_KEY production
+vercel env add OPENROUTER_MODEL production
+vercel env add OPENROUTER_BASE_URL production
+vercel env add OPENROUTER_APP_TITLE production
+vercel env add OPENROUTER_HTTP_REFERER production
+vercel env add ADMIN_PASSWORD production
+
+Sau khi them env, deploy lai:
+
+vercel --prod
+
+4. Kiem tra sau deploy
+
+Mo:
+
+https://ten-project.vercel.app/
+https://ten-project.vercel.app/chat
+
+5. Cac thay doi da thuc hien de tuong thich Vercel
+
+- load_pdf.py: bo langchain (PyPDFLoader), dung pypdf thuan
+- requirements.txt: bo PyPDF2, tenacity, urllib3 (khong can), giu lai pypdf
+- vercel.json: maxDuration 60s (free tier), memory 512MB
+- runtime.txt: pin Python 3.11
+- .vercelignore: bo deploy/ va *.md
+https://ten-project.vercel.app/status
+
+Neu /status tra read_only=true la dang chay dung moi truong Vercel.
+
+Thu hoi:
+- "goi y tai lieu ve y khoa"
+- "co sach cua tac gia Do Vu Nhat Linh khong"
+- "tom tat tai lieu DO VU NHAT LINH - KHDL"
+
+5. Gioi han tren Vercel Free/Hobby
+
+- Python FastAPI duoc ho tro tren Vercel.
+- Python function bundle toi da 500MB uncompressed.
+- Request/response payload toi da 4.5MB.
+- Filesystem read-only, chi co /tmp ghi tam toi da 500MB.
+- Vi vay upload PDF local vao pdfs/ khong the ben vung tren Vercel.
+
+6. Neu muon upload PDF tren Vercel
+
+Can doi kien truc:
+- Luu file vao Vercel Blob, Supabase Storage hoac S3-compatible storage.
+- Luu metadata vao DB.
+- Reindex tu storage/DB thay vi tu thu muc pdfs/ local.
+
+Ban demo hien tai tren Vercel la read-only. Neu can upload/xoa PDF that, dung Docker tren VPS/server rieng hoac tich hop storage ngoai.

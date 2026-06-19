@@ -1,0 +1,18 @@
+﻿.venv/
+__pycache__/
+*.pyc
+*.log
+.VERCEL/
+.vercel/
+
+# Cache files - built at runtime
+Data/_documents_cache.pkl
+Data/_topic_index.pkl
+vector_db/
+*.pkl
+*.faiss
+
+# Archives
+*.zip
+*.tar
+*.gz

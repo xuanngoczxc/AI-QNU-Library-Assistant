@@ -1,0 +1,250 @@
+{
+  "metadata": {
+    "purpose": "Smoke-test suite for /chat endpoint, /stats observability, and core catalog/content flows.",
+    "endpoint": "POST http://127.0.0.1:8000/chat",
+    "headers": {
+      "Content-Type": "application/json; charset=utf-8"
+    },
+    "schema": {
+      "query": "string (Vietnamese, diacritics stripped)",
+      "session_id": "string",
+      "major": "string (optional, canonical major name)",
+      "top_k": "int (default 8)",
+      "document_id": "string (optional, PDF mode)",
+      "expect": {
+        "min_sources": "int (lower bound on sources.length)",
+        "expect_llm_call": "bool (true → expect /stats.llm.calls to increment)",
+        "expect_answer_contains": "substring expected in .answer",
+        "expect_answer_not_contains": "substring that must NOT appear",
+        "expect_total_sources_min": "int"
+      }
+    },
+    "categories": [
+      "list_request: tìm sách theo chủ đề",
+      "content_request: hỏi nội dung/chương cụ thể (→ kích hoạt LLM)",
+      "author_request: tìm theo tác giả",
+      "publisher_request: tìm theo nhà xuất bản",
+      "major_filter: lọc theo ngành",
+      "chitchat: chào hỏi / smalltalk (→ không gọi LLM)",
+      "existence_check: hỏi có tồn tại không",
+      "edge_case: câu ngắn, không rõ ý"
+    ]
+  },
+  "queries": [
+    {
+      "id": "list_001_ai",
+      "category": "list_request",
+      "request": {
+        "query": "tri tue nhan tao",
+        "session_id": "eval-001"
+      },
+      "expect": {
+        "min_sources": 1,
+        "expect_llm_call": false,
+        "expect_answer_contains": "Mình tìm thấy"
+      }
+    },
+    {
+      "id": "list_002_quan_tri",
+      "category": "list_request",
+      "request": {
+        "query": "sach quan tri kinh doanh",
+        "session_id": "eval-002"
+      },
+      "expect": {
+        "min_sources": 1,
+        "expect_llm_call": false
+      }
+    },
+    {
+      "id": "content_001_ai_noi_dung",
+      "category": "content_request",
+      "request": {
+        "query": "noi dung sach tri tue nhan tao",
+        "session_id": "eval-003"
+      },
+      "expect": {
+        "min_sources": 1,
+        "expect_llm_call": true,
+        "expect_answer_contains": "**"
+      }
+    },
+    {
+      "id": "content_002_tom_tat",
+      "category": "content_request",
+      "request": {
+        "query": "tom tat sach tri tue nhan tao",
+        "session_id": "eval-004"
+      },
+      "expect": {
+        "min_sources": 1,
+        "expect_llm_call": true,
+        "expect_summary_min_len": 50
+      }
+    },
+    {
+      "id": "content_003_chuong",
+      "category": "content_request",
+      "request": {
+        "query": "trong chuong 2 noi ve gi",
+        "session_id": "eval-005"
+      },
+      "expect": {
+        "expect_llm_call": true
+      }
+    },
+    {
+      "id": "author_001",
+      "category": "author_request",
+      "request": {
+        "query": "sach cua Nguyen Van A",
+        "session_id": "eval-006"
+      },
+      "expect": {
+        "expect_llm_call": false
+      }
+    },
+    {
+      "id": "major_filter_001_cntt",
+      "category": "major_filter",
+      "request": {
+        "query": "tri tue nhan tao",
+        "session_id": "eval-007",
+        "major": "cong nghe thong tin"
+      },
+      "expect": {
+        "expect_llm_call": false,
+        "note": "canonical major 'cong nghe thong tin' → 0 docs (intentional, validates filter works)"
+      }
+    },
+    {
+      "id": "major_filter_002_qtri",
+      "category": "major_filter",
+      "request": {
+        "query": "sach kinh te",
+        "session_id": "eval-008",
+        "major": "quan tri kinh doanh"
+      },
+      "expect": {
+        "min_sources": 1,
+        "expect_llm_call": false
+      }
+    },
+    {
+      "id": "major_filter_003_ngon_ngu_anh",
+      "category": "major_filter",
+      "request": {
+        "query": "sach tieng anh",
+        "session_id": "eval-009",
+        "major": "ngon ngu anh"
+      },
+      "expect": {
+        "min_sources": 1,
+        "expect_llm_call": false
+      }
+    },
+    {
+      "id": "chitchat_001",
+      "category": "chitchat",
+      "request": {
+        "query": "xin chao",
+        "session_id": "eval-010"
+      },
+      "expect": {
+        "expect_llm_call": false,
+        "expect_min_sources": 0
+      }
+    },
+    {
+      "id": "chitchat_002_cam_on",
+      "category": "chitchat",
+      "request": {
+        "query": "cam on ban",
+        "session_id": "eval-011"
+      },
+      "expect": {
+        "expect_llm_call": false,
+        "expect_min_sources": 0
+      }
+    },
+    {
+      "id": "existence_001",
+      "category": "existence_check",
+      "request": {
+        "query": "co sach ve blockchain khong",
+        "session_id": "eval-012"
+      },
+      "expect": {
+        "expect_llm_call": false
+      }
+    },
+    {
+      "id": "edge_001_short",
+      "category": "edge_case",
+      "request": {
+        "query": "abc",
+        "session_id": "eval-013"
+      },
+      "expect": {
+        "expect_llm_call": false
+      }
+    },
+    {
+      "id": "edge_002_long",
+      "category": "edge_case",
+      "request": {
+        "query": "toi dang can tim mot cuon sach ve lich su viet nam giai doan 1945 den 1975",
+        "session_id": "eval-014"
+      },
+      "expect": {
+        "expect_llm_call": false
+      }
+    },
+    {
+      "id": "content_004_publisher",
+      "category": "publisher_request",
+      "request": {
+        "query": "sach cua nxb giao duc",
+        "session_id": "eval-015"
+      },
+      "expect": {
+        "expect_llm_call": false,
+        "min_sources": 0
+      }
+    },
+    {
+      "id": "regression_gd_001",
+      "category": "major_filter",
+      "description": "Regression: query for Physical Education must NOT return DO VU NHAT LINH (KHDL) at top",
+      "request": {
+        "query": "sach thuoc nganh giao duc the chat",
+        "session_id": "eval-regression-gd",
+        "top_k": 10
+      },
+      "expect": {
+        "min_sources": 1,
+        "expect_llm_call": false,
+        "expect_top_title_not_contains": "DO VU NHAT LINH"
+      }
+    },
+    {
+      "id": "regression_khdl_001",
+      "category": "major_filter",
+      "description": "Sanity: query for KHDL SHOULD return DO VU NHAT LINH at top (its actual major)",
+      "request": {
+        "query": "sach nganh KHDL",
+        "session_id": "eval-regression-khdl",
+        "top_k": 10
+      },
+      "expect": {
+        "min_sources": 1,
+        "expect_llm_call": false,
+        "expect_top_title_contains": "DO VU NHAT LINH"
+      }
+    }
+  ],
+  "thresholds": {
+    "max_p95_latency_seconds": 60,
+    "tolerance_for_canonical_major_filter": "major='cong nghe thong tin' (no docs in catalog) returns 0 sources — this is expected and validates the filter, not a failure"
+  }
+}
