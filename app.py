@@ -79,7 +79,22 @@ import requests
 # ── Config ───────────────────────────────────────────────
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "poolside/laguna-xs.2:free")
+# Fallback chain khi model chính fail (400 invalid model ID, 404, 503...)
+# Tự động thử model tiếp theo; ưu tiên các model free phổ biến đang active
+OPENROUTER_FALLBACK_MODELS = [
+    m.strip()
+    for m in os.getenv(
+        "OPENROUTER_FALLBACK_MODELS",
+        "meta-llama/llama-3.3-70b-instruct:free,"
+        "qwen/qwen-2.5-72b-instruct:free,"
+        "mistralai/mistral-small-3.2-24b-instruct:free,"
+        "google/gemini-2.0-flash-exp:free,"
+        "openai/gpt-oss-20b:free"
+    ).split(",")
+    if m.strip()
+]
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+
 OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "QNU Library Assistant")
 OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", "http://localhost:8000")
 
@@ -111,6 +126,13 @@ if not is_vercel_runtime():
 
 # ── Khởi tạo app ─────────────────────────────────────────
 app = FastAPI(title="Thư viện QNU RAG API", version="2.0.0")
+
+# Middleware: Permissions-Policy cho phép microphone hoạt động trên HTTPS
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Permissions-Policy"] = "microphone=(self), camera=(self)"
+    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -2615,64 +2637,83 @@ def call_llm(messages: list, temperature: float = 0.3) -> str:
     request_start = time.time()
     last_error: Optional[str] = None
 
+    # Build model chain: primary + fallbacks
+    model_chain = [OPENROUTER_MODEL] + list(OPENROUTER_FALLBACK_MODELS)
     max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = requests.post(
-                f"{OPENROUTER_BASE_URL}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": OPENROUTER_HTTP_REFERER,
-                    "X-Title": OPENROUTER_APP_TITLE,
-                },
-                json={
-                    "model": OPENROUTER_MODEL,
-                    "messages": messages,
-                    "temperature": temperature,
-                },
-                timeout=300,
-            )
 
-            if response.status_code == 429 and attempt < max_retries - 1:
-                wait = 2 ** (attempt + 1)
-                _llm_stats["retries"] += 1
-                logger.warning("Rate limited (429), retrying in %ss (attempt %d/%d)", wait, attempt + 1, max_retries)
-                time.sleep(wait)
-                continue
+    for model_idx, model_name in enumerate(model_chain):
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    f"{OPENROUTER_BASE_URL}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": OPENROUTER_HTTP_REFERER,
+                        "X-Title": OPENROUTER_APP_TITLE,
+                    },
+                    json={
+                        "model": model_name,
+                        "messages": messages,
+                        "temperature": temperature,
+                    },
+                    timeout=300,
+                )
 
-            if response.status_code != 200:
-                # Lỗi không retry được (4xx khác 429, hoặc 5xx lặp lại)
-                last_error = f"OpenRouter error [{response.status_code}]: {response.text[:200]}"
-                _record_llm_failure(last_error)
-                raise Exception(last_error)
+                if response.status_code == 429 and attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    _llm_stats["retries"] += 1
+                    logger.warning("Rate limited on %s (429), retrying in %ss (attempt %d/%d)", model_name, wait, attempt + 1, max_retries)
+                    time.sleep(wait)
+                    continue
 
-            payload = response.json()
-            content = payload["choices"][0]["message"].get("content", "")
+                if response.status_code == 400 or response.status_code == 404:
+                    # Invalid model → skip to next fallback immediately
+                    err_detail = f"Model '{model_name}' invalid [{response.status_code}]: {response.text[:200]}"
+                    logger.warning("LLM %s → fallback to next model: %s", model_name, err_detail)
+                    last_error = err_detail
+                    break  # break retry loop, try next model
 
-            # Thành công: reset circuit breaker + log
-            elapsed = time.time() - request_start
-            logger.info("LLM call OK in %.2fs (model=%s, len=%d)", elapsed, OPENROUTER_MODEL, len(content))
-            if cb["state"] in ("open", "half_open"):
-                logger.info("LLM circuit → closed (recovered)")
-            cb["state"] = "closed"
-            cb["failures"] = 0
-            return content
+                if response.status_code != 200:
+                    last_error = f"OpenRouter error [{response.status_code}]: {response.text[:200]}"
+                    _record_llm_failure(last_error)
+                    if attempt < max_retries - 1:
+                        wait = 2 ** (attempt + 1)
+                        _llm_stats["retries"] += 1
+                        logger.warning("LLM error, retrying in %ss (attempt %d/%d): %s", wait, attempt + 1, max_retries, last_error)
+                        time.sleep(wait)
+                        continue
+                    break  # hết retry cho model này, thử fallback
 
-        except HTTPException:
-            raise
-        except Exception as e:
-            last_error = str(e)[:200]
-            if attempt < max_retries - 1:
-                wait = 2 ** (attempt + 1)
-                _llm_stats["retries"] += 1
-                logger.warning("LLM error, retrying in %ss (attempt %d/%d): %s", wait, attempt + 1, max_retries, last_error)
-                time.sleep(wait)
-                continue
-            # Hết retry → ghi nhận thất bại
-            _record_llm_failure(last_error)
-            logger.error("LLM call FAILED after %d attempts in %.2fs: %s", max_retries, time.time() - request_start, last_error)
-            raise HTTPException(503, f"LLM API error: {last_error}")
+                # Thành công
+                payload = response.json()
+                content = payload["choices"][0]["message"].get("content", "")
+
+                elapsed = time.time() - request_start
+                tag = "primary" if model_idx == 0 else f"fallback#{model_idx}"
+                logger.info("LLM call OK in %.2fs (%s, model=%s, len=%d)", elapsed, tag, model_name, len(content))
+                if cb["state"] in ("open", "half_open"):
+                    logger.info("LLM circuit → closed (recovered)")
+                cb["state"] = "closed"
+                cb["failures"] = 0
+                return content
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                last_error = str(e)[:200]
+                if attempt < max_retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    _llm_stats["retries"] += 1
+                    logger.warning("LLM error on %s, retrying in %ss (attempt %d/%d): %s", model_name, wait, attempt + 1, max_retries, last_error)
+                    time.sleep(wait)
+                    continue
+                break  # hết retry cho model này, thử fallback
+
+    # All models failed
+    _record_llm_failure(last_error or "All models failed")
+    logger.error("LLM call FAILED after %d models in %.2fs: %s", len(model_chain), time.time() - request_start, last_error)
+    raise HTTPException(503, f"LLM API error: {last_error}")
 
 
 def _record_llm_failure(error_msg: str) -> None:

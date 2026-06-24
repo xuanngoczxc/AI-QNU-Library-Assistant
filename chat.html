@@ -1086,6 +1086,10 @@ async function toggleRecording() {
     } else {
       msg += `Lỗi: ${err.message || err.name}`;
     }
+    // Thêm gợi ý cho deployment HTTPS
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      msg += ' — Trên deployment, micro chỉ hoạt động qua HTTPS.';
+    }
     appendMsg("bot", msg);
   }
 }
