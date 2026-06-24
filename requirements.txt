@@ -31,6 +31,4 @@ pdf2image
 # (Comment out nếu không dùng để giữ image nhỏ)
 
 # Giai đoạn 3 — Voice input (Whisper)
-# Cài riêng:
-#   pip install faster-whisper
-# (Comment out nếu không dùng)
+faster-whisper
