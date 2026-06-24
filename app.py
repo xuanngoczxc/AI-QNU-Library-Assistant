@@ -176,6 +176,45 @@ logger.info("Search index ready: %d documents", len(documents))
 logger.info("Memory: ~50MB (no ML model loaded)")
 use_pdf = len(pdf_docs) > 0
 
+# ── File Change Detection ──────────────────────────────
+# Detect khi có file mới/xóa trong pdfs/ hoặc Data/ folder (so với lúc startup)
+_startup_pdf_count = sum(1 for _ in Path("pdfs").glob("*.pdf")) if Path("pdfs").exists() else 0
+_startup_data_mtime = 0.0  # mtime lớn nhất của tất cả file trong Data/
+for _f in Path("Data").glob("*"):
+    if _f.is_file() and _f.name != "_documents_cache.pkl":
+        _startup_data_mtime = max(_startup_data_mtime, _f.stat().st_mtime)
+
+_last_check_time = 0.0
+_check_interval = 10  # chỉ check mỗi 10 giây, không check mỗi request
+
+def check_files_changed():
+    """Check xem có file PDF hoặc CSV/XLSX mới/xóa/sửa so với lúc startup không."""
+    global _last_check_time, _startup_pdf_count, _startup_data_mtime
+    now = time.time()
+    if now - _last_check_time < _check_interval:
+        return {"pdf": False, "data": False}
+    _last_check_time = now
+
+    result = {"pdf": False, "data": False}
+
+    # Check PDF folder
+    current_pdf_count = sum(1 for _ in Path("pdfs").glob("*.pdf")) if Path("pdfs").exists() else 0
+    if current_pdf_count != _startup_pdf_count:
+        _startup_pdf_count = current_pdf_count
+        result["pdf"] = True
+
+    # Check Data folder (XLSX, CSV)
+    current_data_mtime = 0.0
+    if Path("Data").exists():
+        for _f in Path("Data").glob("*"):
+            if _f.is_file() and _f.name != "_documents_cache.pkl":
+                current_data_mtime = max(current_data_mtime, _f.stat().st_mtime)
+    if current_data_mtime > _startup_data_mtime:
+        _startup_data_mtime = current_data_mtime
+        result["data"] = True
+
+    return result
+
 # Giai đoạn 3 — Semantic engine (lazy load, không block startup)
 _semantic_engine = None
 def get_semantic_engine():
@@ -357,6 +396,7 @@ def reindex_pdfs(retriever):
     if new_count > 0:
         retriever.bm25._build_index()
         _build_topic_cache()
+        _search_cache.invalidate()  # Xóa cache kết quả cũ
         logger.info("Reindexed %d new PDF pages into BM25 + topic cache rebuilt", new_count)
     else:
         logger.info("No new PDF pages to reindex")
@@ -421,6 +461,7 @@ def remove_pdf_from_index(file_name: str) -> int:
     if removed:
         retriever.bm25._build_index()
         _build_topic_cache()
+        _search_cache.invalidate()  # Xóa cache kết quả cũ
     return removed
 
 def find_pdf_info_for_source(source: str = "", title: str = "") -> Optional[dict]:
@@ -450,6 +491,9 @@ def find_pdf_info_for_source(source: str = "", title: str = "") -> Optional[dict
     return None
 
 def answer_says_no_information(answer: str) -> bool:
+    """Detect neu LLM tra ve "khong co thong tin" — mo rong de phat hien nhieu bien the."""
+    if not answer:
+        return True
     normalized = normalize_text(answer or "")
     no_info_phrases = [
         "tai lieu khong cung cap",
@@ -459,6 +503,22 @@ def answer_says_no_information(answer: str) -> bool:
         "khong tim thay thong tin",
         "khong tim thay tai lieu",
         "khong co tai lieu",
+        "khong co trong tai lieu",
+        "khong duoc de cap trong tai lieu",
+        "khong thay trong tai lieu",
+        "khong duoc tim thay",
+        "khong co du lieu",
+        "khong the tra loi",
+        "minh khong the",
+        "xin loi toi khong",
+        "xin loi minh khong",
+        "khong co cau tra loi",
+        "khong co phan hoi",
+        "khong co thong tin cung cap",
+        "toi khong tim thay",
+        "minh khong tim thay",
+        "chua tim thay",
+        "hien tai minh chua tim thay",
     ]
     return any(phrase in normalized for phrase in no_info_phrases)
 
@@ -727,6 +787,13 @@ class SearchCache:
             self._cache.popitem(last=False)  # evict oldest
         self._cache[key] = (time.time(), results)
 
+    def invalidate(self):
+        """Xóa toàn bộ cache — gọi khi data thay đổi."""
+        n = len(self._cache)
+        self._cache.clear()
+        if n > 0:
+            logger.info("Search cache invalidated (%d entries cleared)", n)
+
     def stats(self) -> str:
         total = self._hits + self._misses
         rate = (self._hits / total * 100) if total else 0
@@ -836,13 +903,13 @@ def format_docs_with_metadata(search_results):
         is_pdf_page = str(doc.get('csv_file', '')).startswith('pdf:') or doc.get('page') is not None
         if is_pdf_page and text:
             page_label = f" - Trang {doc.get('page')}" if doc.get('page') else ""
-            content = f"[{title}{page_label}]\n{text[:3500]}"
+            content = f"[{title}{page_label}]\n{text[:6000]}"
         else:
             clean = title
             if valid(author): clean += f" - {author}"
             if valid(publisher): clean += f" ({publisher})"
-            if valid(abstract): clean += f"\n\nTóm tắt: {abstract[:500]}"
-            content = clean[:2000]
+            if valid(abstract): clean += f"\n\nTóm tắt: {abstract[:800]}"
+            content = clean[:3000]
         
         formatted.append({
             "text": content,
@@ -1203,6 +1270,42 @@ def clean_topic_tail(topic: str) -> str:
         topic = re.sub(pattern, " ", topic)
     topic = strip_search_intent_phrases(topic)
     return re.sub(r"\s+", " ", topic).strip()
+
+
+def _extract_major_from_query(query: str) -> str | None:
+    """Try to extract a major/ngành from a natural-language query.
+
+    Looks for patterns like ``ngành X``, ``lĩnh vực X``, ``chủ đề X``,
+    ``về X`` (when X looks like a noun phrase). The returned value is the
+    raw (un-normalized) form so the LLM sees a human-readable major.
+    Returns ``None`` when no major can be confidently detected.
+    """
+    if not query:
+        return None
+    q_norm = normalize_topic_text(query)
+    captured: str | None = None
+    for pattern in TOPIC_MARKER_PATTERNS:
+        m = re.search(pattern, q_norm)
+        if m:
+            captured = m.group(1)
+            break
+    if not captured:
+        return None
+    cleaned = clean_topic_tail(captured)
+    if not cleaned:
+        return None
+    # Reject if everything is stop-words
+    tokens = [t for t in cleaned.split() if t not in VIETNAMESE_STOP_WORDS]
+    if not tokens:
+        return None
+    # Recover the original (un-normalized) phrase so the LLM sees a
+    # human-readable major. Map each normalized token back to the
+    # original form in the user query when possible.
+    norm_to_orig: dict[str, str] = {}
+    for src in re.findall(r"[A-Za-zÀ-ỹ]+", query):
+        norm_to_orig.setdefault(normalize_topic_text(src), src)
+    pieces = [norm_to_orig.get(t, t) for t in cleaned.split()]
+    return " ".join(pieces)
 
 
 def extract_primary_topic_text(text: str) -> str:
@@ -1812,8 +1915,9 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
             return author_results + non_author_results[:3]
         # No author match at all
         if prefer_strict:
-            # Strict mode: tác giả không tồn tại → trả rỗng, KHÔNG fall through
-            return []
+            # Soft fallback: thay vì trả [] (silent zero), vẫn trả search_results gốc
+            # để user thấy gợi ý liên quan thay vì "Không tìm thấy".
+            logger.info("author strict miss for %r → fall back to original %d results", author_name, len(search_results))
         # If no author match at all, fall through to normal search
 
     if publisher_name:
@@ -1839,7 +1943,9 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
             return pub_results + non_pub_results[:3]
         # No publisher match at all
         if prefer_strict:
-            return []
+            # Soft fallback: thay vì trả [], vẫn trả search_results gốc
+            logger.info("publisher strict miss for %r → fall back to original %d results", publisher_name, len(search_results))
+        # fall through to normal search
 
     if detect_ai_domain(query):
         matched = []
@@ -1876,14 +1982,27 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
     unmatched = []
 
     # Adaptive threshold: require higher coverage when query has many tokens
-    strict_coverage_threshold = 0.50 if len(unique_tokens) >= 3 else 0.40
-    relaxed_coverage_threshold = 0.35  # Reasonable minimum to avoid noise
+    # Phrase candidates include very long substrings (e.g. the full query text), so
+    # the "phrase hit" check would otherwise let thousands of docs bypass strict coverage.
+    # The MIN phrase length protects against that loophole.
+    min_phrase_length_for_bypass = 4
+    if len(unique_tokens) >= 6:
+        strict_coverage_threshold = 0.80
+    elif len(unique_tokens) >= 3:
+        strict_coverage_threshold = 0.65
+    else:
+        strict_coverage_threshold = 0.50
+    relaxed_coverage_threshold = 0.40  # Reasonable minimum to avoid noise
     is_single_token = len(unique_tokens) == 1
 
     for result in search_results:
         doc = result.get("doc", {})
         normalized_doc = get_doc_topic_text(doc)
-        exact_phrase_hit = any(contains_normalized_phrase(normalized_doc, phrase) for phrase in topic_phrases)
+        exact_phrase_hit = any(
+            contains_normalized_phrase(normalized_doc, phrase)
+            for phrase in topic_phrases
+            if len(phrase.split()) >= min_phrase_length_for_bypass
+        )
         match_count = sum(1 for token in unique_tokens if re.search(rf"\b{re.escape(token)}\b", normalized_doc))
         if not match_count and not exact_phrase_hit:
             unmatched.append(result)
@@ -1944,9 +2063,10 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
     if prefer_strict:
         return []
 
-    # Fallback: return only top results even in relaxed mode to avoid noise
+    # Fallback: không có tài liệu nào khớp → trả về [] để tránh hiện PDF không liên quan
     if not prefer_strict and search_results:
-        return search_results[:min(8, len(search_results))]
+        logger.info("rerank: 0 matched → return empty to avoid noise for query=%r", query)
+        return []
     return search_results
 
 
@@ -2041,15 +2161,97 @@ def detect_greeting(query: str) -> bool:
 
     return False
 
-def detect_live_info_request(query: str) -> bool:
-    """Detect out-of-scope current/live-info questions, not catalog lookups."""
-    q = normalize_text(query or "")
+def classify_intent(query: str) -> str:
+    """Phan loai y dinh cau hoi: catalog_search | content_qa | chitchat | live_info | unknown
+    - catalog_search: tim sach, liet ke, danh muc
+    - content_qa: hoi noi dung, phan tich, doc file
+    - chitchat: chao hoi, cam on, tam biet
+    - live_info: thoi tiet, tin tuc, gia vang, bay gio
+    - unknown: ngoai pham vi thu vien
+    """
+    q = normalize_text(query or "").strip()
+    if not q:
+        return "unknown"
+
+    # Chitchat: chao/cam on/tam biet/cau hoi khong lien quan thu vien
+    chitchat_markers = [
+        "chao ban", "chao", "hello", "hi ", "cam on", "thanks",
+        "xin chao", "thank you", "khong co gi", "tam biet", "bye",
+        "ban co khoe khong", "giup toi voi", "gui loi",
+    ]
+    if any(m == q for m in ["chao", "hi", "hello", "cam on", "thanks", "bye", "tam biet"]):
+        return "chitchat"
+    for marker in chitchat_markers:
+        if marker in q:
+            return "chitchat"
+
+    # Live info: thoi gian, thoi tiet, tin tuc
     live_markers = [
         "hom nay", "ngay mai", "bay gio", "hien tai", "luc nay",
-        "thoi tiet the nao", "thoi tiet hom nay", "du bao thoi tiet",
-        "tin tuc", "moi nhat", "gia vang", "ty gia", "lich thi dau",
+        "thoi tiet", "du bao", "tin tuc", "moi nhat",
+        "gia vang", "ty gia", "lich thi dau", "chung khoan",
+        "tin moi", "thoi su",
     ]
-    return any(marker in q for marker in live_markers)
+    if any(marker in q for marker in live_markers):
+        return "live_info"
+
+    # Content QA: hoi noi dung, phan tich, doc file
+    content_phrases = [
+        "noi dung", "chi tiet", "phan tich", "giai thich", "trinh bay",
+        "cho biet", "hay cho biet", "neu ro", "neu cac", "neu nhung",
+        "tom tat", "doc file", "doc tai lieu", "trich", "trich xuat",
+        "muc luc", "chuong", "phan nao", "noi ve gi",
+        "file nay", "pdf nay", "tai lieu nay", "tai lieu do",
+        "cuon nay", "sach nay",
+        "phuong phap nghien cuu", "ket qua nghien cuu", "ket luan",
+        "giai phap trong", "dinh huong trong",
+        "khai niem", "dinh nghia", "vi du", "giai thich ca tu",
+        "phan mem", "he thong", "ung dung",
+    ]
+    if any(phrase in q for phrase in content_phrases):
+        return "content_qa"
+    command_patterns = [
+        r"\\b(?:hay|vui long)?\\s*(?:neu|phan tich|trinh bay|giai thich|tom tat|doc)\\b",
+        r"\\b(?:cho toi|cho minh|cho em)\\s+(?:biet|xem|tom tat)\\b",
+    ]
+    if any(re.search(pattern, q) for pattern in command_patterns):
+        return "content_qa"
+    if detect_summary_request(query) or detect_chapter_reference(query):
+        return "content_qa"
+
+    # Mặc định: catalog_search (tim sach, tim tai lieu)
+    # Neu query co tu khoa ve sach/tim/liet ke => catalog
+    list_markers = [
+        "tim sach", "tim tai lieu", "tim pdf", "liet ke",
+        "cho xem sach", "co sach nao", "co tai lieu nao",
+        "tim kiem", "tra cuu", "xem danh muc",
+        "nganh", "chu de",
+    ]
+    if any(marker in q for marker in list_markers):
+        return "catalog_search"
+
+    # Linh hoat hon: query chua "sach" hoac "tai lieu" bat ky dau
+    # Vi du: "ban co sach toan khong", "sach tin hoc", "tai lieu cong nghe"
+    catalog_keywords = ["sach", "tai lieu", "cuon sach", "de tai", "luan van"]
+    if any(kw in q for kw in catalog_keywords):
+        return "catalog_search"
+
+    # Library-related nhung chua ro y dinh: hoi lai user
+    clarify_markers = [
+        "the loai", "tac gia", "nha xuat ban", "chu de",
+        "nam xuat ban", "khoa hoc", "nganh hoc",
+        "sach hay", "tai lieu hay",
+        "cuon", "cuon nay", "cuon do",
+        "danh gia", "danh gia sach",
+    ]
+    if any(marker in q for marker in clarify_markers):
+        return "clarify"
+
+    # Fallback: khong ro y dinh => unknown (khong search)
+    return "unknown"
+
+def detect_live_info_request(query: str) -> bool:
+    return classify_intent(query) == "live_info"
 
 def detect_exhaustion_query(query: str) -> bool:
     """Detect if user is asking whether there are more results (exhaustion check)."""
@@ -2079,6 +2281,8 @@ def detect_content_request(query: str) -> bool:
         "tai lieu so", "cuon nay", "sach nay",
         "phuong phap nghien cuu", "ket qua nghien cuu", "ket luan",
         "giai phap trong", "dinh huong trong",
+        "khai niem", "dinh nghia", "vi du", "giai thich ca tu",
+        "phan mem", "he thong", "ung dung",
     ]
     if any(phrase in q for phrase in content_phrases):
         return True
@@ -2342,27 +2546,12 @@ def clean_display_value(value, max_length: int = 220) -> str:
     return text
 
 
-def build_catalog_answer(search_results, query: str) -> str:
+def build_catalog_answer(search_results, query: str, total_found: int = 0) -> str:
     """Build câu trả lời ngắn gọn: chỉ thông báo có kết quả, hiển thị chi tiết ở phần sources."""
     if not search_results:
         return "Không tìm thấy tài liệu phù hợp trong dữ liệu hiện có."
 
-    # Deduplicate
-    unique_items = []
-    seen = set()
-    for result in search_results:
-        doc = result["doc"]
-        title = clean_display_value(doc.get("title", "Không rõ tên"), 260) or "Không rõ tên"
-        author = clean_display_value(doc.get("author", ""), 180)
-        year = clean_display_value(doc.get("year", ""), 40)
-        dedupe_key = (title.lower(), str(author).lower(), str(year).lower())
-        if dedupe_key in seen:
-            continue
-        seen.add(dedupe_key)
-        unique_items.append(doc)
-
-    total = len(unique_items)
-    shown = min(total, 8)
+    total = total_found if total_found > 0 else len(search_results)
     return f"Mình tìm thấy **{total} tài liệu** liên quan đến câu hỏi của bạn. Xem chi tiết bên dưới."
 
 
@@ -2419,7 +2608,6 @@ def call_llm(messages: list, temperature: float = 0.3) -> str:
         if time.time() - cb["opened_at"] < cb["cooldown_seconds"]:
             logger.warning("LLM circuit OPEN, refusing call (cooldown %ss left)", int(cb["cooldown_seconds"] - (time.time() - cb["opened_at"])))
             raise HTTPException(503, "LLM service tạm thời không khả dụng, vui lòng thử lại sau ít phút.")
-        # Cooldown hết → chuyển sang half-open, cho phép 1 request thử
         cb["state"] = "half_open"
         logger.info("LLM circuit → half_open (retry attempt)")
 
@@ -2508,36 +2696,40 @@ def _record_llm_failure(error_msg: str) -> None:
 def build_summary_prompt():
     """Build prompt cho tóm tắt nâng cao với cấu trúc"""
     
-    prompt_text = """
-Hãy tóm tắt tài liệu theo cấu trúc sau:
+    prompt_text = """Bạn là trợ lý AI của Thư viện Trường Đại học Quy Nhơn (QNU Library Assistant).
+
+⚠️ TUYỆT ĐỐI KHÔNG được thêm thông tin ngoài nội dung tài liệu bên dưới.
+Chỉ tóm tắt ĐÚNG những gì có trong tài liệu, không suy luận, không thêm chi tiết.
+
+Hãy tóm tắt tài liệu theo cấu trúc sau — CHỈ viết khi nội dung tương ứng CÓ trong tài liệu (bỏ qua mục không có):
 
 **MỤC TIÊU:**
-Nêu rõ mục tiêu chính của tài liệu là gì?
+Nêu rõ mục tiêu chính của tài liệu là gì? Nếu tài liệu không nêu, bỏ qua mục này.
 
 **PHƯƠNG PHÁP:**
-Tài liệu sử dụng phương pháp, công cụ, cách tiếp cận nào?
+Tài liệu sử dụng phương pháp, công cụ, cách tiếp cận nào? Nếu không có, bỏ qua.
 
 **KẾT QUẢ CHÍNH:**
-Những phát hiện, kết luận, kết quả chính là gì? (3-5 dòng)
+Những phát hiện, kết luận, kết quả chính là gì? (3-5 dòng). Nếu không có, bỏ qua.
 
 **TỪ KHÓA:**
-Liệt kê 5-7 từ khóa chính
+Liệt kê 5-7 từ khóa chính từ nội dung tài liệu.
 
 **TÓM TẮT NGẮN:**
-Tóm tắt lại toàn bộ nội dung thành 2-3 câu
+Tóm tắt lại toàn bộ nội dung thành 2-3 câu dựa trên tài liệu.
 
 NỘI DUNG TÀI LIỆU:
 {content}
 
-TRẢ LỜI (Tiếng Việt, tuân thủ cấu trúc trên):
+TRẢ LỜI (Tiếng Việt, tuân thủ cấu trúc trên, chỉ nội dung có thật trong tài liệu):
 """
     
     def summary_chain(content: str) -> str:
         messages = [
-            {"role": "system", "content": "Bạn chỉ được trả về phần trả lời cuối cùng bằng tiếng Việt. Không hiển thị suy luận, không dùng thẻ <think>, không thêm chú thích meta."},
+            {"role": "system", "content": "Bạn chỉ được trả về phần trả lời cuối cùng bằng tiếng Việt. Không hiển thị suy luận, không dùng thẻ <think>, không thêm chú thích meta. Không thêm thông tin không có trong tài liệu."},
             {"role": "user", "content": prompt_text.format(content=content)}
         ]
-        return call_llm(messages, temperature=0.1)
+        return sanitize_answer_text(call_llm(messages, temperature=0.1))
     
     return summary_chain
 
@@ -2564,7 +2756,6 @@ def detect_chapter_reference(query: str) -> Optional[int]:
                 return None
     return None
 
-
 def detect_method_question(query: str) -> bool:
     """Detect nếu user hỏi về phương pháp nghiên cứu"""
     if not query:
@@ -2578,7 +2769,6 @@ def detect_method_question(query: str) -> bool:
     ]
     q = normalize_text(query)
     return any(kw in q for kw in keywords)
-
 
 def detect_result_question(query: str) -> bool:
     """Detect nếu user hỏi về kết quả/kết luận"""
@@ -2681,7 +2871,8 @@ HƯỚNG DẪN TRẢ LỜI:
 4. Nếu có kết quả/phát hiện quan trọng, liệt kê rõ.
 5. Nếu thông tin không đủ, hãy nói "Chương này không được đề cập chi tiết trong tài liệu hiện có".
 6. Không viết thành một đoạn dài; luôn chia ý bằng tiêu đề ngắn và gạch đầu dòng.
-7. QUAN TRỌNG: Khi liệt kê nhiều ý, đánh số tăng dần 1, 2, 3, 4... xuyên suốt TOÀN BỘ phần trả lời. KHÔNG reset về 1 ở mỗi tiêu đề phụ.
+7. 📌 CẤU TRÚC PHÂN CẤP: PHẢI giữ nguyên cấu trúc gốc từ tài liệu. Nếu chương có "I, 1, 1.1, a, b, c..." thì tái hiện đúng thứ bậc đó. KHÔNG đánh số lại thành 1, 2, 3... liên tục.
+8. Dùng ## cho mục lớn, ### cho mục vừa, #### cho mục nhỏ. KHÔNG dùng `-` trước heading.
 
 TÀI LIỆU:
 {{context}}
@@ -2706,7 +2897,8 @@ HƯỚNG DẪN TRẢ LỜI:
 4. Giải thích tại sao phương pháp này phù hợp.
 5. Nếu tài liệu không cung cấp, hãy nói "Tài liệu không đề cập rõ phương pháp nghiên cứu".
 6. Không viết thành một đoạn dài; luôn chia ý bằng tiêu đề ngắn và gạch đầu dòng.
-7. QUAN TRỌNG: Khi liệt kê nhiều ý, đánh số tăng dần 1, 2, 3, 4... xuyên suốt TOÀN BỘ phần trả lời. KHÔNG reset về 1 ở mỗi tiêu đề phụ.
+7. 📌 CẤU TRÚC PHÂN CẤP: PHẢI giữ nguyên cấu trúc gốc từ tài liệu. Nếu phương pháp được trình bày theo "I, 1, 1.1, a, b, c..." thì tái hiện đúng thứ bậc đó. KHÔNG đánh số lại thành 1, 2, 3... liên tục.
+8. Dùng ## cho mục lớn, ### cho mục vừa, #### cho mục nhỏ. KHÔNG dùng `-` trước heading.
 
 TÀI LIỆU:
 {context}
@@ -2722,49 +2914,51 @@ def build_general_chain():
     
     prompt_text = """Bạn là trợ lý AI của Thư viện Trường Đại học Quy Nhơn (QNU Library Assistant).
 
-HƯỚNG DẪN TRẢ LỜI — NGHIÊM NGẶT:
+⚠️ QUY TẮC VÀNG — TUYỆT ĐỐI TUÂN THỦ:
+0. **KHÔNG ĐƯỢC DÙNG KIẾN THỨC BÊN NGOÀI.** Bạn CHỈ trả lời dựa trên TÀI LIỆU được cung cấp trong mục [TÀI LIỆU] bên dưới.
+   - Nếu tài liệu KHÔNG chứa câu trả lời, hãy nói: *"Tài liệu không cung cấp thông tin này."*
+   - KHÔNG suy luận, KHÔNG phỏng đoán, KHÔNG bịa đặt dữ liệu.
+   - KHÔNG dùng kiến thức phổ thông, sách giáo khoa, hay bất kỳ nguồn nào khác ngoài tài liệu đã cho.
+
+CÁC HƯỚNG DẪN KHÁC — CHỈ ÁP DỤNG KHI TÀI LIỆU CÓ CÂU TRẢ LỜI:
 1. CHỈ dùng những tài liệu có liên quan TRỰC TIẾP đến câu hỏi của user. Nếu tài liệu không liên quan trực tiếp, hãy bỏ qua hoàn toàn.
-2. Phân biệt rõ ràng giữa "liên quan trực tiếp" và "chỉ cùng chủ đề chung chung". Ví dụ: user hỏi "trí tuệ nhân tạo" thì tài liệu về "công nghệ phần mềm" KHÔNG phải liên quan trực tiếp.
-3. Trả lời dựa CHÍNH XÁC trên nội dung tài liệu được cung cấp.
-4. Kèm theo: Nhan đề sách, tác giả, năm xuất bản, chủ đề, vị trí trong tài liệu (nếu có).
-5. Nếu user hỏi về CHƯƠNG/PHẦN CỤ THỂ, tìm nội dung đó và trả lời chi tiết.
-6. Nếu user hỏi về PHƯƠNG PHÁP NGHIÊN CỨU, hãy nêu rõ: công cụ, quy trình, dữ liệu.
-7. Nếu user hỏi về KẾT QUẢ/KẾT LUẬN, liệt kê rõ ràng các phát hiện quan trọng.
-8. Kèm link tài liệu bản số nếu có sẵn.
-9. KHÔNG bịa dữ liệu nếu không có trong tài liệu - hãy nói "Tài liệu không cung cấp thông tin này".
-10. KHÔNG trả lời về những chủ đề không liên quan đến câu hỏi dù tài liệu có nhắc đến.
-11. Không viết thành một đoạn văn dài. Luôn trình bày thành từng ý rõ ràng bằng Markdown.
-12. Nếu user hỏi "nội dung là gì", "tóm tắt", hoặc hỏi tổng quan tài liệu, dùng đúng bố cục:
-   **Tài liệu**
-   - Nhan đề, tác giả/năm nếu có.
+2. Trả lời dựa CHÍNH XÁC trên nội dung tài liệu được cung cấp.
+3. Nếu user hỏi về CHƯƠNG/PHẦN CỤ THỂ, tìm nội dung đó và trả lời chi tiết.
+4. Nếu user hỏi về PHƯƠNG PHÁP NGHIÊN CỨU, hãy nêu rõ: công cụ, quy trình, dữ liệu.
+5. Nếu user hỏi về KẾT QUẢ/KẾT LUẬN, liệt kê rõ ràng các phát hiện quan trọng.
+6. Kèm link tài liệu bản số nếu có sẵn.
+7. KHÔNG trả lời về những chủ đề không liên quan đến câu hỏi dù tài liệu có nhắc đến.
+8. KHÔNG viết thành một đoạn văn dài. Luôn trình bày thành từng ý rõ ràng.
 
-   **Nội dung chính**
-   - 3-6 ý chính, mỗi ý một dòng.
+📌 CẤU TRÚC PHÂN CẤP — BẮT BUỘC TUÂN THỦ:
+- Khi tài liệu gốc có cấu trúc phân cấp (I, II, III... → 1, 2, 3... → 1.1, 1.2... → a, b, c...), BẮT BUỘC tái hiện đúng cấu trúc đó trong câu trả lời.
+- Ví dụ: Nếu tài liệu viết "I. Giới thiệu → 1. Bối cảnh → 1.1 Tại sao nghiên cứu → a. Thực trạng → b. Mục tiêu" thì phải giữ nguyên thứ bậc này.
+- KHÔNG đánh số lại thành 1, 2, 3... liên tục nếu tài liệu gốc có cấu trúc phân cấp khác.
+- Nếu tài liệu không có cấu trúc phân cấp rõ ràng, dùng markdown headings (##, ###) hoặc bullet points.
 
-   **Bố cục/Phạm vi**
-   - Các chương/phần hoặc phạm vi nghiên cứu nếu tài liệu có nêu.
+📌 QUY TẮC FORMAT (Markdown):
+- Dùng ## cho mục lớn (A, B, C... hoặc I, II, III...), ### cho mục vừa (1, 2, 3...), #### cho mục nhỏ (1.1, 1.2...).
+- Dùng **inbold** cho tên riêng, thuật ngữ quan trọng.
+- KHÔNG dùng dấu `-` trước heading (mục lớn). Chỉ dùng `-` cho list item thực sự (nội dung chi tiết).
+- Ví dụ ĐÚNG:
+  ## A. Hệ thống
+  - Cấu hình hệ thống (đơn vị, module điểm)
+  - Từ điển dữ liệu: danh mục điểm thành phần
 
-   **Kết luận**
-   - 1-2 ý kết luận ngắn.
+  Ví dụ SAI:
+  - **A. Hệ thống** ← KHÔNG dùng `-` trước heading
 
-13. QUAN TRỌNG: Khi liệt kê nhiều ý, mỗi ý phải đánh số tăng dần 1, 2, 3, 4... trong TOÀN BỘ phần trả lời (không reset về 1 ở mỗi tiêu đề phụ). Ví dụ:
-    **Nội dung chính**
-    1. Ý thứ nhất
-    2. Ý thứ hai
-    3. Ý thứ ba
+📌 ĐỘ CHI TIẾT — BẮT BUỘC:
+- Khi tài liệu có cấu trúc phân cấp nhiều tầng (A → I → 1 → 1.1 → a), PHẢI trình bày ĐẦY ĐỦ tất cả các tầng con, KHÔNG được tóm tắt bỏ qua.
+- Chỉ tóm tắt khi user yêu cầu "tóm tắt". Nếu user hỏi nội dung → trả lời CHI TIẾT theo đúng cấu trúc tài liệu.
+- Nếu có 5 mục con → liệt kê cả 5. Nếu có 3 cấp → hiển thị cả 3 cấp.
 
-    **Bố cục**
-    4. Ý thứ tư
-    5. Ý thứ năm
-
-    KHÔNG viết `1.` cho mỗi mục riêng biệt.
-
-TÀI LIỆU:
+[TÀI LIỆU]:
 {context}
 
-CÂU HỎI: {question}
+[CÂU HỎI]: {question}
 
-TRẢ LỜI (Tiếng Việt, ngắn gọn, chỉ nội dung trả lời chính; KHÔNG đề cập tài liệu không liên quan trực tiếp):"""
+[TRẢ LỜI] (Tiếng Việt, chi tiết theo cấu trúc tài liệu, KHÔNG tóm tắt bỏ qua mục con; tuân thủ tuyệt đối Quy tắc vàng số 0):"""
     
     def rag_chain(context: str, question: str) -> str:
         # Detect question type
@@ -3091,6 +3285,42 @@ def build_follow_up_suggestions(
     """Generate contextual follow-up suggestions. Each item: {label, query}."""
     suggestions = []
 
+    # Danh sách từ khóa "rác" — thường xuất hiện từ tool convert PDF, không phải tác giả/thực thể thật
+    _junk_authors = {
+        "aspose", "aspose.pdf", "aspose.pdf.epubtopdfconverter",
+        "unknown", "n/a", "khong xac dinh", "pdf converter",
+        "epubtopdfconverter", "microsoft", "adobe", "apache",
+        "itext", "itextsharp", "pdfsharp", "spire",
+    }
+    _junk_subjects = {
+        "aspose", "n/a", "unknown", "khong xac dinh", "pdf",
+        "tai lieu so", "digital",
+    }
+
+    def _is_valid_author(val: str) -> bool:
+        """Kiểm tra author có phải giá trị thật không."""
+        if not val or len(val) < 3:
+            return False
+        v = val.strip().lower()
+        if v in _junk_authors:
+            return False
+        # Chứa "aspose", "converter", "pdf" → tool name
+        if any(kw in v for kw in ("aspose", "converter", "pdfsharp", "epubtopdf", "pdftool")):
+            return False
+        # Chỉ toàn số hoặc ký tự đặc biệt
+        if all(c.isdigit() or c in "._-/" for c in v):
+            return False
+        return True
+
+    def _is_valid_subject(val: str) -> bool:
+        """Kiểm tra subject có phải giá trị thật không."""
+        if not val or len(val) < 2:
+            return False
+        v = val.strip().lower()
+        if v in _junk_subjects:
+            return False
+        return True
+
     if catalog_mode:
         # Catalog mode: suggest searching by subject and author
         first_subject = ""
@@ -3101,57 +3331,91 @@ def build_follow_up_suggestions(
             first_author = sources[0].get("author", "").strip()
             first_title = sources[0].get("title", "").split(" - ")[0].strip()[:60]
 
-        # Gợi ý xem nội dung PDF nếu có
-        if has_pdf_sources:
-            pdf_sources = [s for s in sources if s.get("is_pdf")]
-            if pdf_sources:
-                first_pdf = pdf_sources[0]
-                pdf_title = first_pdf.get("display_name") or first_pdf.get("title", "")
-                suggestions.append({
-                    "label": f"Đọc nội dung: {pdf_title[:50]}",
-                    "query": f"__VIEW_PDF__:{first_pdf.get('pdf_id', '')}:{pdf_title}"
-                })
+        # BỎ: gợi ý "Đọc nội dung PDF" - user không thích
 
-        # Gợi ý tìm cùng chủ đề
-        if first_subject and first_subject not in ("N/A", "Unknown", ""):
+        # Gợi ý tìm sách theo ngành liên quan (ưu tiên major trước subject)
+        first_major = ""
+        if sources:
+            first_major = sources[0].get("major", "").strip()
+        if first_major and _is_valid_subject(first_major):
+            suggestions.append({
+                "label": f"Tìm sách theo ngành: {first_major}",
+                "query": f"tìm sách thuộc ngành {first_major}"
+            })
+
+        # Gợi ý tìm cùng chủ đề (nếu có)
+        if first_subject and _is_valid_subject(first_subject):
             suggestions.append({
                 "label": f"Tìm sách cùng chủ đề: {first_subject}",
                 "query": f"tìm sách về {first_subject}"
             })
 
         # Gợi ý tìm cùng tác giả
-        if first_author and first_author not in ("N/A", "Unknown", ""):
+        if first_author and _is_valid_author(first_author):
             suggestions.append({
                 "label": f"Tìm sách cùng tác giả: {first_author}",
                 "query": f"sách của tác giả {first_author}"
             })
 
-        # Gợi ý tìm tài liệu liên quan
-        if len(suggestions) < 3:
-            suggestions.append({
-                "label": "Gợi ý tài liệu liên quan",
-                "query": "__SUGGEST_RELATED__"
-            })
     else:
-        # Content mode: show suggestions based on answer content
+        # Content mode: show suggestions based on document metadata + query + answer
         answer_lower = normalize_text(answer or "")
-        if re.search(r"chuong|chapter|muc|phan", answer_lower):
-            suggestions.append({"label": "Phân tích sâu hơn", "query": "Phân tích chi tiết hơn nội dung trên"})
-        if re.search(r"phuong phap|methodology|cach tiep can|cong cu|ky thuat", answer_lower):
+        query_lower = normalize_text(query or "")
+
+        # Extract document metadata from sources for smarter suggestions
+        doc_subjects = []
+        doc_titles = []
+        doc_authors = []
+        for s in sources[:5]:
+            subj = (s.get("subject") or "").strip()
+            title = (s.get("title") or "").strip()
+            author = (s.get("author") or "").strip()
+            if subj:
+                doc_subjects.append(subj)
+            if title:
+                doc_titles.append(title)
+            if author and _is_valid_author(author):
+                doc_authors.append(author)
+
+        primary_subject = doc_subjects[0] if doc_subjects else ""
+
+        # ── Answer-pattern-based suggestions ──
+        if re.search(r"chuong|chapter|muc|phan|section", answer_lower):
+            suggestions.append({"label": "Phân tích sâu hơn", "query": f"Phân tích chi tiết hơn nội dung{' về ' + primary_subject if primary_subject else ''}"})
+        if re.search(r"phuong phap|methodology|cach tiep can|cong cu|ky thuat|algorithm", answer_lower):
             suggestions.append({"label": "Nói rõ hơn về phương pháp", "query": "Giải thích chi tiết hơn về phương pháp được sử dụng"})
-        if re.search(r"ket qua|finding|conclusion|ket luan|phat hien", answer_lower):
-            suggestions.append({"label": "Phân tích kết quả", "query": "Phân tích chi tiết hơn về kết quả nghiên cứu"})
-        if re.search(r"gioi thieu|introduction|muc tieu|tong quan", answer_lower):
-            suggestions.append({"label": "Tóm tắt nội dung", "query": "Tóm tắt nội dung chính của tài liệu"})
-        if len(answer) > 200 and len(suggestions) < 3:
-            suggestions.append({"label": "Nói chi tiết hơn", "query": "Bạn có thể giải thích chi tiết hơn?"})
-        if len(suggestions) < 3:
-            suggestions.append({"label": "Xem tài liệu tham khảo", "query": "Cho mình xem tài liệu tham khảo"})
-        if len(suggestions) < 3:
+        if re.search(r"ket qua|finding|conclusion|ket luan|danh gia", answer_lower):
+            suggestions.append({"label": "Phân tích kết quả", "query": "Phân tích chi tiết hơn về kết quả"})
+        if re.search(r"gioi thieu|introduction|muc tieu|ly do|tong quan", answer_lower):
+            suggestions.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
+
+        # ── Query-topic-based suggestions ──
+        if re.search(r"là gì|định nghĩa|khái niệm|nghĩa là|hiểu sao", query_lower):
+            suggestions.append({"label": "Ứng dụng thực tế", "query": f"Các ứng dụng thực tế trong {primary_subject or 'lĩnh vực này'}"})
+            suggestions.append({"label": "Ví dụ minh họa", "query": "Cho ví dụ minh họa cụ thể"})
+        if re.search(r"so sánh|khác biệt|điểm giống|điểm khác|tương tự", query_lower):
+            suggestions.append({"label": "So sánh chi tiết hơn", "query": "So sánh chi tiết hơn giữa các yếu tố"})
+        if re.search(r"cách|quy trình|các bước|làm thế nào|thực hiện|procedure", query_lower):
+            suggestions.append({"label": "Xem quy trình từng bước", "query": "Mô tả chi tiết từng bước thực hiện"})
+        if re.search(r"tại sao|nguyên nhân|lý do|vì sao|do đâu", query_lower):
+            suggestions.append({"label": "Giải pháp khắc phục", "query": "Giải pháp và cách khắc phục vấn đề này"})
+
+        # ── Smart fallbacks based on source metadata (NOT generic) ──
+        if len(suggestions) < 3 and primary_subject:
             suggestions.append({
-                "label": "Gợiý tài liệu liên quan",
-                "query": "__SUGGEST_RELATED__"
+                "label": f"Liên quan đến {primary_subject[:40]}",
+                "query": f"Kiến thức liên quan đến {primary_subject}"
             })
+        if len(suggestions) < 3 and doc_authors:
+            suggestions.append({
+                "label": f"Tìm sách của {doc_authors[0]}",
+                "query": f"sách của tác giả {doc_authors[0]}"
+            })
+        if len(suggestions) < 3 and answer and len(answer) > 200:
+            suggestions.append({"label": "Tóm tắt ngắn gọn", "query": "Tóm tắt lại thành 3-5 ý chính"})
+        if len(suggestions) < 3:
+            suggestions.append({"label": "Nội dung chính của tài liệu", "query": "Tóm tắt nội dung chính của tài liệu này"})
+
 
     seen = set()
     unique = []
@@ -3174,19 +3438,87 @@ async def chat(req: ChatRequest):
         normalized_query = normalize_text(req.query)
         
         # Lấy lịch sử session
-        hist = session_history.get(req.session_id, [])
-        request_content = detect_content_request(req.query)
-        is_list_request = detect_list_request(req.query)
-        catalog_mode = is_list_request or not request_content
+        # Phan loai intent truoc khi xu ly
+        intent = classify_intent(req.query)
+        logger.info("Intent: %s for query: %s", intent, req.query)
 
-        if detect_live_info_request(req.query) and catalog_mode and not is_list_request:
+        # Chitchat / unknown → tra ve cung, khong goi LLM
+        if intent == "chitchat":
+            return ChatResponse(
+                answer="Xin chào! Mình là trợ lý Thư viện Trường Đại học Quy Nhơn. Mình có thể giúp gì cho bạn về tra cứu sách, tài liệu số, hoặc nội dung các tài liệu trong thư viện ạ? 📚",
+                sources=[],
+                total_sources=0,
+                total_found=0,
+                summary="",
+                current_document=None,
+                follow_up_suggestions=[],
+            )
+        if intent == "live_info":
             return ChatResponse(
                 answer="Tài liệu không cung cấp thông tin này.",
                 sources=[],
                 total_sources=0,
+                total_found=0,
                 summary="",
-                current_document=None
+                current_document=None,
+                follow_up_suggestions=[],
             )
+        # unknown → nếu có PDF, thử search (có thể user hỏi nội dung file mới upload)
+        # nếu không có PDF, trả lời trực tiếp "không có thông tin"
+        if intent == "unknown":
+            try:
+                _has_pdfs = len(pdf_manager.list_all_pdfs()) > 0
+            except Exception:
+                _has_pdfs = False
+            if not _has_pdfs:
+                logger.info("Unknown intent %r → không có PDF, trả lời 'không có thông tin'", req.query)
+                return ChatResponse(
+                    answer="Tài liệu không cung cấp thông tin này.",
+                    sources=[],
+                    total_sources=0,
+                    total_found=0,
+                    summary="",
+                    current_document=None,
+                    follow_up_suggestions=[],
+                )
+            logger.info("Unknown intent %r → có PDF, thử search...", req.query)
+
+        # clarify -> Hoi lai user vi cau hoi chua ro y dinh
+        if intent == "clarify":
+            logger.info("Clarify intent %r -> hoi lai user", req.query)
+            query_normalized = normalize_text(req.query).strip()
+            if "the loai" in query_normalized:
+                answer = ("Bạn đang muốn: **TÌM SÁCH** về thể loại này, "
+                         "hay hỏi về **NỘI DUNG** thể loại văn học?\n\n"
+                         "Vui lòng chọn:")
+            elif "tac gia" in query_normalized:
+                answer = ("Bạn đang muốn: **TÌM SÁCH** của tác giả này, "
+                         "hay hỏi về **THÔNG TIN** tác giả?\n\n"
+                         "Vui lòng chọn:")
+            elif "nha xuat ban" in query_normalized:
+                answer = ("Bạn đang muốn: **TÌM SÁCH** của nhà xuất bản này, "
+                         "hay hỏi về **THÔNG TIN** nhà xuất bản?\n\n"
+                         "Vui lòng chọn:")
+            else:
+                answer = ("Bạn đang muốn **TÌM SÁCH** hay **HỎI VỀ NỘI DUNG** liên quan?\n\n"
+                         "Vui lòng chọn:")
+            return ChatResponse(
+                answer=answer,
+                sources=[],
+                total_sources=0,
+                total_found=0,
+                summary="",
+                current_document=None,
+                follow_up_suggestions=[
+                    {"label": "Tìm sách", "query": "tim sach ve " + query_normalized},
+                    {"label": "Hỏi về nội dung", "query": "noi dung ve " + query_normalized}
+                ],
+            )
+
+        hist = session_history.get(req.session_id, [])
+        request_content = detect_content_request(req.query)
+        is_list_request = detect_list_request(req.query)
+        catalog_mode = is_list_request or (not request_content and intent != "unknown")
 
         # Handle greetings & chitchat — respond naturally, no search
         if detect_greeting(req.query):
@@ -3369,6 +3701,53 @@ async def chat(req: ChatRequest):
             catalog_mode = True
             logger.info("List-topic converted to: '%s'", req_query_for_search)
 
+        # ── Auto-detect major/ngành from natural-language queries ──
+        # When the user asks things like "Tìm sách thuộc ngành Công nghệ thông tin"
+        # the frontend does not send a `major` field, so the major filter at the
+        # end of the search flow is never triggered. Detect patterns like
+        # "ngành X", "lĩnh vực X", "chủ đề X" using the existing marker regex
+        # and inject the canonical major so the major filter can run.
+        if not req.major and not req.document_id:
+            try:
+                _detected_major = _extract_major_from_query(req.query)
+                if _detected_major:
+                    req.major = _detected_major
+                    logger.info(
+                        "Auto-detected major from query: '%s' (query='%s')",
+                        _detected_major, req.query,
+                    )
+            except Exception as _e:
+                logger.debug("Major auto-detect failed: %s", _e)
+
+        # Auto-reindex nếu folder pdfs/ hoặc Data/ thay đổi
+        file_changes = check_files_changed()
+        if file_changes["pdf"]:
+            logger.info("PDF folder changed → auto reindexing...")
+            try:
+                reindex_pdfs(retriever)
+            except Exception as _e:
+                logger.warning("Auto reindex PDF failed: %s", _e)
+        if file_changes["data"]:
+            logger.info("Data folder changed (XLSX/CSV) → reloading...")
+            try:
+                # Xóa documents cache để startup lần sau cũng load lại
+                _cache_pkl = Path("Data/_documents_cache.pkl")
+                if _cache_pkl.exists():
+                    _cache_pkl.unlink()
+                # Load lại documents từ Data/ và rebuild BM25 index tại chỗ
+                new_documents = DocumentIndexer.load_from_data("Data")
+                retriever.bm25.documents = new_documents
+                retriever.bm25._build_index()
+                # Reset semantic engine để load lại với data mới
+                global _semantic_engine
+                _semantic_engine = None
+                reindex_pdfs(retriever)
+                _build_topic_cache()
+                _search_cache.invalidate()
+                logger.info("Data reloaded: %d documents", len(new_documents))
+            except Exception as _e:
+                logger.warning("Auto reload Data failed: %s", _e)
+
         search_query = resolve_search_query(
             req.query,
             hist,
@@ -3384,7 +3763,8 @@ async def chat(req: ChatRequest):
                 logger.info("Major filter injected into query: '%s'", search_query)
 
         # ── Search Result Cache: check first for catalog queries ──
-        _prefer_strict = is_list_request or detect_author_query(req.query) or detect_publisher_query(req.query)
+        # Thu hep: chi strict khi user that su hoi tac gia/nha xuat ban, khong vi list
+        _prefer_strict = detect_author_query(req.query) or detect_publisher_query(req.query)
         cache_key = f"catalog:{search_query}:{_prefer_strict}:{req.major or ''}" if catalog_mode else None
         use_cache = catalog_mode and not req.document_id and not req.query.startswith("__SUGGEST")
         search_results = _search_cache.get(cache_key) if use_cache else None
@@ -3396,7 +3776,8 @@ async def chat(req: ChatRequest):
             retrieval_k = 500 if catalog_mode else 30
 
             cache_results = []
-            if catalog_mode and not detect_author_query(req.query) and not detect_publisher_query(req.query):
+            # Bat lai topic cache cho ca author/publisher (truoc day bi bo qua)
+            if catalog_mode:
                 cache_results = _search_topic_cache(search_query)
                 if cache_results:
                     logger.info("Topic cache HIT: %d docs for '%s'", len(cache_results), search_query)
@@ -3486,49 +3867,53 @@ async def chat(req: ChatRequest):
                         ng_norm = _normalize_topic_token(ng.get("nganh", ""))
                         if ng_norm and ng_norm == major_norm:
                             _canonical_nganh.add(ng_norm)
+                # Nếu user major không khớp ngành nào trong cây khoa-ngành → BỎ filter
+                # (trước đây tự add vào canonical làm false-positive filter ra 0 docs)
                 if not _canonical_nganh:
-                    _canonical_nganh.add(major_norm)
-                _ACCEPT_PREFIXES = (
-                    "thac si ", "thac si ngành ", "ngành ",
-                    "bo mon ", "cong nghe ", "cong nghe ky thuat ",
-                )
+                    logger.info("Major '%s' không khớp ngành nào trong cây khoa-ngành → bỏ qua filter", req.major)
+                else:
+                    _ACCEPT_PREFIXES = (
+                        "thac si ", "thac si ngành ", "ngành ",
+                        "bo mon ", "cong nghe ", "cong nghe ky thuat ",
+                    )
 
-                def _doc_matches_major(doc_major_norm: str) -> bool:
-                    if not doc_major_norm:
-                        return False
-                    if doc_major_norm in _canonical_nganh:
-                        return True
-                    for cn in _canonical_nganh:
-                        if cn in doc_major_norm:
+                    def _doc_matches_major(doc_major_norm: str) -> bool:
+                        if not doc_major_norm:
+                            return False
+                        if doc_major_norm in _canonical_nganh:
                             return True
-                        if doc_major_norm.startswith(cn + " "):
-                            return True
-                        if doc_major_norm.startswith(cn + ","):
-                            return True
-                    for cn in _canonical_nganh:
-                        for pfx in _ACCEPT_PREFIXES:
-                            if doc_major_norm == (pfx.rstrip() + " " + cn).strip():
+                        for cn in _canonical_nganh:
+                            if cn in doc_major_norm:
                                 return True
-                    return False
+                            if doc_major_norm.startswith(cn + " "):
+                                return True
+                            if doc_major_norm.startswith(cn + ","):
+                                return True
+                        for cn in _canonical_nganh:
+                            for pfx in _ACCEPT_PREFIXES:
+                                if doc_major_norm == (pfx.rstrip() + " " + cn).strip():
+                                    return True
+                        return False
 
-                _kept = []
-                for r in search_results:
-                    doc = r.get("doc", r)
-                    doc_major = normalize_text(str(doc.get("major", "")))
-                    if _doc_matches_major(doc_major):
-                        _kept.append(r)
-                search_results = _kept
-                logger.info("Major filter '%s': kept %d docs (canonical=%s)", req.major, len(search_results), sorted(_canonical_nganh))
+                    _kept = []
+                    for r in search_results:
+                        doc = r.get("doc", r)
+                        doc_major = normalize_text(str(doc.get("major", "")))
+                        if _doc_matches_major(doc_major):
+                            _kept.append(r)
+                    search_results = _kept
+                    logger.info("Major filter '%s': kept %d docs (canonical=%s)", req.major, len(search_results), sorted(_canonical_nganh))
 
         # Nếu không đính kèm file PDF cụ thể, vẫn tìm kiếm trên tất cả dữ liệu (CSV + PDF)
         # để trả về thông tin liên quan từ mọi nguồn
+        total_found = len(search_results)  # Luu con so THUC truoc khi cap
         if not req.document_id:
-            # Catalog mode: giữ tất cả sources để frontend phân trang
             if catalog_mode:
-                # Don't limit search_results here — we need total_found and full list
+                # KHONG cap 500 nua - de UI hien thi du ket qua
+                # Chi giu toan bo ket qua cho sources (frontend tu phan trang)
                 pass
             else:
-                search_results = search_results[:12]
+                search_results = search_results[:12]  # Giữ nguyên cho non-catalog (Q&A)
         
         # Nếu user chỉ định document_id, filter để lấy tài liệu đó
         if req.document_id:
@@ -3556,6 +3941,45 @@ async def chat(req: ChatRequest):
                 continue
             seen_related_pdf_ids.add(pdf_id)
             related_pdf_infos.append(pdf_info)
+
+        # Luôn tìm PDF theo tên/title, kể cả khi BM25 có kết quả
+        try:
+            q_lower = normalize_text(req.query)
+            all_pdfs = pdf_manager.list_all_pdfs()
+            _injected = False
+            for pdf in all_pdfs:
+                pdf_id = pdf.get("id") or pdf.get("file_name")
+                if pdf_id in seen_related_pdf_ids:
+                    continue
+                pdf_name = normalize_text(pdf.get("title", "") + " " + pdf.get("file_stem", "") + " " + pdf.get("file_name", ""))
+                if q_lower and pdf_name and any(word in pdf_name for word in q_lower.split() if len(word) > 2):
+                    seen_related_pdf_ids.add(pdf_id)
+                    related_pdf_infos.append(pdf)
+                    pdf_text = pdf_manager.get_chapter_text(pdf['file_path'], 0, 999999)
+                    inject_doc = {
+                        'title': pdf.get('title', pdf.get('display_name', pdf.get('file_name', 'PDF'))),
+                        'author': pdf.get('author', ''),
+                        'year': pdf.get('year', 'N/A'),
+                        'subject': pdf.get('subject', 'PDF'),
+                        'link': '',
+                        'source': pdf.get('file_name', ''),
+                        'page': None,
+                        'text': pdf_text if has_extractable_pdf_text(pdf_text) else '',
+                        'csv_file': 'pdf:' + pdf.get('file_name', ''),
+                        'hash': '',
+                        'doc_type': 'PDF',
+                        'format': 'Số',
+                    }
+                    search_results.insert(0, {'doc': inject_doc, 'score': 99999.0})
+                    _injected = True
+                    if len(related_pdf_infos) >= 3:
+                        break
+            # Nếu có inject PDF, rebuild context để LLM thấy nội dung
+            if _injected:
+                context, doc_metadata_list = format_docs_with_metadata(search_results)
+                total_found = len(search_results)
+        except Exception as e:
+            logger.debug("PDF name search error: %s", e)
         
         # DEBUG: log metadata at debug level (chỉ hiện khi LOG_LEVEL=DEBUG)
         logger.debug("Query: %s", req.query)
@@ -3573,16 +3997,66 @@ async def chat(req: ChatRequest):
         request_summary = detect_summary_request(req.query)
         
         # Generate main answer with context
+        _relevance_gate = False  # Default: không chặn
         if catalog_mode:
-            answer = build_catalog_answer(search_results, req.query)
+            answer = build_catalog_answer(search_results, req.query, total_found=total_found)
         else:
-            chain_func, _ = build_general_chain()
-            answer = chain_func(context=context, question=req.query)
+            # Relevance gate: nếu top score quá thấp, skip LLM và trả "không tìm thấy"
+            _top_score = search_results[0].get('score', 0) if search_results else 0
+            if not search_results or _top_score < 1.0:
+                logger.info("Low relevance gate: top_score=%.2f, query='%s' → skip LLM", _top_score, req.query)
+                answer = (
+                    f"Hiện tại mình chưa tìm thấy tài liệu nào liên quan đến **\"{req.query}\"** "
+                    f"trong thư viện.\n\n"
+                    f"Bạn có thể:\n"
+                    f"• Thử từ khóa khác hoặc diễn đạt lại\n"
+                    f"• Hỏi theo **tên sách**, **tác giả**, hoặc **chủ đề** cụ thể hơn\n"
+                    f"• Duyệt danh mục sách theo ngành học ở thanh bên trái"
+                )
+                _relevance_gate = True  # Ngăn PDF fallback override
+                search_results = []    # Xóa kết quả rác, không hiển thị sources
+            else:
+                _relevance_gate = False
+                chain_func, _ = build_general_chain()
+                answer = chain_func(context=context, question=req.query)
 
-        if related_pdf_infos and answer_says_no_information(answer):
-            answer = build_related_pdf_answer(related_pdf_infos, req.query)
+        pdf_fallback_used = False
+        if not _relevance_gate and related_pdf_infos and answer_says_no_information(answer):
+            if not catalog_mode and not search_results and len(related_pdf_infos) > 0:
+                try:
+                    pdf_text = pdf_manager.get_chapter_text(related_pdf_infos[0]['file_path'], 0, 999999)
+                    if has_extractable_pdf_text(pdf_text):
+                        pdf_title = related_pdf_infos[0].get('title', 'PDF')
+                        new_context = f"Tài liệu được chọn: {pdf_title}\nNội dung trích xuất:\n{pdf_text[:30000]}"
+                        chain_func, _ = build_general_chain()
+                        new_answer = chain_func(context=new_context, question=req.query)
+                        if not answer_says_no_information(new_answer):
+                            answer = new_answer
+                            context = new_context
+                            pdf_fallback_used = True
+                        else:
+                            answer = build_related_pdf_answer(related_pdf_infos, req.query)
+                    else:
+                        answer = build_related_pdf_answer(related_pdf_infos, req.query)
+                except Exception as e:
+                    logger.debug("PDF content fallback error: %s", e)
+                    answer = build_related_pdf_answer(related_pdf_infos, req.query)
+            else:
+                answer = build_related_pdf_answer(related_pdf_infos, req.query)
 
-        suppress_sources = answer_says_no_information(answer)
+        # Chi suppress sources neu LLM that su khong co thong tin VA search_results rong
+        # (truoc day: chi can LLM noi "khong co" la ẩn hết → user không thấy 306 docs đã tìm được)
+        # Thêm: nếu top score quá thấp → cũng suppress (kết quả rác)
+        _top_score = search_results[0].get('score', 0) if search_results else 0
+        _results_are_noisy = _top_score < 1.0 and not catalog_mode
+        suppress_sources = (
+            not pdf_fallback_used
+            and answer_says_no_information(answer)
+            and (not search_results or _results_are_noisy)
+        )
+        if suppress_sources and search_results:
+            logger.info("Suppress noisy sources: top_score=%.2f, query='%s'", _top_score, req.query)
+            search_results = []
         
         # Generate summary if requested
         summary = ""
@@ -3640,6 +4114,39 @@ async def chat(req: ChatRequest):
                 # Đánh dấu tài liệu hiện tại
                 if req.document_id and title.lower() == req.document_id.lower():
                     current_doc = source_item
+
+        # Nếu dùng PDF fallback, thêm PDF vào sources
+        if pdf_fallback_used and related_pdf_infos:
+            for pdf in related_pdf_infos:
+                fb_id = (pdf.get("title", "").lower(), pdf.get("author", "").lower(), str(pdf.get("year", "")))
+                if fb_id not in seen:
+                    seen.add(fb_id)
+                    sources.append({
+                        "title": clean_display_value(pdf.get("title", "PDF"), 300),
+                        "author": clean_display_value(pdf.get("author", ""), 180),
+                        "year": clean_display_value(str(pdf.get("year", "")), 40),
+                        "subject": clean_display_value(pdf.get("subject", "PDF"), 180),
+                        "link": "",
+                        "source": clean_display_value(pdf.get("file_name", ""), 260),
+                        "doc_type": "PDF",
+                        "format": "",
+                        "major": "",
+                        "publisher": "",
+                        "place": "",
+                        "edition": "",
+                        "bilingual_title": "",
+                        "course": "",
+                        "keywords": [],
+                        "location": "",
+                        "abstract": "",
+                        "ddc": "",
+                        "notes": "",
+                        "description": "",
+                        "is_pdf": True,
+                        "pdf_id": pdf.get("id", ""),
+                        "file_name": pdf.get("file_name", ""),
+                        "display_name": pdf.get("display_name", ""),
+                    })
         
         # Lưu lịch sử
         topic = ""
@@ -3856,12 +4363,6 @@ def stats():
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "error": str(e)})
 
-# ── PDF Management Endpoints ──────────────────────────────
-
-# ═══════════════════════════════════════════════════════
-# Giai đoạn 3 — Endpoints: Semantic search + Voice + OCR
-# ═══════════════════════════════════════════════════════
-
 class VoiceTranscribeRequest(BaseModel):
     language: Optional[str] = "vi"
 
@@ -3920,10 +4421,6 @@ async def semantic_search_endpoint(req: SemanticSearchRequest):
         semantic_available=True,
     )
 
-
-# ═══════════════════════════════════════════════════════════
-# Faculties (Khoa → Ngành) tree for the sidebar quick-search UI
-# ═══════════════════════════════════════════════════════════
 import json as _json
 _FACULTIES_CACHE: dict | None = None
 _FACULTIES_CACHE_TS: float = 0.0
@@ -3988,8 +4485,11 @@ async def search_by_faculty(req: FacultySearchRequest):
             ng_norm = _normalize_topic_token(ng.get("nganh", ""))
             if ng_norm and ng_norm == nganh_norm:
                 _canonical_nganh.add(ng_norm)
-    if not _canonical_nganh:
-        _canonical_nganh.add(nganh_norm)
+    # Nếu user nganh không khớp ngành nào trong cây khoa-ngành → BỎ filter
+    # (trước đây tự add vào canonical làm false-positive filter ra 0 docs)
+    skip_major_filter = (not _canonical_nganh)
+    if skip_major_filter:
+        logger.info("search_by_faculty: nganh '%s' không khớp ngành nào trong cây khoa-ngành → bỏ qua filter", nganh)
 
     _ACCEPT_PREFIXES = (
         "thac si ", "thac si ngành ", "ngành ",
@@ -4023,12 +4523,17 @@ async def search_by_faculty(req: FacultySearchRequest):
         topic_hits = [{"doc": r.get("doc", r), "score": r.get("score", 0.0)} for r in bm25_raw]
 
     # 3) Filter strictly by major using the canonical ngành set
-    filtered = []
-    for hit in topic_hits:
-        doc = hit.get("doc", hit)
-        doc_major = normalize_text(str(doc.get("major", "")))
-        if _doc_matches_faculty(doc_major):
-            filtered.append(hit)
+    if skip_major_filter:
+        # Không filter — giữ nguyên topic_hits để user thấy kết quả thay vì 0
+        filtered = topic_hits
+        logger.info("search_by_faculty: skip filter, giữ nguyên %d docs", len(filtered))
+    else:
+        filtered = []
+        for hit in topic_hits:
+            doc = hit.get("doc", hit)
+            doc_major = normalize_text(str(doc.get("major", "")))
+            if _doc_matches_faculty(doc_major):
+                filtered.append(hit)
 
     filtered = filtered[: req.top_k]
 
@@ -4055,7 +4560,6 @@ async def transcribe_voice(audio: UploadFile = File(...), language: str = Form("
     if not is_available():
         raise HTTPException(503, "Whisper model chưa load xong hoặc chưa cài")
 
-    # Lưu file tạm
     suffix = Path(audio.filename or "voice.webm").suffix or ".webm"
     audio_bytes = await audio.read()
     if not audio_bytes:
@@ -4134,8 +4638,6 @@ async def list_pdfs():
             "total_pdfs": 0
         }
 
-# ── Admin Login / Upload ─────────────────────────────────
-
 @app.post("/api/admin/login")
 async def admin_login(data: dict):
     """Đăng nhập admin, trả về token"""
@@ -4182,6 +4684,12 @@ async def admin_upload(token: str = Form(...), file: UploadFile = File(...)):
     cache_file = Path("pdf_cache.json")
     if cache_file.exists():
         cache_file.unlink()
+    # Xoá PDF extraction cache (load_pdf incremental cache)
+    pdf_extract_cache = Path("Data/_pdf_extract_cache.pkl")
+    if pdf_extract_cache.exists():
+        pdf_extract_cache.unlink()
+    _search_cache.invalidate()  # Xóa kết quả search cũ
+    pdf_manager.invalidate_cache()  # Xóa metadata cache
 
     # Tái index BM25 để có thể search ngay
     try:
@@ -4226,7 +4734,21 @@ async def admin_delete_pdf(pdf_id: str, data: dict = Body(...)):
     cache_file = Path("pdf_cache.json")
     if cache_file.exists():
         cache_file.unlink()
-    pdf_manager.pdf_cache = {}
+    # Xóa PDF extraction cache entry cho file bị xóa
+    pdf_extract_cache = Path("Data/_pdf_extract_cache.pkl")
+    if pdf_extract_cache.exists():
+        try:
+            import pickle as _pickle
+            with open(pdf_extract_cache, "rb") as f:
+                _pcache = _pickle.load(f)
+            if file_name in _pcache:
+                del _pcache[file_name]
+                with open(pdf_extract_cache, "wb") as f:
+                    _pickle.dump(_pcache, f, protocol=_pickle.HIGHEST_PROTOCOL)
+        except Exception:
+            pass
+    pdf_manager.invalidate_cache()
+    _search_cache.invalidate()  # Xóa kết quả search cũ
 
     removed_index_docs = remove_pdf_from_index(file_name)
 
@@ -4382,7 +4904,7 @@ async def chat_with_document(req: DocumentChatRequest):
                     "follow_up_suggestions": [
                         {"label": "Tóm tắt nội dung", "query": "Tóm tắt nội dung chính của tài liệu này"},
                         {"label": "Hỏi chương khác", "query": "Hỏi nội dung về một chương cụ thể"},
-                        {"label": "Nói chi tiết hơn", "query": "Bạn có thể nói chi tiết hơn không?"},
+                        {"label": f"Kiến thức liên quan đến {pdf_info.get('subject') or 'lĩnh vực này'}", "query": f"Kiến thức liên quan đến {pdf_info.get('subject') or 'lĩnh vực này'}"},
                     ],
                 }
         
@@ -4423,22 +4945,67 @@ async def chat_with_document(req: DocumentChatRequest):
         pdf_hist.append({"query": req.query, "effective_query": effective_query, "topic": "general"})
         pdf_session_history[history_key] = pdf_hist[-MAX_HISTORY:]
 
-        # Generate context-aware follow-up suggestions based on answer content
+        # Generate context-aware follow-up suggestions based on document metadata + query + answer
         answer_lower = normalize_text(answer or "")
         pdf_sugs = []
-        if re.search(r"chuong|chapter|muc|phan", answer_lower):
-            pdf_sugs.append({"label": "Phân tích sâu hơn", "query": "Phân tích chi tiết hơn nội dung trên"})
-        if re.search(r"phuong phap|methodology|cach tiep can|cong cu|ky thuat", answer_lower):
-            pdf_sugs.append({"label": "Nói rõ hơn về phương pháp", "query": "Giải thích chi tiết hơn về phương pháp được sử dụng"})
-        if re.search(r"ket qua|finding|conclusion|ket luan", answer_lower):
-            pdf_sugs.append({"label": "Phân tích kết quả", "query": "Phân tích chi tiết hơn về kết quả nghiên cứu"})
-        if re.search(r"gioi thieu|introduction|muc tieu", answer_lower):
-            pdf_sugs.append({"label": "Tóm tắt nội dung", "query": "Tóm tắt nội dung chính của tài liệu"})
 
-        if len(answer) > 200 and len(pdf_sugs) < 3:
-            pdf_sugs.append({"label": "Nói chi tiết hơn", "query": "Bạn có thể giải thích chi tiết hơn?"})
+        # Document metadata signals
+        doc_subject = normalize_text(pdf_info.get("subject") or "")
+        doc_major = normalize_text(pdf_info.get("major") or "")
+        doc_title = normalize_text(pdf_info.get("title") or "")
+        query_lower = normalize_text(req.query or "")
+
+        # ── 1. Answer-pattern-based suggestions ──
+        if re.search(r"chuong|chapter|muc|phan|section", answer_lower):
+            pdf_sugs.append({"label": "Phân tích sâu hơn", "query": f"Phân tích chi tiết hơn nội dung chương này"})
+        if re.search(r"phuong phap|methodology|cach tiep can|cong cu|ky thuat|algorithm", answer_lower):
+            pdf_sugs.append({"label": "Nói rõ hơn về phương pháp", "query": "Giải thích chi tiết hơn về phương pháp được sử dụng"})
+        if re.search(r"ket qua|finding|conclusion|ket luan|danh gia", answer_lower):
+            pdf_sugs.append({"label": "Phân tích kết quả", "query": "Phân tích chi tiết hơn về kết quả"})
+        if re.search(r"gioi thieu|introduction|muc tieu|ly do", answer_lower):
+            pdf_sugs.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
+        if re.search(r"điểm mạnh|điểm yếu|ưu điểm|nhược điểm|so sánh|lợi thế|hạn chế", answer_lower):
+            pdf_sugs.append({"label": "Đưa ra đánh giá tổng quan", "query": "Đánh giá tổng quan điểm mạnh và điểm yếu"})
+
+        # ── 2. Query-topic-based suggestions ──
+        topic_keywords = []
+        if doc_subject:
+            topic_keywords.extend(doc_subject.split()[:3])
+        if doc_major:
+            topic_keywords.extend(doc_major.split()[:3])
+
+        # If user asks about a specific concept → suggest real-world application
+        if re.search(r"là gì|định nghĩa|khái niệm|nghĩa là|hiểu sao", query_lower):
+            pdf_sugs.append({"label": "Ứng dụng thực tế", "query": f"Các ứng dụng thực tế trong {doc_subject or doc_major or 'lĩnh vực này'}"})
+            pdf_sugs.append({"label": "Ví dụ minh họa", "query": "Cho ví dụ minh họa cụ thể"})
+
+        # If user asks about comparison → suggest deeper comparison
+        if re.search(r"so sánh|khác biệt|điểm giống|điểm khác|tương tự", query_lower):
+            pdf_sugs.append({"label": "So sánh chi tiết hơn", "query": "So sánh chi tiết hơn giữa các yếu tố"})
+
+        # If user asks about process/how-to → suggest step-by-step
+        if re.search(r"cách|quy trình|các bước|làm thế nào|thực hiện|procedure", query_lower):
+            pdf_sugs.append({"label": "Xem quy trình từng bước", "query": "Mô tả chi tiết từng bước thực hiện"})
+
+        # If user asks about causes/why → suggest solutions
+        if re.search(r"tại sao|nguyên nhân|lý do|vì sao|do đâu", query_lower):
+            pdf_sugs.append({"label": "Giải pháp khắc phục", "query": "Giải pháp và cách khắc phục vấn đề này"})
+
+        # ── 3. Smart fallbacks based on document subject (NOT generic) ──
+        if len(pdf_sugs) < 3 and doc_subject:
+            pdf_sugs.append({
+                "label": f"Liên quan đến {doc_subject[:40]}",
+                "query": f"Kiến thức liên quan đến {doc_subject}"
+            })
+        if len(pdf_sugs) < 3 and topic_keywords:
+            pdf_sugs.append({
+                "label": f"Hỏi về {topic_keywords[0]}",
+                "query": f"Nói thêm về {topic_keywords[0]} trong tài liệu này"
+            })
+        if len(pdf_sugs) < 3 and answer and len(answer) > 200:
+            pdf_sugs.append({"label": "Tóm tắt ngắn gọn", "query": "Tóm tắt lại thành 3-5 ý chính"})
         if len(pdf_sugs) < 3:
-            pdf_sugs.append({"label": "Xem tài liệu tham khảo", "query": "Cho mình xem tài liệu tham khảo"})
+            pdf_sugs.append({"label": "Nội dung chính của tài liệu", "query": "Tóm tắt nội dung chính của tài liệu này"})
 
         # Dedupe and limit
         seen_sugs = set()

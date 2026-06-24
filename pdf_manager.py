@@ -3,6 +3,7 @@ pdf_manager.py — Quản lý PDF: metadata, chapters, preview
 """
 
 import os
+import re
 import json
 import threading
 from pathlib import Path
@@ -56,10 +57,23 @@ class PDFManager:
         # Đảm bảo thư mục pdfs tồn tại
         self.pdf_dir.mkdir(exist_ok=True)
     
+    def invalidate_cache(self):
+        """Xóa cache metadata — gọi khi có file upload/xóa."""
+        self._list_cache = None
+        self._md_text_cache.clear()
+    
     def list_all_pdfs(self) -> List[Dict]:
         """Liệt kê tất cả PDF với metadata"""
         # Xoá MarkItDown cache khi danh sách file thay đổi
         self._md_text_cache.clear()
+        # Cache: dùng lại kết quả nếu chưa có file nào thay đổi
+        now = datetime.now().timestamp()
+        if hasattr(self, '_list_cache') and self._list_cache is not None:
+            cache_time, cached_pdfs = self._list_cache
+            if now - cache_time < 5:  # TTL 5 giây
+                return cached_pdfs
+        self._list_cache = None  # Reset cache
+        
         pdfs = []
         
         if not self.pdf_dir.exists():
@@ -79,7 +93,7 @@ class PDFManager:
                     "author": metadata.get('author', 'Unknown'),
                     "year": metadata.get('year', 'N/A'),
                     "pages": metadata.get('pages', 0),
-                    "subject": metadata.get('subject', 'PDF'),
+                    "subject": metadata.get('subject', ''),
                     "file_path": str(pdf_file),
                     "file_name": file_name,
                     "file_stem": file_stem,
@@ -91,6 +105,8 @@ class PDFManager:
                 print(f"Lỗi xử lý PDF {pdf_file.name}: {e}")
                 continue
         
+        # Lưu cache
+        self._list_cache = (datetime.now().timestamp(), pdfs)
         return pdfs
     
     def extract_chapters(self, pdf_path: str) -> List[Dict]:
@@ -336,12 +352,33 @@ class PDFManager:
     
     def _extract_metadata(self, pdf_path: Path) -> Dict:
         """Trích xuất metadata từ PDF"""
+        _junk_authors = {
+            'aspose', 'aspose.pdf', 'aspose.pdf.epubtopdfconverter',
+            'pdf converter', 'epubtopdfconverter', 'unknown',
+            'microsoft', 'adobe', 'itext', 'itextsharp',
+        }
+        _junk_subjects = {'aspose', 'pdf', 'n/a', 'unknown', ''}
+
+        def _clean_author(val):
+            v = (val or '').strip()
+            if not v or v.lower() in _junk_authors:
+                return 'Unknown'
+            if any(kw in v.lower() for kw in ('aspose', 'converter', 'epubtopdf', 'pdftool')):
+                return 'Unknown'
+            return v
+
+        def _clean_subject(val):
+            v = (val or '').strip()
+            if not v or v.lower() in _junk_subjects:
+                return ''
+            return v
+
         if not PdfReader:
             return {
                 'title': pdf_path.stem,
                 'author': 'Unknown',
                 'pages': 0,
-                'subject': 'PDF',
+                'subject': '',
                 'year': 'N/A'
             }
         
@@ -350,11 +387,22 @@ class PDFManager:
                 reader = PdfReader(f)
                 info = reader.metadata
                 
+                raw_author = info.get('/Author', 'Unknown') if info else 'Unknown'
+                raw_subject = info.get('/Subject', '') if info else ''
+                
+                # Nếu metadata author là tool name, thử lấy từ tên file
+                cleaned_author = _clean_author(raw_author)
+                if cleaned_author == 'Unknown':
+                    file_stem = pdf_path.stem
+                    m = re.match(r'^([A-Z][A-Z\s\.]+?)\s*[-–]\s*', file_stem)
+                    if m:
+                        cleaned_author = m.group(1).strip()
+                
                 return {
                     'title': info.get('/Title', pdf_path.stem) if info else pdf_path.stem,
-                    'author': info.get('/Author', 'Unknown') if info else 'Unknown',
+                    'author': cleaned_author,
                     'pages': len(reader.pages),
-                    'subject': info.get('/Subject', 'PDF') if info else 'PDF',
+                    'subject': _clean_subject(raw_subject),
                     'year': self._extract_year_from_metadata(info) if info else 'N/A'
                 }
         except Exception as e:
@@ -363,7 +411,7 @@ class PDFManager:
                 'title': pdf_path.stem,
                 'author': 'Unknown',
                 'pages': 0,
-                'subject': 'PDF',
+                'subject': '',
                 'year': 'N/A'
             }
 

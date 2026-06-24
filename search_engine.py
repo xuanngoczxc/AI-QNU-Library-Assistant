@@ -80,8 +80,9 @@ class BM25SearchEngine:
             return []
 
         scores = []
-        # Dynamic minimum score: more tokens → higher bar to filter noise
-        min_score = max(0.3, len(tokens) * 0.15) if len(tokens) >= 2 else 0.1
+        # Dynamic minimum score: higher bar to filter noise
+        # 1 token → 0.5, 2 tokens → 0.6, 3+ tokens → 0.75 (tăng mạnh so với trước)
+        min_score = max(0.5, len(tokens) * 0.25) if len(tokens) >= 2 else 0.5
 
         for doc_idx in range(len(self.documents)):
             bm25_score = self._bm25_score(tokens, doc_idx)
@@ -98,8 +99,8 @@ class BM25SearchEngine:
             matched_count = sum(1 for t in tokens if t in doc_tokens_set)
             coverage = matched_count / len(tokens) if tokens else 0.0
 
-            # Penalize docs with very low token coverage
-            if coverage < 0.25 and len(tokens) >= 2:
+            # Penalize docs with low token coverage (áp dụng cho cả 1 token)
+            if coverage < 0.5 and len(tokens) >= 1:
                 continue
 
             total_score = bm25_score + regex_boost
@@ -126,7 +127,7 @@ class BM25SearchEngine:
         if not tokens:
             return 0
 
-        min_score = max(0.3, len(tokens) * 0.15) if len(tokens) >= 2 else 0.1
+        min_score = max(0.5, len(tokens) * 0.25) if len(tokens) >= 2 else 0.5
         count = 0
 
         for doc_idx in range(len(self.documents)):
@@ -143,7 +144,7 @@ class BM25SearchEngine:
             matched_count = sum(1 for t in tokens if t in doc_tokens_set)
             coverage = matched_count / len(tokens) if tokens else 0.0
 
-            if coverage < 0.25 and len(tokens) >= 2:
+            if coverage < 0.5 and len(tokens) >= 1:
                 continue
 
             total_score = bm25_score + regex_boost
@@ -327,11 +328,18 @@ class DocumentIndexer:
 
     @staticmethod
     def _clean_marc_value(val):
-        """Remove MARC prefix markers like $a, $b, $c from values"""
+        """Remove MARC prefix markers like $a, $2, $b, $c, etc. from values.
+        Thay thế $X bằng ', ' để phân tách rõ ràng giữa các subfield.
+        VD: $2Bộ TK TVQG$aLuật hình sự → Bộ TK TVQG, Luật hình sự
+        """
         if not val or not isinstance(val, str):
             return val
-        # Remove MARC subfield codes: $a, $b, $c, etc.
-        cleaned = re.sub(r'\$[a-z]\s*', '', val)
+        # Thay thế MARC subfield codes ($a, $2, ...) bằng ", " để phân cách
+        cleaned = re.sub(r'\$[a-zA-Z0-9]\s*', ', ', val)
+        # Loại bỏ ", " ở đầu (nếu subfield đầu tiên đứng đầu chuỗi)
+        cleaned = re.sub(r'^\s*,\s*', '', cleaned)
+        # Loại bỏ ", " thừa liên tiếp (", , " → ", ")
+        cleaned = re.sub(r',\s*,', ',', cleaned)
         # Remove hanging punctuation at start/end
         cleaned = cleaned.strip().strip(',').strip(';').strip('/').strip(':').strip()
         return cleaned

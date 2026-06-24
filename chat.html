@@ -137,7 +137,7 @@
       border:none;width:100%;text-align:left;font-family:inherit;
     }
     .faculty-header:hover{background:rgba(255,255,255,0.09);color:#fff;}
-    .faculty-header.open{background:rgba(46,107,138,0.25);color:#fff;border-bottom:1px solid rgba(255,255,255,0.05);}
+    .faculty-header.open{background:rgba(232,72,72,0.18);color:#fff;border-bottom:1px solid rgba(255,255,255,0.05);}
     .faculty-chevron{width:12px;height:12px;flex-shrink:0;opacity:0.55;transition:transform var(--transition);}
     .faculty-header.open .faculty-chevron{transform:rotate(180deg);opacity:0.95;}
     .faculty-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -149,14 +149,14 @@
     .faculty-group.open .faculty-children{display:flex;}
     .faculty-row{
       display:flex;align-items:center;justify-content:space-between;gap:8px;
-      padding:7px 11px 7px 26px;
+      padding:7px 11px;
       color:rgba(255,255,255,0.75);font-size:12px;font-weight:400;
       background:transparent;border:none;width:100%;text-align:left;cursor:pointer;
       transition:var(--transition);font-family:inherit;
       border-top:1px solid rgba(255,255,255,0.04);
     }
-    .faculty-row:hover{background:rgba(46,107,138,0.15);color:#fff;}
-    .faculty-row.active{background:rgba(46,107,138,0.38);color:#fff;font-weight:500;}
+    .faculty-row:hover{background:rgba(232,72,72,0.12);color:#fff;}
+    .faculty-row.active{background:rgba(232,72,72,0.25);color:#fff;font-weight:500;}
     .faculty-row .dot{width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,0.35);flex-shrink:0;}
     .faculty-row .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .faculty-row .count{
@@ -298,8 +298,15 @@
       padding:12px 16px;
       border-radius:var(--radius-md);
       font-size:13.5px;line-height:1.65;
-      word-wrap:break-word;overflow-x:auto;
       letter-spacing:-0.005em;
+    }
+    .msg.user .bubble{
+      max-width:85%;
+      min-width:fit-content;
+      white-space:pre-wrap;
+    }
+    .msg.bot .bubble{
+      max-width:74%;
     }
     .msg.bot .bubble{
       background:var(--surface);
@@ -307,6 +314,7 @@
       border:1px solid var(--border);
       border-bottom-left-radius:4px;
       box-shadow:var(--shadow-card);
+      word-wrap:break-word;overflow-wrap:break-word;
     }
     .msg.user .bubble{
       background:var(--accent);
@@ -401,31 +409,49 @@
     }
     .composer textarea{
       flex:1;
-      padding:10px 14px;
+      padding:6px 14px;
       border:1.5px solid var(--border);
       border-radius:var(--radius-sm);
-      font-size:13.5px;font-family:var(--font-sans);
+      font-size:13px;font-family:var(--font-sans);
       color:var(--text-primary);resize:none;outline:none;
-      min-height:42px;max-height:120px;line-height:1.5;
-      transition:var(--transition);background:var(--bg);
+      height:36px;max-height:100px;line-height:24px;
+      overflow-y:hidden;
+      transition:border-color 0.2s, background 0.2s;
+      background:var(--bg);
     }
     .composer textarea:focus{border-color:var(--accent);background:var(--surface);}
     .composer textarea::placeholder{color:var(--text-tertiary);}
     .send-btn{
-      padding:10px 22px;height:42px;
+      padding:7px 16px;height:36px;
       background:var(--accent);color:#fff;
       border:none;border-radius:var(--radius-sm);
-      font-size:13px;font-weight:700;font-family:var(--font-sans);
+      font-size:12px;font-weight:700;font-family:var(--font-sans);
       cursor:pointer;flex-shrink:0;
       transition:var(--transition);letter-spacing:-0.01em;
+      display:flex;align-items:center;justify-content:center;gap:5px;
     }
     .send-btn:hover{background:var(--accent-hover);}
     .send-btn:active{transform:scale(0.97);}
     .send-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
 
+    /* ── Stop Button ── */
+    .stop-btn{
+      padding:7px 16px;height:36px;
+      background:#F04444;color:#fff;
+      border:none;border-radius:var(--radius-sm);
+      font-size:12px;font-weight:700;font-family:var(--font-sans);
+      cursor:pointer;flex-shrink:0;
+      transition:var(--transition);letter-spacing:-0.01em;
+      display:none;align-items:center;justify-content:center;gap:5px;
+    }
+    .stop-btn:hover{background:#E03C3C;}
+    .stop-btn:active{transform:scale(0.97);}
+    .stop-btn.show{display:flex;}
+    .send-btn.hide{display:none;}
+
     /* ── Mic (voice) button ── */
     .mic-btn{
-      padding:10px;height:42px;width:42px;
+      padding:7px;height:36px;width:36px;
       background:var(--bg);color:var(--text-secondary);
       border:1px solid var(--border);border-radius:var(--radius-sm);
       cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;
@@ -521,7 +547,48 @@
       font-size:14px;
       line-height:1.45;
     }
+    .bubble h2{font-size:14.5px;font-weight:700;margin:14px 0 6px;color:var(--text-primary);line-height:1.4;}
+    .bubble h3{font-size:13.5px;font-weight:600;margin:10px 0 4px;color:var(--text-primary);line-height:1.4;}
+    .bubble h4{font-size:13px;font-weight:600;margin:8px 0 4px;color:var(--text-primary);line-height:1.4;}
     .bubble ul,.bubble ol{margin:7px 0 10px 18px;padding-left:14px;}
+
+    /* ── Welcome Card ── */
+    .welcome-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+    .welcome-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-hover));display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+    .welcome-title{font-size:16px;font-weight:700;color:var(--text-primary);letter-spacing:-0.02em;}
+    .welcome-sub{font-size:12px;color:var(--text-tertiary);margin-top:1px;}
+    .welcome-desc{font-size:13px;color:var(--text-secondary);line-height:1.6;margin:0 0 12px;}
+    .welcome-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+    .welcome-card{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;text-align:left;transition:200ms cubic-bezier(0.16,1,0.3,1);font-family:var(--font-sans);}
+    .welcome-card:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+    .welcome-card:active{transform:scale(0.98);}
+    .welcome-card-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+
+    /* ── Copy Button ── */
+    .msg-actions{display:flex;gap:4px;margin-top:6px;opacity:0;transition:opacity 0.2s;}
+    .msg.bot:hover .msg-actions{opacity:1;}
+    .copy-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-tertiary);font-size:10px;font-weight:500;font-family:var(--font-sans);cursor:pointer;transition:var(--transition);}
+    .copy-btn:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}
+    .copy-btn.copied{background:var(--pastel-green);color:var(--pastel-green-text);border-color:var(--pastel-green);}
+
+    /* ── Message Timestamp ── */
+    .msg-time{font-size:10px;color:var(--text-tertiary);margin-top:4px;opacity:0.6;}
+    .msg.user .msg-time{text-align:right;}
+
+    /* ── Typing Indicator v2 ── */
+    .typing-indicator{display:flex;gap:5px;align-items:center;padding:6px 0;}
+    .typing-indicator span{
+      width:7px;height:7px;border-radius:50%;
+      background:var(--accent);
+      opacity:0.5;
+      animation:typingBounce 1.4s infinite ease-in-out;
+    }
+    .typing-indicator span:nth-child(2){animation-delay:0.15s;}
+    .typing-indicator span:nth-child(3){animation-delay:0.3s;}
+    @keyframes typingBounce{
+      0%,60%,100%{transform:translateY(0);opacity:0.5;}
+      30%{transform:translateY(-6px);opacity:1;}
+    }
     .bubble li{margin:4px 0;padding-left:2px;}
     .bubble li::marker{color:var(--accent);font-weight:700;}
 
@@ -659,12 +726,13 @@
     .pdf-overlay-composer textarea:focus{border-color:var(--accent);background:var(--surface);}
     .pdf-overlay-composer textarea::placeholder{color:var(--text-tertiary);}
     .pdf-overlay-composer .send-btn{
-      padding:9px 18px;height:38px;
+      padding:7px 16px;height:36px;
       background:var(--accent);color:#fff;
       border:none;border-radius:var(--radius-sm);
-      font-size:13px;font-weight:700;font-family:var(--font-sans);
+      font-size:12px;font-weight:700;font-family:var(--font-sans);
       cursor:pointer;flex-shrink:0;
       transition:var(--transition);
+      display:flex;align-items:center;justify-content:center;gap:5px;
     }
     .pdf-overlay-composer .send-btn:hover{background:var(--accent-hover);}
     .pdf-overlay-composer .send-btn:disabled{opacity:0.4;cursor:not-allowed;}
@@ -736,6 +804,9 @@
       <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
     </symbol>
     <symbol id="ic-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+    <symbol id="ic-stop" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <rect x="6" y="6" width="12" height="12" rx="2"/>
+    </symbol>
   </defs>
 </svg>
 <div class="shell">
@@ -842,24 +913,10 @@
       <button class="send-btn" id="sendBtn" onclick="sendMessage()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       </button>
-    </form>
-    <!-- TẠM ẨN: Phần "Xem thêm tài liệu" ở cuối màn hình
-    <div class="more-section">
-      <button class="more-toggle" id="moreToggle" onclick="toggleMoreSection()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        Xem thêm tài liệu
+      <button class="stop-btn" id="stopBtn" onclick="stopMessage()" title="Dừng trả lời">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
       </button>
-      <div class="more-body" id="moreBody">
-        <div class="more-search-row">
-          <input class="more-search" id="moreSearch" placeholder="Tìm trong danh sách..." oninput="debounceSearch()">
-        </div>
-        <div class="more-grid" id="moreGrid">
-          <div class="more-loading">Đang tải...</div>
-        </div>
-        <div class="more-pagination" id="morePagination"></div>
-      </div>
-    </div>
-    END TẠM ẨN -->
+    </form>
   </main>
 
   <!-- PDF Chat Overlay Panel -->
@@ -892,11 +949,8 @@
       </form>
     </div>
   </div>
-
-  <!-- (PDF preview panel removed) -->
 </div>
 
-<!-- __FACULTIES_TREE_INJECT__ -->
 <script>
 const BACKEND = window.location.protocol === "file:" ? "http://localhost:8000" : window.location.origin;
 const SESSION_KEY = "qnu_session_id";
@@ -917,6 +971,7 @@ function getSessionId() {
 }
 let sessionId = getSessionId();
 let allPdfItems = [];
+let currentAbortController = null;
 let backendReadOnly = false;
 let voiceAvailable = false;
 
@@ -1231,11 +1286,14 @@ async function sendMessage() {
   if (!query) return;
 
   ta.value = "";
-  ta.style.height = "auto";
-  document.getElementById("sendBtn").disabled = true;
-  appendMsg("user", esc(query));
+  ta.style.height = "";
+  appendMsg("user", esc(query.replace(/\n/g, " ")));
   const botId = "bot_" + Date.now();
   createStreamBubble(botId);
+
+  // ── Hiển thị nút Dừng, ẩn nút Gửi ──
+  setStreamingUI(true);
+
   // ── Status message: nếu là follow-up liệt kê chủ đề thì hiện thông báo chờ ──
   if (query.startsWith("__LIST_TOPIC__:")) {
     setStatus("loading", "Đang tìm tài liệu, có thể tốn một chút thời gian, vui lòng chờ...");
@@ -1244,9 +1302,9 @@ async function sendMessage() {
   }
 
   try {
-    // ── Timeout 60 giây ──────────────────────────────────
-    const controller = new AbortController();
-    const timeout    = setTimeout(() => controller.abort("timeout"), CHAT_TIMEOUT_MS);
+    // ── Tạo AbortController cho request này ─────────────
+    currentAbortController = new AbortController();
+    const timeout    = setTimeout(() => currentAbortController.abort("timeout"), CHAT_TIMEOUT_MS);
 
     const res = await fetch(BACKEND +"/chat", {
       method:  "POST",
@@ -1257,7 +1315,7 @@ async function sendMessage() {
         // major: đã bỏ ghim — chỉ dùng khi user vừa bấm chọn ngành trong cây khoa→ngành,
         // các câu hỏi tiếp theo sẽ tìm sách liên quan tự do, không bị khoá theo ngành đã chọn.
       }),
-      signal:  controller.signal
+      signal:  currentAbortController.signal
     });
     clearTimeout(timeout);
 
@@ -1304,7 +1362,9 @@ async function sendMessage() {
               followUps = payload.follow_up_suggestions || [];
             } else if (payload.type === "done") {
               updateStreamBubble(botId, fullText, false);
-              if (sources.length && !answerHasNoInformation(fullText)) appendSources(botId, sources, totalFound, followUps);
+              if (sources.length && !answerHasNoInformation(fullText)) {
+              appendSources(botId, sources, totalFound, followUps);
+            }
             } else if (payload.type === "error") {
               throw new Error(payload.message);
             }
@@ -1350,6 +1410,17 @@ async function sendMessage() {
   } catch(err) {
     const msg = err?.message || String(err || "");
     const lowerMsg = msg.toLowerCase();
+    
+    if (err?.name === "AbortError" || msg === "user_stop") {
+      const bubble = document.getElementById(botId);
+      if (bubble) {
+        bubble.innerHTML = getWelcomeHTML();
+      }
+      setStatus("ok", "Đã dừng");
+      setStreamingUI(false);
+      return;
+    }
+    
     let errHtml = `<div style="display:flex;align-items:flex-start;gap:6px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;color:var(--pastel-red-text);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>`;
     // Ẩn thông báo "Quá thời gian chờ" — để trống cho gọn
     errHtml += `Yêu cầu chưa hoàn tất, vui lòng thử lại.`;
@@ -1367,22 +1438,50 @@ async function sendMessage() {
     setStatus("error", "Lỗi");
   }
 
-  document.getElementById("sendBtn").disabled = false;
-  document.getElementById("messages").scrollTop = 99999;
+  setStreamingUI(false);
+  currentAbortController = null;
+}
+
+// ── Stop / Streaming UI Helpers ────────────────────────────
+function setStreamingUI(isStreaming) {
+  const sendBtn  = document.getElementById("sendBtn");
+  const stopBtn  = document.getElementById("stopBtn");
+  if (isStreaming) {
+    sendBtn.classList.add("hide");
+    sendBtn.disabled = true;
+    stopBtn.classList.add("show");
+  } else {
+    stopBtn.classList.remove("show");
+    sendBtn.classList.remove("hide");
+    sendBtn.disabled = false;
+    currentAbortController = null;
+  }
+}
+
+function stopMessage() {
+  if (currentAbortController) {
+    currentAbortController.abort("user_stop");
+    currentAbortController = null;
+  }
 }
 
 function createStreamBubble(id) {
   const msgs = document.getElementById("messages");
   const d    = document.createElement("div");
   d.className = "msg bot";
+  const timeStr = getCurrentTime();
   d.innerHTML = `<div class="avatar">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
     </div>
-    <div class="bubble" id="${id}">
+    <div><div class="bubble" id="${id}">
       <div class="typing-indicator"><span></span><span></span><span></span></div>
-    </div>`;
+    </div>
+    <div class="msg-actions" id="actions_${id}" style="display:none;">
+      <button class="copy-btn" onclick="copyAnswer(this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button>
+    </div>
+    <div class="msg-time" id="time_${id}">${timeStr}</div></div>`;
   msgs.appendChild(d);
-  msgs.scrollTop = msgs.scrollHeight;
+  msgs.scrollTo({ top: msgs.scrollHeight, behavior: 'auto' });
 }
 
 function updateStreamBubble(id, text, showCursor) {
@@ -1391,14 +1490,18 @@ function updateStreamBubble(id, text, showCursor) {
   let html = markdownToHtml(text);
   if (showCursor) html += '<span class="cursor"></span>';
   bubble.innerHTML = html;
-  document.getElementById("messages").scrollTop = 99999;
+  // Hiển thị nút Copy khi streaming xong
+  const actionsEl = document.getElementById('actions_' + id);
+  if (actionsEl && !showCursor) actionsEl.style.display = 'flex';
+  // Chỉ auto-scroll khi đang stream (cursor hiện), không scroll khi đã xong
+  if (showCursor) document.getElementById("messages").scrollTop = 99999;
 }
 
 function appendSources(afterId, sources, totalFound, followUps) {
   const bubble = document.getElementById(afterId);
   if (!bubble || !sources.length) return;
 
-  const ITEMS_PER_PAGE = 6;
+  const ITEMS_PER_PAGE = 50;  // Hiển thị đủ nhiều tài liệu mỗi trang
   const total = totalFound || sources.length;
   const totalPages = Math.ceil(sources.length / ITEMS_PER_PAGE);
   let currentPage = 1;
@@ -1425,6 +1528,15 @@ function appendSources(afterId, sources, totalFound, followUps) {
     if (val && val !== 'Unknown' && val !== 'N/A' && val !== 'Không xác định' && val !== 'nan')
       return `<div class="book-field"><span style="color:var(--text-tertiary);">${label}:</span> ${esc(val)}</div>`;
     return '';
+  }
+
+  // Lọc bỏ metadata "rác" từ tool convert PDF khi hiển thị
+  function _isJunkValue(val) {
+    if (!val) return true;
+    const v = String(val).toLowerCase().trim();
+    if (!v || v === 'unknown' || v === 'n/a' || v === 'khong xac dinh' || v === 'pdf' || v === 'nan') return true;
+    const junk = ['aspose', 'converter', 'epubtopdf', 'pdftool', 'pdfsharp', 'itext'];
+    return junk.some(k => v.includes(k));
   }
 
   function fieldArray(label, val) {
@@ -1467,7 +1579,7 @@ function appendSources(afterId, sources, totalFound, followUps) {
           ` : ''}
           <div class="book-title">${esc(b.title||"Tài liệu")}</div>
           ${field('Tên song ngữ', b.bilingual_title || '')}
-          ${field('Tác giả', b.author)}
+          ${_isJunkValue(b.author) ? '' : field('Tác giả', b.author)}
           ${field('Năm XB', b.year)}
           ${field('Lần XB', b.edition || '')}
           ${field('NXB', b.publisher)}
@@ -1476,7 +1588,7 @@ function appendSources(afterId, sources, totalFound, followUps) {
           ${field('Chuyên ngành', b.major)}
           ${field('Học phần', b.course || '')}
           ${fieldArray('Từ khóa', b.keywords)}
-          ${field('Từ khóa', b.subject)}
+          ${_isJunkValue(b.subject) ? '' : field('Từ khóa', b.subject)}
           ${field('DDC', b.ddc)}
           ${field('Vị trí', b.location || '')}
           ${b.abstract ? `
@@ -1547,7 +1659,7 @@ function appendSources(afterId, sources, totalFound, followUps) {
 
     // Bind PDF attach buttons
     bindSourcePdfCards(gridEl);
-    document.getElementById("messages").scrollTop = 99999;
+    // Không auto-scroll để user tự cuộn xem sources
   }
 
   // Expose pagination function globally via window (avoids minus-sign issue in onclick)
@@ -1605,7 +1717,7 @@ function renderFollowUpSuggestions(afterId, suggestions) {
   });
   html += '</div></div>';
   bubble.innerHTML += html;
-  document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+  // Không auto-scroll để user tự cuộn
 }
 
 function askFollowUp(btn) {
@@ -1717,7 +1829,7 @@ async function showRelatedSuggestions() {
         if (subject) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Từ khóa:</span> ${esc(subject)}</div>`;
         if (ddc) html += `<div class="book-field"><span style="color:var(--text-tertiary);">DDC:</span> ${esc(ddc)}</div>`;
         if (publisher) html += `<div class="book-field"><span style="color:var(--text-tertiary);">NXB:</span> ${esc(publisher)}</div>`;
-        if (location) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Vị trí:</span> ${esc(location.substring(0, 120))}</div>`;
+        if (location) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Vị trí:</span> ${esc(location)}</div>`;
         if (abstract) {
           const absId = "rel-abs-" + Math.random().toString(36).slice(2, 8);
           html += `<div id="${absId}" style="display:none;font-size:12px;color:var(--text-secondary);margin:6px 0;padding:8px 10px;background:var(--accent-soft);border:1px solid var(--border);border-radius:var(--radius-sm);line-height:1.5;">${esc(abstract)}</div>`;
@@ -1734,7 +1846,7 @@ async function showRelatedSuggestions() {
     html += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border-light);"><div class="follow-up-chips"><button class="follow-up-chip" onclick="showRelatedSuggestions()">Xem thêm tài liệu liên quan</button></div></div>`;
 
     bubble.innerHTML = html;
-    msgs.scrollTop = msgs.scrollHeight;
+    // Không auto-scroll để user tự cuộn
   } catch (e) {
     const msgs = document.getElementById("messages");
     if (msgs.lastChild) msgs.removeChild(msgs.lastChild);
@@ -1929,10 +2041,36 @@ function markdownToHtml(text) {
       return;
     }
 
+    // Heading: ## ... hoặc ### ... hoặc **text** trên 1 dòng (bold-only heading)
+    const mdHeading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    const boldHeading = trimmed.match(/^\*\*(.+?)\*\*\s*:?\s*$/);
+    if (mdHeading) {
+      flushParagraph();
+      closeList();
+      const level = mdHeading[1].length;
+      html += `<h${level} style="font-size:${16 - level}px;font-weight:700;margin:12px 0 6px;color:var(--text-primary);">${markdownInline(mdHeading[2])}</h${level}>`;
+      return;
+    }
+    if (boldHeading) {
+      flushParagraph();
+      closeList();
+      html += `<p class="answer-heading">${markdownInline(trimmed)}</p>`;
+      return;
+    }
+
+    // Bullet: nếu nội dung SAU dấu `- ` là TOÀN BỘ bold (`**...**`) → coi như heading, không bullet
     const bullet = trimmed.match(/^[-*•]\s+(.+)$/);
     const numbered = trimmed.match(/^\d+[\.)]\s+(.+)$/);
 
     if (bullet || numbered) {
+      const inner = (bullet || numbered)[1];
+      // Nếu bullet chỉ chứa bold text (heading) → render thành paragraph bold
+      if (bullet && /^\*\*.+\*\*\s*:?\s*$/.test(inner.trim())) {
+        flushParagraph();
+        closeList();
+        html += `<p class="answer-heading">${markdownInline(inner.trim())}</p>`;
+        return;
+      }
       flushParagraph();
       const nextType = bullet ? "ul" : "ol";
       if (listType !== nextType) {
@@ -1940,14 +2078,7 @@ function markdownToHtml(text) {
         html += `<${nextType}>`;
         listType = nextType;
       }
-      html += `<li>${markdownInline((bullet || numbered)[1])}</li>`;
-      return;
-    }
-
-    if (/^\*\*.+\*\*:?\s*$/.test(trimmed)) {
-      flushParagraph();
-      closeList();
-      html += `<p class="answer-heading">${markdownInline(trimmed)}</p>`;
+      html += `<li>${markdownInline(inner)}</li>`;
       return;
     }
 
@@ -1977,7 +2108,9 @@ function answerHasNoInformation(text) {
     "khong du thong tin",
     "khong tim thay thong tin",
     "khong tim thay tai lieu",
-    "khong co tai lieu"
+    "khong co tai lieu",
+    "chua tim thay",
+    "hien tai minh chua tim thay"
   ].some(phrase => normalized.includes(phrase));
 }
 
@@ -1989,9 +2122,10 @@ function appendMsg(role, html) {
   const svg = isBot
     ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>'
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-  d.innerHTML = `<div class="avatar">${svg}</div><div class="bubble">${html}</div>`;
+  const timeStr = getCurrentTime();
+  const copyBtn = isBot ? `<div class="msg-actions"><button class="copy-btn" onclick="copyAnswer(this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>` : '';
+  d.innerHTML = `<div class="avatar">${svg}</div><div><div class="bubble">${html}</div>${copyBtn}<div class="msg-time">${timeStr}</div></div>`;
   msgs.appendChild(d);
-  msgs.scrollTop = msgs.scrollHeight;
 }
 
 function setStatus(state, text) {
@@ -2001,6 +2135,12 @@ function setStatus(state, text) {
 }
 
 async function newChat() {
+  // Hủy request đang chạy nếu có
+  if (currentAbortController) {
+    currentAbortController.abort("user_stop");
+    currentAbortController = null;
+  }
+  setStreamingUI(false);
   currentSelectedPdf = null;
   shownRelatedTitles = [];
   document.querySelectorAll(".pdf-item").forEach(item => item.classList.remove("active"));
@@ -2008,13 +2148,37 @@ async function newChat() {
     <div class="avatar">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
     </div>
-    <div class="bubble">Cuộc trò chuyện mới. Bạn cần tìm tài liệu gì?</div>
+    <div class="bubble">${getWelcomeHTML()}</div>
   </div>`;
 }
 
 function quickAsk(btn) {
   document.getElementById("questionInput").value = btn.textContent;
   sendMessage();
+}
+
+// ── Welcome HTML (reusable) ───────────────────────────
+function getWelcomeHTML() {
+  return 'Xin chào! Tôi là trợ lý tra cứu của <strong>Thư viện QNU</strong>.<br><br>Bạn có thể hỏi tôi về:<br>• Tìm sách theo tên, tác giả, chủ đề<br>• Tra cứu tài liệu số<br>• Gợi ý sách theo ngành học<br>• Đọc nội dung trực tiếp từ file PDF<br><br>Bạn cần tìm tài liệu gì?';
+}
+
+// ── Copy Answer ───────────────────────────────────────
+function copyAnswer(btn) {
+  const bubble = btn.closest('.msg').querySelector('.bubble');
+  if (!bubble) return;
+  // Get text without HTML tags, preserving structure
+  const text = bubble.innerText || bubble.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Đã copy';
+    setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy'; }, 2000);
+  });
+}
+
+// ── Get current time string ───────────────────────────
+function getCurrentTime() {
+  const now = new Date();
+  return now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ── Faculty tree (Khoa → Ngành) — inlined server-side, renders synchronously ──
@@ -2068,7 +2232,6 @@ function renderFacultyTree(data) {
     html += `  <div class="faculty-children" id="${kId}">`;
     nganh.forEach((ng) => {
       html += `    <button class="faculty-row" data-nganh="${esc(ng.nganh)}" data-khoa="${esc(f.khoa)}">`;
-      html += `      <span class="dot"></span>`;
       html += `      <span class="name">${esc(ng.nganh)}</span>`;
       // (đã bỏ badge số tài liệu của ngành theo yêu cầu)
       html += `    </button>`;
@@ -2175,15 +2338,20 @@ async function loadMoreDocs(page, search) {
           return '<div class="book-field"><span style="color:var(--text-tertiary);">' + label + ':</span> ' + esc(val).substring(0,160) + '</div>';
         return '';
       }
+      function _isJunk(val) {
+        var v = String(val || '').toLowerCase().trim();
+        if (!v || v === 'unknown' || v === 'n/a' || v === 'pdf' || v === 'nan') return true;
+        return ['aspose','converter','epubtopdf','pdftool','pdfsharp','itext'].some(function(k){ return v.indexOf(k) >= 0; });
+      }
       html += '<div class="book-card"><div style="display:flex;gap:10px;align-items:flex-start;">' +
         '<div style="font-size:16px;flex-shrink:0;margin-top:2px;color:var(--accent);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>' +
         '<div style="flex:1;min-width:0;">' +
         '<div class="book-title">' + esc(b.title||"Tài liệu") + '</div>' +
-        field('Tác giả', b.author) +
+        (_isJunk(b.author) ? '' : field('Tác giả', b.author)) +
         field('Năm', b.year) +
         field('Loại', b.doc_type) +
         field('Ngành', b.major) +
-        field('Chủ đề', b.subject) +
+        (_isJunk(b.subject) ? '' : field('Chủ đề', b.subject)) +
         field('DDC', b.ddc) +
         field('NXB', b.publisher) +
         field('Vị trí', b.location ? b.location.substring(0,120) : '') +
@@ -2238,18 +2406,23 @@ function debounceSearch() {
             return '<div class="book-field"><span style="color:var(--text-tertiary);">' + label + ':</span> ' + esc(val).substring(0,160) + '</div>';
           return '';
         }
+        function _isJunk(val) {
+          var v = String(val || '').toLowerCase().trim();
+          if (!v || v === 'unknown' || v === 'n/a' || v === 'pdf' || v === 'nan') return true;
+          return ['aspose','converter','epubtopdf','pdftool','pdfsharp','itext'].some(function(k){ return v.indexOf(k) >= 0; });
+        }
         html += '<div class="book-card"><div style="display:flex;gap:10px;align-items:flex-start;">' +
           '<div style="font-size:16px;flex-shrink:0;margin-top:2px;color:var(--accent);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>' +
           '<div style="flex:1;min-width:0;">' +
           '<div class="book-title">' + esc(b.title||"Tài liệu") + '</div>' +
-          field('Tác giả', b.author) +
+          (_isJunk(b.author) ? '' : field('Tác giả', b.author)) +
           field('Năm', b.year) +
           field('Loại', b.doc_type) +
           field('Ngành', b.major) +
-          field('Chủ đề', b.subject) +
+          (_isJunk(b.subject) ? '' : field('Chủ đề', b.subject)) +
           field('DDC', b.ddc) +
           field('NXB', b.publisher) +
-          field('Vị trí', b.location ? b.location.substring(0,120) : '') +
+          field('Vị trí', b.location || '') +
           (linkUrl && linkUrl.startsWith('http') ? '<div style="margin-top:4px;"><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a></div>' : '') +
           '</div></div></div>';
       });
@@ -2260,10 +2433,17 @@ function debounceSearch() {
 }
 
 document.getElementById("questionInput").addEventListener("input", function(){
-  this.style.height = "auto";
-  this.style.height = Math.min(this.scrollHeight, 120) + "px";
+  // Không resize — textarea giữ nguyên 1 dòng, CSS min-height xử lý
 });
-document.getElementById("questionInput").addEventListener("keydown", function(e){
+let _isComposing = false;
+const _qInput = document.getElementById("questionInput");
+_qInput.addEventListener("compositionstart", function(){ _isComposing = true; });
+_qInput.addEventListener("compositionend", function(){ _isComposing = false; });
+_qInput.addEventListener("keydown", function(e){
+  if (_isComposing || e.isComposing || e.keyCode === 229) {
+    if (e.key === "Enter" && !e.shiftKey) e.preventDefault();
+    return;
+  }
   if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendMessage(); }
 });
 // PDF Overlay keyboard handlers
@@ -2281,6 +2461,10 @@ document.getElementById("pdfOverlay").addEventListener("keydown", function(e){
 });
 document.getElementById("adminPwd").addEventListener("input", function(){
   document.getElementById("adminLoginMsg").textContent = "";
+});
+// Nhấn Enter trong ô mật khẩu → submit luôn
+document.getElementById("adminPwd").addEventListener("keydown", function(e){
+  if (e.key === "Enter") { e.preventDefault(); adminLogin(); }
 });
 
 // ── Admin Functions ──────────────────────────────────────

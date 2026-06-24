@@ -8,6 +8,8 @@ Tối ưu: Extract metadata (page, title, section), normalize text
 
 import os
 import re
+import pickle
+import hashlib
 from pathlib import Path
 from typing import Optional
 from text_utils import normalize_text, generate_document_hash, extract_keywords
@@ -26,6 +28,7 @@ except ImportError:
     PdfReader = None
 
 PDF_FOLDER = "pdfs"
+_PDF_CACHE_FILE = "Data/_pdf_extract_cache.pkl"
 
 
 class Document:
@@ -115,33 +118,81 @@ def extract_section_heading(page_text: str) -> str:
     return ""
 
 
+def _load_pdf_cache() -> dict:
+    """Load PDF extraction cache: {filename: (mtime, docs_data)}"""
+    try:
+        if Path(_PDF_CACHE_FILE).exists():
+            with open(_PDF_CACHE_FILE, "rb") as f:
+                return pickle.load(f)
+    except Exception:
+        pass
+    return {}
+
+def _save_pdf_cache(cache: dict):
+    """Save PDF extraction cache"""
+    try:
+        with open(_PDF_CACHE_FILE, "wb") as f:
+            pickle.dump(cache, f, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception as e:
+        print(f"PDF cache save failed: {e}")
+
+def _docs_to_cacheable(docs: list[Document]) -> list[dict]:
+    """Convert Document objects to storable dicts"""
+    return [{"page_content": d.page_content, "metadata": d.metadata} for d in docs]
+
+def _cacheable_to_docs(data: list[dict]) -> list[Document]:
+    """Convert cached dicts back to Document objects"""
+    return [Document(page_content=d["page_content"], metadata=d["metadata"]) for d in data]
+
 def load_all_pdfs() -> list[Document]:
-    """Load tất cả PDF trong thư mục pdfs/, trả về danh sách Document"""
+    """
+    Load tất cả PDF trong thư mục pdfs/.
+    Incremental: chỉ extract PDF mới hoặc thay đổi (so với cache).
+    PDF đã extract trước đó → load từ cache instantly.
+    """
     folder = Path(PDF_FOLDER)
     if not folder.exists():
-        print(f"⚠️  Thư mục '{PDF_FOLDER}' không tồn tại. Tạo thư mục và thêm file PDF vào.")
+        print(f"Thư mục '{PDF_FOLDER}' không tồn tại. Tạo thư mục và thêm file PDF vào.")
         folder.mkdir(exist_ok=True)
         return []
 
-    pdf_files = list(folder.glob("*.pdf"))
+    pdf_files = sorted(folder.glob("*.pdf"))
     if not pdf_files:
-        print(f"⚠️  Không có file PDF nào trong thư mục '{PDF_FOLDER}'.")
+        print(f"Không có file PDF nào trong thư mục '{PDF_FOLDER}'.")
         return []
+
+    cache = _load_pdf_cache()
 
     all_docs = []
     total_pages = 0
+    cache_hits = 0
+    cache_misses = 0
+    skipped = 0
 
     for pdf_path in pdf_files:
-        try:
-            print(f"📄 Đang load: {pdf_path.name}")
+        fname = pdf_path.name
+        current_mtime = pdf_path.stat().st_mtime
 
-            # Ưu tiên MarkItDown → fallback pypdf
+        # Check cache: same filename + same mtime → skip extraction
+        if fname in cache:
+            cached_mtime, cached_docs_data = cache[fname]
+            if cached_mtime == current_mtime:
+                docs = _cacheable_to_docs(cached_docs_data)
+                all_docs.extend(docs)
+                total_pages += len(docs)
+                cache_hits += 1
+                continue
+
+        try:
+            print(f"Đang extract: {fname} (mới/thay đổi)")
+
             docs = _read_pdf_with_markitdown(str(pdf_path))
             if not docs:
                 docs = _read_pdf_with_pypdf(str(pdf_path))
 
             if not docs:
-                print(f"   ⚠️  Không đọc được nội dung từ {pdf_path.name}")
+                print(f"Không đọc được nội dung từ {fname}")
+                skipped += 1
                 continue
 
             # Extract PDF-level metadata
@@ -150,7 +201,7 @@ def load_all_pdfs() -> list[Document]:
 
             # Thêm metadata tên file + page number + section
             for page_idx, doc in enumerate(docs, 1):
-                doc.metadata["source"] = pdf_path.name
+                doc.metadata["source"] = fname
                 doc.metadata["file_type"] = "pdf"
                 doc.metadata["page"] = page_idx
                 doc.metadata["title"] = pdf_title
@@ -167,13 +218,28 @@ def load_all_pdfs() -> list[Document]:
                 # Hash for deduplication
                 doc.metadata["hash"] = generate_document_hash(doc.page_content, pdf_title)
 
+            # Save to cache
+            cache[fname] = (current_mtime, _docs_to_cacheable(docs))
+
             all_docs.extend(docs)
             total_pages += len(docs)
-            print(f"   ✅ {len(docs)} trang")
+            cache_misses += 1
+            print(f"{len(docs)} trang (đã cache)")
         except Exception as e:
-            print(f"   ❌ Lỗi load {pdf_path.name}: {e}")
+            print(f"Lỗi load {fname}: {e}")
+            skipped += 1
 
-    print(f"\n📦 Tổng cộng: {total_pages} trang từ {len(pdf_files)} file PDF")
+    # Cleanup: remove cache entries for deleted PDFs
+    deleted = [k for k in cache if k not in {f.name for f in pdf_files}]
+    for k in deleted:
+        del cache[k]
+
+    # Save updated cache
+    if cache_misses > 0:
+        _save_pdf_cache(cache)
+
+    print(f"\nTổng cộng: {total_pages} trang từ {len(pdf_files)} PDF")
+    print(f"Cache hit: {cache_hits} | Extract mới: {cache_misses} | Bỏ qua: {skipped}")
     return all_docs
 
 
