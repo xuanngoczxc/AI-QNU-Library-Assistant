@@ -2867,9 +2867,9 @@ HƯỚNG DẪN TRẢ LỜI:
 7. Dùng ## cho chương lớn, ### cho phần, #### cho mục nhỏ.
 
 TÀI LIỆU:
-{{context}}
+{context}
 
-CÂU HỎI: {{question}}
+CÂU HỎI: {question}
 
 TRẢ LỜI (Tiếng Việt, dạng mục lục phân cấp, KHÔNG viết thành đoạn văn):
 """
