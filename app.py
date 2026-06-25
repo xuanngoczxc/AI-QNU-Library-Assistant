@@ -456,6 +456,13 @@ def is_general_pdf_content_request(query: str) -> bool:
         "noi ve gi",
         "cho biet",
         "gioi thieu",
+        "bo cuc",
+        "muc luc",
+        "cau truc",
+        "danh muc",
+        "layout",
+        "structure",
+        "table of contents",
     ]
     return any(phrase in q for phrase in broad_phrases)
 
@@ -2229,6 +2236,7 @@ def classify_intent(query: str) -> str:
         "giai phap trong", "dinh huong trong",
         "khai niem", "dinh nghia", "vi du", "giai thich ca tu",
         "phan mem", "he thong", "ung dung",
+        "bo cuc", "cau truc", "danh muc", "layout", "structure",
     ]
     if any(phrase in q for phrase in content_phrases):
         return "content_qa"
@@ -2305,6 +2313,7 @@ def detect_content_request(query: str) -> bool:
         "giai phap trong", "dinh huong trong",
         "khai niem", "dinh nghia", "vi du", "giai thich ca tu",
         "phan mem", "he thong", "ung dung",
+        "bo cuc", "cau truc", "danh muc", "layout", "structure",
     ]
     if any(phrase in q for phrase in content_phrases):
         return True
@@ -2824,6 +2833,47 @@ def detect_result_question(query: str) -> bool:
     q = normalize_text(query)
     return any(kw in q for kw in keywords)
 
+def detect_structure_query(query: str) -> bool:
+    """Detect nếu user hỏi về bố cục, cấu trúc, mục lục của tài liệu."""
+    if not query:
+        return False
+    q = normalize_text(query)
+    keywords = [
+        "bo cuc", "bố cục",
+        "cau truc", "cấu trúc",
+        "muc luc", "mục lục",
+        "danh muc", "danh mục",
+        "layout", "structure", "table of contents",
+    ]
+    return any(kw in q for kw in keywords)
+
+def build_structure_prompt() -> str:
+    """Build prompt cho câu hỏi về bố cục/cấu trúc/mục lục của tài liệu."""
+    return """
+Bạn là trợ lý AI của Thư viện Trường Đại học Quy Nhơn.
+
+YÊU CẦU: Trình bày BỐ CỤC / CẤU TRÚC / MỤC LỤC của tài liệu dựa trên nội dung được cung cấp.
+
+HƯỚNG DẪN TRẢ LỜI:
+1. Xác định tài liệu (nhan đề, tác giả, năm xuất bản).
+2. Trình bày TOÀN BỘ bố cục/cấu trúc tài liệu theo dạng mục lục phân cấp:
+   - Chương lớn (I, II, III... hoặc 1, 2, 3...)
+   - Phần nhỏ bên trong mỗi chương (1.1, 1.2...)
+   - Các mục con (a, b, c... hoặc i, ii, iii...)
+3. Nếu có thể xác định trang PDF tương ứng, ghi chú [Trang X].
+4. Luôn trình bày dưới dạng danh sách phân cấp rõ ràng, KHÔNG viết thành đoạn văn.
+5. Nếu tài liệu không có cấu trúc rõ ràng, hãy liệt kê các phần lớn tìm thấy.
+6. 📌 CẤU TRÚC PHÂN CẤP: PHẢI giữ nguyên cấu trúc gốc từ tài liệu. KHÔNG đánh số lại.
+7. Dùng ## cho chương lớn, ### cho phần, #### cho mục nhỏ.
+
+TÀI LIỆU:
+{{context}}
+
+CÂU HỎI: {{question}}
+
+TRẢ LỜI (Tiếng Việt, dạng mục lục phân cấp, KHÔNG viết thành đoạn văn):
+"""
+
 def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[int] = None) -> tuple[str, list[dict], Optional[int]]:
     """Lấy context tốt nhất từ chính PDF được chọn."""
     pdf_source = pdf_info.get('file_name', '')
@@ -2854,9 +2904,29 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
             )
             return f"{header}\n{reference_text}", [], start_page
 
-    # Với câu hỏi chung như "nội dung file này", lấy text trực tiếp từ PDF đã chọn.
-    # BM25 theo từ khóa quá chung thường không trả đúng trang.
+    # Với câu hỏi về bố cục/cấu trúc/mục lục → lấy trang đầu (TOC thường ở trang 1-10)
     if is_general_pdf_content_request(query):
+        q_norm = normalize_text(query)
+        is_structure_query = any(
+            kw in q_norm for kw in (
+                "bo cuc", "cau truc", "muc luc", "danh muc", "layout",
+                "structure", "table of contents", "noi dung file",
+                "noi dung tai lieu", "noi dung pdf", "gioi thieu",
+            )
+        )
+        if is_structure_query:
+            # Lấy 15 trang đầu tiên — TOC thường nằm ở đây
+            toc_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 15)
+            if has_extractable_pdf_text(toc_text):
+                header = (
+                    f"Tài liệu được chọn: {pdf_title}\n"
+                    f"Tên file: {pdf_source}\n"
+                    f"Số trang: {pdf_info.get('pages', 'N/A')}\n"
+                    f"Mục trích xuất: 15 trang đầu (mục lục / bố cục)\n"
+                )
+                return f"{header}\nNội dung trích xuất:\n{toc_text[:20000]}", [], None
+
+        # Câu hỏi chung khác → lấy toàn bộ text
         full_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 999999)
         if has_extractable_pdf_text(full_text):
             header = (
@@ -3006,12 +3076,15 @@ CÁC HƯỚNG DẪN KHÁC — CHỈ ÁP DỤNG KHI TÀI LIỆU CÓ CÂU TRẢ L�
         chapter_num = detect_chapter_reference(question)
         is_method = detect_method_question(question)
         is_result = detect_result_question(question)
+        is_structure = detect_structure_query(question)
 
         # Choose appropriate prompt
         if chapter_num:
             prompt = build_chapter_prompt(chapter_num)
         elif is_method:
             prompt = build_method_prompt()
+        elif is_structure:
+            prompt = build_structure_prompt()
         else:
             prompt = prompt_text
 
@@ -3429,6 +3502,9 @@ def build_follow_up_suggestions(
             suggestions.append({"label": "Phân tích kết quả", "query": "Phân tích chi tiết hơn về kết quả"})
         if re.search(r"gioi thieu|introduction|muc tieu|ly do|tong quan", answer_lower):
             suggestions.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
+        if re.search(r"bo cuc|cau truc|muc luc|danh muc|layout|structure", query_lower):
+            suggestions.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
+            suggestions.append({"label": "Hỏi về chương cụ thể", "query": "Giải thích chi tiết nội dung Chương 1"})
 
         # ── Query-topic-based suggestions ──
         if re.search(r"là gì|định nghĩa|khái niệm|nghĩa là|hiểu sao", query_lower):
