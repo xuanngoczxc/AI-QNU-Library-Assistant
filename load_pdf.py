@@ -89,20 +89,40 @@ def _read_pdf_with_pypdf(pdf_path: str) -> list[Document]:
 
 def extract_pdf_title(pdf_path: str, pages: list[Document]) -> str:
     """
-    Extract title từ first page của PDF
-    Logic: First line nếu < 100 chars, hoặc filename
+    Extract title t? first page c?a PDF.
+    ?u tiên dùng filename, ch? dùng first-line n?u không ph?i boilerplate.
     """
+    # ?u tiên: dùng filename (luôn ch?nh x?c nh?t)
+    filename = Path(pdf_path).stem
+    # Gi? l?i tên file g?c thay vì thay - b?ng space (-
+    # là d?u phân c?ch tên tác gi? - tên lu?n v?n)
+    pdf_title = filename.strip()
+    if pdf_title and len(pdf_title) >= 5:
+        return pdf_title
+
+    # Fallback: th? l?y t? first page
     try:
         if pages:
             first_page_text = pages[0].page_content.strip()
             first_line = first_page_text.split("\n")[0].strip()
-            if 5 < len(first_line) < 100:
+            # Lo?i b? boilerplate Vi?t Nam ph? bi?n
+            boilerplate = [
+                "bo giao duc va dao tao",
+                "bo giao duc",
+                "truong dai hoc quy nhon",
+                "dai hoc quy nhon",
+                "cong hoa xa hoi chu nghia viet nam",
+                "cong hoa",
+                "bo	ai hoc",
+            ]
+            first_norm = "".join(c for c in first_line.lower() if c.isalnum() or c == ' ').strip()
+            first_norm = " ".join(first_norm.split())
+            if first_line and len(first_line) < 80 and not any(bp in first_norm for bp in boilerplate):
                 return first_line
     except Exception:
         pass
 
-    # Fallback: dùng filename
-    return Path(pdf_path).stem.replace("_", " ").replace("-", " ")
+    return filename.strip()
 
 
 def extract_section_heading(page_text: str) -> str:

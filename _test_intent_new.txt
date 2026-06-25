@@ -1,0 +1,26 @@
+Intent          | Label                | Entities | Query
+----------------------------------------------------------------------------------------------------------------------------------
+catalog_search  | author-multi         | Entities(10w, BOOK|AUTHOR=tac gia nguyen nhu khanh cao phi bang) | sach cua tac gia Nguyen Nhu Khanh, Cao Phi Bang
+catalog_search  | book-question        | Entities(6w, CAT_ACT)                    | co cuon nao ve U-Net khong?
+catalog_search  | short-topic          | Entities(4w, SUBJECT)                    | su pham tin hoc
+catalog_search  | short-name           | Entities(2w, AUTHOR=nguyen minh)         | nguyen minh
+catalog_search  | author               | Entities(7w, BOOK|AUTHOR=tac gia nguyen thuy) | sach cua tac gia Nguyen Minh Thuy
+catalog_search  | author-question      | Entities(8w, CAT_ACT|AUTHOR=tran quoc thanh) | tac gia Tran Quoc Thanh co cuon nao?
+catalog_search  | author-short         | Entities(4w, BOOK|AUTHOR=nguyen du)      | sach cua Nguyen Du
+catalog_search  | publisher            | Entities(8w, PUB|SUBJECT)                | cuon nao cua NXB Dai hoc Su pham?
+catalog_search  | catalog              | Entities(7w, CAT_ACT|BOOK|SUBJECT)       | tim sach nganh su pham tin hoc
+catalog_search  | existence            | Entities(9w, BOOK)                       | co tai lieu ve tri tue nhan tao khong?
+catalog_search  | suggestion           | Entities(10w, CAT_ACT|BOOK|SUBJECT)      | goi y sach lien quan den kinh te vi mo
+catalog_search  | catalog-filter       | Entities(7w, BOOK|SUBJECT)               | sach van hoc Viet Nam truoc 1945
+content_qa      | structure            | Entities(5w, CON_ACT)                    | bo cuc de an nay
+content_qa      | method               | Entities(4w, CON_ACT|SUBJECT)            | phuong phap nghien cuu
+content_qa      | chapter              | Entities(4w, CON_ACT|CONT_TGT|CH2)       | tom tat chuong 2
+content_qa      | results              | Entities(6w, CON_ACT)                    | ket qua dat duoc la gi?
+catalog_search  | nonexistent          | Entities(8w, )                           | cuon Harry Potter co trong thu vien khong?
+catalog_search  | author-nonexistent   | Entities(7w, BOOK|AUTHOR=tac gia nguyen nhat) | sach cua tac gia Nguyen Nhat Anh
+chitchat        | chitchat-short       | Entities(1w, )                           | ok
+clarify         | ambiguous            | Entities(2w, )                           | viet di
+content_qa      | summary-only         | Entities(2w, CON_ACT)                    | tom tat
+clarify         | one-word             | Entities(1w, )                           | toan
+clarify         | english-one          | Entities(1w, )                           | AI
+catalog_search  | two-word             | Entities(2w, SUBJECT)                    | kinh te

@@ -55,6 +55,9 @@ _llm_circuit = {
 # Import BM25 search engine (lightweight, no embeddings needed)
 from search_engine import DocumentIndexer, BM25SearchEngine, HybridSearchEngine
 from text_utils import normalize_text, extract_keywords, suggest_synonyms, spell_correct, suggest_terms_for_query
+from intent_classifier import (
+    classify_intent, detect_greeting, extract_entities,
+)
 from load_pdf import load_all_pdfs
 from pdf_manager import PDFManager
 
@@ -172,11 +175,19 @@ try:
                     # "DO VU NHAT LINH" → vẫn dùng uppercase
                     pdf_author = raw_name
 
+            # Subject: ch? dùng keywords t? filename title, KHÔNG dùng section heading (nhi?u)
+            # Section heading là dòng UPPERCASE ??u tiên c?a PDF (nh? "B? GIÁO D?C...")
+            # Không ph?i subject th?c s? → b? qua
+            pdf_subject = ""
+            kw = meta.get('keywords', '')
+            if kw and len(kw) >= 5 and kw.lower() != 'pdf':
+                pdf_subject = kw
+
             pdf_item = {
                 'title': meta.get('title', meta.get('source', 'PDF')).strip(),
                 'author': pdf_author,
                 'year': meta.get('year', 'N/A'),
-                'subject': meta.get('section') or meta.get('keywords') or 'PDF',
+                'subject': pdf_subject,
                 'link': '',
                 'source': meta.get('source', 'pdf'),
                 'page': meta.get('page'),
@@ -400,11 +411,16 @@ def reindex_pdfs(retriever):
             if m:
                 pdf_author = m.group(1).strip()
 
+        # Subject: chỉ dùng keywords từ filename, không dùng section heading (nhiễu)
+        pdf_subject = meta.get('keywords', '')
+        if not pdf_subject or len(pdf_subject) < 5 or pdf_subject.lower() == 'pdf':
+            pdf_subject = ''
+
         pdf_item = {
             'title': meta.get('title', meta.get('source', 'PDF')).strip(),
             'author': pdf_author,
             'year': meta.get('year', 'N/A'),
-            'subject': meta.get('section') or meta.get('keywords') or 'PDF',
+            'subject': pdf_subject,
             'link': '',
             'source': source_name,
             'page': meta.get('page'),
@@ -1475,6 +1491,8 @@ def get_doc_topic_fields(doc: dict) -> dict[str, str]:
         ("abstract", doc.get("abstract", "")),
         ("notes", doc.get("notes", "")),
         ("doc_type", doc.get("doc_type", "")),
+        # Nội dung PDF/text snippet → giúp rerank match trên nội dung thực tế
+        ("text_preview", (doc.get("text") or "")[:500]),
     ]
     normalized_fields = {
         name: normalize_topic_text(str(value))
@@ -1937,17 +1955,14 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
         if author_results:
             author_results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
             non_author_results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
-            # In strict mode (list request), chỉ trả về author-matched results
             if prefer_strict:
                 return author_results
-            # Otherwise, author results first, then rest
             return author_results + non_author_results[:3]
-        # No author match at all
+        # No author match at all — KHÔNG fall through, trả về rỗng
+        # (trước đây fall through → hiển thị toàn bộ kết quả không liên quan)
         if prefer_strict:
-            # Soft fallback: thay vì trả [] (silent zero), vẫn trả search_results gốc
-            # để user thấy gợi ý liên quan thay vì "Không tìm thấy".
-            logger.info("author strict miss for %r → fall back to original %d results", author_name, len(search_results))
-        # If no author match at all, fall through to normal search
+            logger.info("author strict miss for %r → return empty (0 results)", author_name)
+            return []
 
     if publisher_name:
         publisher_norm = normalize_text(publisher_name)
@@ -1970,11 +1985,10 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
                 return pub_results
             non_pub_results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
             return pub_results + non_pub_results[:3]
-        # No publisher match at all
+        # No publisher match at all — KHÔNG fall through
         if prefer_strict:
-            # Soft fallback: thay vì trả [], vẫn trả search_results gốc
-            logger.info("publisher strict miss for %r → fall back to original %d results", publisher_name, len(search_results))
-        # fall through to normal search
+            logger.info("publisher strict miss for %r → return empty (0 results)", publisher_name)
+            return []
 
     if detect_ai_domain(query):
         matched = []
@@ -2021,7 +2035,9 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
         strict_coverage_threshold = 0.65
     else:
         strict_coverage_threshold = 0.50
-    relaxed_coverage_threshold = 0.40  # Reasonable minimum to avoid noise
+    # Adaptive relaxed threshold: shorter queries → stricter, longer → more lenient
+    # VD: 5 tokens → 0.40, 10 tokens → 0.25, 20 tokens → 0.15
+    relaxed_coverage_threshold = max(0.15, min(0.40, 3.0 / max(len(unique_tokens), 1)))
     is_single_token = len(unique_tokens) == 1
 
     for result in search_results:
@@ -2092,11 +2108,9 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
     if prefer_strict:
         return []
 
-    # Fallback: không có tài liệu nào khớp → trả về [] để tránh hiện PDF không liên quan
-    if not prefer_strict and search_results:
-        logger.info("rerank: 0 matched → return empty to avoid noise for query=%r", query)
-        return []
-    return search_results
+    # Không có kết quả nào pass rerank → trả rỗng (đúng là không có tài liệu phù hợp)
+    logger.info("rerank: 0 matched → return empty for query=%r", query)
+    return []
 
 
 def extract_keywords(text: str) -> str:
@@ -2141,144 +2155,8 @@ def extract_content_search_query(text: str) -> str:
     q = re.sub(r"\s+", " ", q).strip()
     return q or normalize_text(text)
 
-def detect_greeting(query: str) -> bool:
-    """Detect simple greetings, thanks, and non-search chitchat."""
-    q = normalize_text(query or "").strip()
-    
-    # Exact matches
-    exact_phrases = {
-        "xin chao", "chao ban", "chao", "hello", "hi", "hey", "halo",
-        "cam on", "cam on ban", "thank", "thanks", "thank you", "thanks ban",
-        "tam biet", "bye", "goodbye",
-        "ban khoe khong", "khoe khong", "the nao roi", "co khoe khong",
-        "ban la ai", "ban ten gi", "ten ban la gi", "ban la chatbot", "ban la bot",
-        "vui lam quen", "lam quen nhe", "lam quen voi minh",
-    }
-    if q in exact_phrases:
-        return True
-    
-    # Pattern matching: greeting + optional polite particles
-    # "chào bạn nha", "xin chào nhỉ", "hello bạn ơi", etc.
-    greeting_pattern = re.compile(
-        r"^(?:xin\s+)?(?:chao|hello|hi|hey|halo)"
-        r"(?:\s+(?:ban|nha|nhe|di|nhi|oi|ha|nhé|đi|nhỉ|ha|á))?\s*$",
-        re.IGNORECASE
-    )
-    if greeting_pattern.match(q):
-        return True
-    
-    # Thanks + particles: "cam on nhe", "cam on ban nha", etc.
-    thanks_pattern = re.compile(
-        r"^(?:cam\s+on|thank(?:s)?)"
-        r"(?:\s+(?:ban|nha|nhe|nhieu|nhieu|oi|ha|nhi))?\s*$",
-        re.IGNORECASE
-    )
-    if thanks_pattern.match(q):
-        return True
-    
-    # Bye + particles
-    bye_pattern = re.compile(
-        r"^(?:tam\s+biet|bye|goodbye|chao\s+tam\s+biet)"
-        r"(?:\s+(?:ban|nha|nhe|di|nhi|oi))?\s*$",
-        re.IGNORECASE
-    )
-    if bye_pattern.match(q):
-        return True
-
-    # Only exact/pattern matching above — no overly aggressive short-query heuristic
-    # to avoid false positives on short topic queries like "kinh te vi mo"
-
-    return False
-
-def classify_intent(query: str) -> str:
-    """Phan loai y dinh cau hoi: catalog_search | content_qa | chitchat | live_info | unknown
-    - catalog_search: tim sach, liet ke, danh muc
-    - content_qa: hoi noi dung, phan tich, doc file
-    - chitchat: chao hoi, cam on, tam biet
-    - live_info: thoi tiet, tin tuc, gia vang, bay gio
-    - unknown: ngoai pham vi thu vien
-    """
-    q = normalize_text(query or "").strip()
-    if not q:
-        return "unknown"
-
-    # Chitchat: chao/cam on/tam biet/cau hoi khong lien quan thu vien
-    chitchat_markers = [
-        "chao ban", "chao", "hello", "hi ", "cam on", "thanks",
-        "xin chao", "thank you", "khong co gi", "tam biet", "bye",
-        "ban co khoe khong", "giup toi voi", "gui loi",
-    ]
-    if any(m == q for m in ["chao", "hi", "hello", "cam on", "thanks", "bye", "tam biet"]):
-        return "chitchat"
-    for marker in chitchat_markers:
-        if marker in q:
-            return "chitchat"
-
-    # Live info: thoi gian, thoi tiet, tin tuc
-    live_markers = [
-        "hom nay", "ngay mai", "bay gio", "hien tai", "luc nay",
-        "thoi tiet", "du bao", "tin tuc", "moi nhat",
-        "gia vang", "ty gia", "lich thi dau", "chung khoan",
-        "tin moi", "thoi su",
-    ]
-    if any(marker in q for marker in live_markers):
-        return "live_info"
-
-    # Content QA: hoi noi dung, phan tich, doc file
-    content_phrases = [
-        "noi dung", "chi tiet", "phan tich", "giai thich", "trinh bay",
-        "cho biet", "hay cho biet", "neu ro", "neu cac", "neu nhung",
-        "tom tat", "doc file", "doc tai lieu", "trich", "trich xuat",
-        "muc luc", "chuong", "phan nao", "noi ve gi",
-        "file nay", "pdf nay", "tai lieu nay", "tai lieu do",
-        "cuon nay", "sach nay",
-        "phuong phap nghien cuu", "ket qua nghien cuu", "ket luan",
-        "giai phap trong", "dinh huong trong",
-        "khai niem", "dinh nghia", "vi du", "giai thich ca tu",
-        "phan mem", "he thong", "ung dung",
-        "bo cuc", "cau truc", "danh muc", "layout", "structure",
-    ]
-    if any(phrase in q for phrase in content_phrases):
-        return "content_qa"
-    command_patterns = [
-        r"\\b(?:hay|vui long)?\\s*(?:neu|phan tich|trinh bay|giai thich|tom tat|doc)\\b",
-        r"\\b(?:cho toi|cho minh|cho em)\\s+(?:biet|xem|tom tat)\\b",
-    ]
-    if any(re.search(pattern, q) for pattern in command_patterns):
-        return "content_qa"
-    if detect_summary_request(query) or detect_chapter_reference(query):
-        return "content_qa"
-
-    # Mặc định: catalog_search (tim sach, tim tai lieu)
-    # Neu query co tu khoa ve sach/tim/liet ke => catalog
-    list_markers = [
-        "tim sach", "tim tai lieu", "tim pdf", "liet ke",
-        "cho xem sach", "co sach nao", "co tai lieu nao",
-        "tim kiem", "tra cuu", "xem danh muc",
-        "nganh", "chu de",
-    ]
-    if any(marker in q for marker in list_markers):
-        return "catalog_search"
-
-    # Linh hoat hon: query chua "sach" hoac "tai lieu" bat ky dau
-    # Vi du: "ban co sach toan khong", "sach tin hoc", "tai lieu cong nghe"
-    catalog_keywords = ["sach", "tai lieu", "cuon sach", "de tai", "luan van"]
-    if any(kw in q for kw in catalog_keywords):
-        return "catalog_search"
-
-    # Library-related nhung chua ro y dinh: hoi lai user
-    clarify_markers = [
-        "the loai", "tac gia", "nha xuat ban", "chu de",
-        "nam xuat ban", "khoa hoc", "nganh hoc",
-        "sach hay", "tai lieu hay",
-        "cuon", "cuon nay", "cuon do",
-        "danh gia", "danh gia sach",
-    ]
-    if any(marker in q for marker in clarify_markers):
-        return "clarify"
-
-    # Fallback: khong ro y dinh => unknown (khong search)
-    return "unknown"
+# detect_greeting, classify_intent, detect_author_query, detect_publisher_query
+# → moved to intent_classifier.py (score-based entity extraction)
 
 def detect_live_info_request(query: str) -> bool:
     return classify_intent(query) == "live_info"
@@ -2304,6 +2182,7 @@ def detect_content_request(query: str) -> bool:
 
     content_phrases = [
         "noi dung", "chi tiet", "phan tich", "giai thich", "trinh bay",
+        "so sanh", "sosanh",
         "cho biet", "hay cho biet", "neu ro", "neu cac", "neu nhung",
         "tom tat", "doc file", "doc tai lieu", "trich", "trich xuat",
         "muc luc", "chuong", "phan nao", "noi ve gi",
@@ -2381,6 +2260,16 @@ def detect_existence_request(query: str) -> bool:
     q = normalize_text(query)
     if not q:
         return False
+
+    # Nếu query chứa động từ so sánh/phân tích → không phải existence check đơn thuần
+    # VD: "có cuốn nào so sánh U-Net và V-Net không?" muốn tìm sách, không phải yes/no
+    content_action_words = [
+        "so sanh", "sosanh", "phan tich", "giai thich", "trinh bay",
+        "tom tat", "chi tiet", "mo ta",
+    ]
+    if any(w in q for w in content_action_words):
+        return False
+
     patterns = [
         r"\bco\s+(?:tai\s+lieu|sach|cuon|quyen|an\s+pham|tai\s+lieus|giao\s+trinh)\b[^?]*?\b(?:khong|ko|hem|khong\s+a|nhi|vay)\b\s*\??",
         r"\bco\s+(?:tai\s+lieu|sach|cuon|quyen)\s+(?:nao|nào)\b[^?]*?\b(?:khong|ko|khong\s+a|nhi|vay)\b\s*\??",
@@ -2915,18 +2804,18 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
             )
         )
         if is_structure_query:
-            # Lấy 15 trang đầu tiên — TOC thường nằm ở đây
-            toc_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 15)
+            # Lấy 8 trang đầu — TOC thường nằm ở đây (giảm context cho free model)
+            toc_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 8)
             if has_extractable_pdf_text(toc_text):
                 header = (
                     f"Tài liệu được chọn: {pdf_title}\n"
                     f"Tên file: {pdf_source}\n"
                     f"Số trang: {pdf_info.get('pages', 'N/A')}\n"
-                    f"Mục trích xuất: 15 trang đầu (mục lục / bố cục)\n"
+                    f"Mục trích xuất: 8 trang đầu (mục lục / bố cục)\n"
                 )
-                return f"{header}\nNội dung trích xuất:\n{toc_text[:20000]}", [], None
+                return f"{header}\nNội dung trích xuất:\n{toc_text[:8000]}", [], None
 
-        # Câu hỏi chung khác → lấy toàn bộ text
+        # Câu hỏi chung khác → lấy mẫu đại diện (giảm context cho free model)
         full_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 999999)
         if has_extractable_pdf_text(full_text):
             header = (
@@ -2934,7 +2823,19 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
                 f"Tên file: {pdf_source}\n"
                 f"Số trang: {pdf_info.get('pages', 'N/A')}\n"
             )
-            return f"{header}\nNội dung trích xuất:\n{full_text[:30000]}", [], None
+            # Lấy phần đầu + phần giữa + phần cuối để đại diện toàn bộ tài liệu
+            total_len = len(full_text)
+            if total_len <= 12000:
+                # Ngắn → lấy toàn bộ
+                sampled = full_text
+            else:
+                chunk = 4000  # 4K chars mỗi phần
+                head = full_text[:chunk]
+                mid_start = max(0, (total_len - chunk) // 2)
+                mid = full_text[mid_start:mid_start + chunk]
+                tail = full_text[-chunk:]
+                sampled = f"{head}\n\n[...Phần giữa trang {total_len // 2000}...]\n\n{mid}\n\n[...Phần cuối trang {total_len // 2000}...]\n\n{tail}"
+            return f"{header}\nNội dung trích xuất:\n{sampled}", [], None
 
     # Nếu không có chương cụ thể, search trong chính file PDF này để lấy các trang liên quan nhất
     selected_results = []
@@ -3089,7 +2990,7 @@ CÁC HƯỚNG DẪN KHÁC — CHỈ ÁP DỤNG KHI TÀI LIỆU CÓ CÂU TRẢ L�
             prompt = prompt_text
 
         messages = [
-            {"role": "system", "content": "Bạn chỉ được trả về phần trả lời cuối cùng bằng tiếng Việt. Không hiển thị suy luận, không dùng thẻ <think>, không viết lời dẫn như 'Okay, the user...'."},
+            {"role": "system", "content": "Bạn chỉ được trả về phần trả lời cuối cùng bằng tiếng Việt. Không hiển thị suy luận, không dùng thẻ <think>, không viết lời dẫn như 'Okay, the user...'. Trả lời dựa trên nội dung tài liệu được cung cấp bên dưới. Nếu câu hỏi thực sự không liên quan đến tài liệu, hãy nói ngắn gọn rằng tài liệu không chứa thông tin này."},
             {"role": "user", "content": prompt.format(context=context, question=question)}
         ]
         return sanitize_answer_text(call_llm(messages, temperature=0.1))
@@ -3388,6 +3289,230 @@ async def search_documents(req: SearchRequest):
 
 # ── Follow-up suggestions ────────────────────────────────
 
+def extract_answer_headings(answer: str) -> list[str]:
+    """Trích xuất tên các heading/section từ nội dung answer markdown.
+    VD: '## Chương 1: Tổng quan' → ['Chương 1: Tổng quan']
+    """
+    headings = []
+    for line in (answer or "").splitlines():
+        stripped = line.strip()
+        m = re.match(r"^#{1,4}\s+(.+)$", stripped)
+        if m:
+            heading = m.group(1).strip()
+            if len(heading) >= 4 and not re.match(r"^(trang|page|\[)", heading, re.I):
+                headings.append(heading)
+    return headings[:6]
+
+
+def extract_answer_sections(answer: str) -> list[str]:
+    """Trích xuất tên các phần/chapter từ answer (markdown headings + bold + numbered).
+    """
+    sections = []
+    seen = set()
+
+    for line in (answer or "").splitlines():
+        stripped = line.strip()
+        if not stripped or len(stripped) < 5:
+            continue
+
+        name = None
+
+        # Markdown heading: ##, ###, ####
+        m = re.match(r"^#{1,4}\s+(.+)$", stripped)
+        if m:
+            name = m.group(1).strip()
+
+        # Bold title: **some text**
+        if not name:
+            m = re.match(r"^\*\*(.+?)\*\*$", stripped)
+            if m and len(m.group(1)) >= 5:
+                name = m.group(1).strip()
+
+        # Numbered heading: "1. Title", "1.1 Title", "I. Title"
+        if not name:
+            m = re.match(r"^(?:\d+(?:\.\d+)*|[IVX]+)\.\s+(.{5,60})$", stripped)
+            if m:
+                name = m.group(1).strip()
+
+        if name and 5 <= len(name) <= 80:
+            name_key = name.lower().strip()
+            if name_key not in seen:
+                seen.add(name_key)
+                sections.append(name)
+
+        if len(sections) >= 5:
+            break
+
+    return sections
+
+
+def build_contextual_suggestions(
+    answer: str,
+    query: str,
+    sources: list[dict] = None,
+    doc_title: str = "",
+    catalog_mode: bool = False,
+    has_pdf_sources: bool = False,
+) -> list[dict]:
+    """Build follow-up suggestions dựa trên nội dung thực tế của answer.
+    - Catalog mode: gợi ý tìm sách cùng tác giả/chủ đề/ngành
+    - Content mode: gợi ý phân tích section, phương pháp, so sánh...
+    """
+    suggestions = []
+    answer_lower = normalize_text(answer or "")
+    query_lower = normalize_text(query or "")
+    sources = sources or []
+
+    # ══════════════════════════════════════════════════════════
+    # CATALOG MODE — gợi ý tìm sách/thuộc tính
+    # ══════════════════════════════════════════════════════════
+    if catalog_mode:
+        _junk_authors = {
+            "aspose", "aspose.pdf", "aspose.pdf.epubtopdfconverter",
+            "unknown", "n/a", "khong xac dinh", "pdf converter",
+            "epubtopdfconverter", "microsoft", "adobe", "apache",
+        }
+        _junk_subjects = {"aspose", "n/a", "unknown", "khong xac dinh", "pdf", "tai lieu so"}
+
+        # Extract metadata from first results
+        first_author = ""
+        first_subject = ""
+        first_major = ""
+        first_title = ""
+        for s in sources[:5]:
+            a = (s.get("author") or "").strip()
+            if a and len(a) >= 3 and a.lower() not in _junk_authors and not any(kw in a.lower() for kw in ("aspose", "converter")):
+                first_author = a
+            subj = (s.get("subject") or "").strip()
+            if subj and subj.lower() not in _junk_subjects and len(subj) >= 2:
+                first_subject = subj
+            major = (s.get("major") or "").strip()
+            if major and len(major) >= 2:
+                first_major = major
+            t = (s.get("title") or "").strip()
+            if t and len(t) > 5:
+                first_title = t.split(" - ")[0].strip()[:80]
+
+        # Ưu tiên: ngành → chủ đề → tác giả → gợi ý chung
+        if first_major:
+            suggestions.append({
+                "label": f"Tìm sách theo ngành: {first_major}",
+                "query": f"tìm sách thuộc ngành {first_major}"
+            })
+        if first_subject:
+            suggestions.append({
+                "label": f"Sách cùng chủ đề: {first_subject}",
+                "query": f"tìm sách về {first_subject}"
+            })
+        if first_author:
+            suggestions.append({
+                "label": f"Sách cùng tác giả: {first_author}",
+                "query": f"sách của tác giả {first_author}"
+            })
+
+        # Fallback nếu không đủ
+        if len(suggestions) < 3 and first_title:
+            suggestions.append({
+                "label": f"Tìm sách liên quan",
+                "query": f"tìm sách liên quan đến {first_title}"
+            })
+        if len(suggestions) < 3:
+            suggestions.append({"label": "Duyệt danh mục sách", "query": "liệt kê sách mới nhất"})
+        if len(suggestions) < 3:
+            suggestions.append({"label": "Gợi ý sách phổ biến", "query": "gợi ý tài liệu phổ biến"})
+
+        # Dedupe & limit
+        seen = set()
+        unique = []
+        for s in suggestions:
+            q = s["query"].strip().lower()
+            if q not in seen and q:
+                seen.add(q)
+                unique.append(s)
+            if len(unique) >= 3:
+                break
+        return unique
+
+    # ══════════════════════════════════════════════════════════
+    # CONTENT MODE — gợi ý phân tích nội dung tài liệu
+    # ══════════════════════════════════════════════════════════
+    sections = extract_answer_sections(answer)
+    headings = extract_answer_headings(answer)
+
+    # ── Priority 1: Gợi ý phân tích section cụ thể từ answer ──
+    for section in sections[:3]:
+        section_clean = re.sub(r"^#{1,4}\s*", "", section).strip()
+        section_clean = re.sub(r"\*\*|\*", "", section_clean).strip()
+        if len(section_clean) >= 5:
+            suggestions.append({
+                "label": f"Phân tích: {section_clean[:50]}",
+                "query": f"Phân tích chi tiết nội dung phần '{section_clean}'"
+            })
+
+    # ── Priority 2: Query + answer pattern context ──
+    if len(suggestions) < 3:
+        if re.search(r"phuong phap|methodology|cach tiep can|cong cu|ky thuat|thuat toan", answer_lower):
+            method_names = re.findall(r"(?:\*\*|(?:^##?\s+))([^*\n]{5,50})", answer)
+            if method_names:
+                m = method_names[0].strip().strip("#*").strip()
+                suggestions.append({
+                    "label": f"Giải thích: {m[:40]}",
+                    "query": f"Giải thích chi tiết hơn về {m}"
+                })
+            else:
+                suggestions.append({"label": "Nói rõ hơn về phương pháp", "query": "Giải thích chi tiết hơn về phương pháp được sử dụng"})
+
+        if re.search(r"ket qua|finding|conclusion|ket luan|danh gia", answer_lower):
+            suggestions.append({"label": "Phân tích kết quả", "query": "Phân tích chi tiết hơn về kết quả và đánh giá"})
+
+        if re.search(r"lo ich|uu diem|diem manh|advantage|benefit", answer_lower):
+            suggestions.append({"label": "Điểm yếu và hạn chế", "query": "Liệt kê các điểm yếu và hạn chế"})
+
+    # ── Priority 4: Query-based ──
+    if len(suggestions) < 3:
+        if re.search(r"la gi|dinh nghia|khai niem", query_lower):
+            suggestions.append({"label": "Ví dụ minh họa cụ thể", "query": "Cho ví dụ minh họa cụ thể"})
+        if re.search(r"so sanh|khac biet", query_lower):
+            suggestions.append({"label": "So sánh chi tiết hơn", "query": "So sánh chi tiết hơn giữa các yếu tố"})
+        if re.search(r"bo cuc|cau truc|muc luc", query_lower):
+            suggestions.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
+
+    # ── Priority 4: Smart fallback từ sources metadata ──
+    if len(suggestions) < 3 and sources:
+        # Lấy subject thực tế từ sources
+        for s in sources[:3]:
+            subj = (s.get("subject") or "").strip()
+            if subj and len(subj) >= 3:
+                suggestions.append({
+                    "label": f"Kiến thức liên quan: {subj[:40]}",
+                    "query": f"Kiến thức liên quan đến {subj}"
+                })
+                break
+    if len(suggestions) < 3 and sources:
+        for s in sources[:3]:
+            author = (s.get("author") or "").strip()
+            if author and len(author) >= 3:
+                suggestions.append({
+                    "label": f"Sách cùng tác giả: {author}",
+                    "query": f"sách của tác giả {author}"
+                })
+                break
+    if len(suggestions) < 3 and answer and len(answer) > 200:
+        suggestions.append({"label": "Tóm tắt nội dung", "query": "Tóm tắt lại nội dung thành 3-5 ý chính"})
+
+    # Dedupe & limit
+    seen = set()
+    unique = []
+    for s in suggestions:
+        q = s["query"].strip().lower()
+        if q not in seen and q:
+            seen.add(q)
+            unique.append(s)
+        if len(unique) >= 3:
+            break
+    return unique
+
+
 def build_follow_up_suggestions(
     query: str,
     sources: list[dict],
@@ -3396,155 +3521,17 @@ def build_follow_up_suggestions(
     has_pdf_sources: bool,
     session_id: str,
 ) -> list[dict]:
-    """Generate contextual follow-up suggestions. Each item: {label, query}."""
-    suggestions = []
-
-    # Danh sách từ khóa "rác" — thường xuất hiện từ tool convert PDF, không phải tác giả/thực thể thật
-    _junk_authors = {
-        "aspose", "aspose.pdf", "aspose.pdf.epubtopdfconverter",
-        "unknown", "n/a", "khong xac dinh", "pdf converter",
-        "epubtopdfconverter", "microsoft", "adobe", "apache",
-        "itext", "itextsharp", "pdfsharp", "spire",
-    }
-    _junk_subjects = {
-        "aspose", "n/a", "unknown", "khong xac dinh", "pdf",
-        "tai lieu so", "digital",
-    }
-
-    def _is_valid_author(val: str) -> bool:
-        """Kiểm tra author có phải giá trị thật không."""
-        if not val or len(val) < 3:
-            return False
-        v = val.strip().lower()
-        if v in _junk_authors:
-            return False
-        # Chứa "aspose", "converter", "pdf" → tool name
-        if any(kw in v for kw in ("aspose", "converter", "pdfsharp", "epubtopdf", "pdftool")):
-            return False
-        # Chỉ toàn số hoặc ký tự đặc biệt
-        if all(c.isdigit() or c in "._-/" for c in v):
-            return False
-        return True
-
-    def _is_valid_subject(val: str) -> bool:
-        """Kiểm tra subject có phải giá trị thật không."""
-        if not val or len(val) < 2:
-            return False
-        v = val.strip().lower()
-        if v in _junk_subjects:
-            return False
-        return True
-
-    if catalog_mode:
-        # Catalog mode: suggest searching by subject and author
-        first_subject = ""
-        first_author = ""
-        first_title = ""
-        if sources:
-            first_subject = sources[0].get("subject", "").strip()
-            first_author = sources[0].get("author", "").strip()
-            first_title = sources[0].get("title", "").split(" - ")[0].strip()[:60]
-
-        # BỎ: gợi ý "Đọc nội dung PDF" - user không thích
-
-        # Gợi ý tìm sách theo ngành liên quan (ưu tiên major trước subject)
-        first_major = ""
-        if sources:
-            first_major = sources[0].get("major", "").strip()
-        if first_major and _is_valid_subject(first_major):
-            suggestions.append({
-                "label": f"Tìm sách theo ngành: {first_major}",
-                "query": f"tìm sách thuộc ngành {first_major}"
-            })
-
-        # Gợi ý tìm cùng chủ đề (nếu có)
-        if first_subject and _is_valid_subject(first_subject):
-            suggestions.append({
-                "label": f"Tìm sách cùng chủ đề: {first_subject}",
-                "query": f"tìm sách về {first_subject}"
-            })
-
-        # Gợi ý tìm cùng tác giả
-        if first_author and _is_valid_author(first_author):
-            suggestions.append({
-                "label": f"Tìm sách cùng tác giả: {first_author}",
-                "query": f"sách của tác giả {first_author}"
-            })
-
-    else:
-        # Content mode: show suggestions based on document metadata + query + answer
-        answer_lower = normalize_text(answer or "")
-        query_lower = normalize_text(query or "")
-
-        # Extract document metadata from sources for smarter suggestions
-        doc_subjects = []
-        doc_titles = []
-        doc_authors = []
-        for s in sources[:5]:
-            subj = (s.get("subject") or "").strip()
-            title = (s.get("title") or "").strip()
-            author = (s.get("author") or "").strip()
-            if subj:
-                doc_subjects.append(subj)
-            if title:
-                doc_titles.append(title)
-            if author and _is_valid_author(author):
-                doc_authors.append(author)
-
-        primary_subject = doc_subjects[0] if doc_subjects else ""
-
-        # ── Answer-pattern-based suggestions ──
-        if re.search(r"chuong|chapter|muc|phan|section", answer_lower):
-            suggestions.append({"label": "Phân tích sâu hơn", "query": f"Phân tích chi tiết hơn nội dung{' về ' + primary_subject if primary_subject else ''}"})
-        if re.search(r"phuong phap|methodology|cach tiep can|cong cu|ky thuat|algorithm", answer_lower):
-            suggestions.append({"label": "Nói rõ hơn về phương pháp", "query": "Giải thích chi tiết hơn về phương pháp được sử dụng"})
-        if re.search(r"ket qua|finding|conclusion|ket luan|danh gia", answer_lower):
-            suggestions.append({"label": "Phân tích kết quả", "query": "Phân tích chi tiết hơn về kết quả"})
-        if re.search(r"gioi thieu|introduction|muc tieu|ly do|tong quan", answer_lower):
-            suggestions.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
-        if re.search(r"bo cuc|cau truc|muc luc|danh muc|layout|structure", query_lower):
-            suggestions.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
-            suggestions.append({"label": "Hỏi về chương cụ thể", "query": "Giải thích chi tiết nội dung Chương 1"})
-
-        # ── Query-topic-based suggestions ──
-        if re.search(r"là gì|định nghĩa|khái niệm|nghĩa là|hiểu sao", query_lower):
-            suggestions.append({"label": "Ứng dụng thực tế", "query": f"Các ứng dụng thực tế trong {primary_subject or 'lĩnh vực này'}"})
-            suggestions.append({"label": "Ví dụ minh họa", "query": "Cho ví dụ minh họa cụ thể"})
-        if re.search(r"so sánh|khác biệt|điểm giống|điểm khác|tương tự", query_lower):
-            suggestions.append({"label": "So sánh chi tiết hơn", "query": "So sánh chi tiết hơn giữa các yếu tố"})
-        if re.search(r"cách|quy trình|các bước|làm thế nào|thực hiện|procedure", query_lower):
-            suggestions.append({"label": "Xem quy trình từng bước", "query": "Mô tả chi tiết từng bước thực hiện"})
-        if re.search(r"tại sao|nguyên nhân|lý do|vì sao|do đâu", query_lower):
-            suggestions.append({"label": "Giải pháp khắc phục", "query": "Giải pháp và cách khắc phục vấn đề này"})
-
-        # ── Smart fallbacks based on source metadata (NOT generic) ──
-        if len(suggestions) < 3 and primary_subject:
-            suggestions.append({
-                "label": f"Liên quan đến {primary_subject[:40]}",
-                "query": f"Kiến thức liên quan đến {primary_subject}"
-            })
-        if len(suggestions) < 3 and doc_authors:
-            suggestions.append({
-                "label": f"Tìm sách của {doc_authors[0]}",
-                "query": f"sách của tác giả {doc_authors[0]}"
-            })
-        if len(suggestions) < 3 and answer and len(answer) > 200:
-            suggestions.append({"label": "Tóm tắt ngắn gọn", "query": "Tóm tắt lại thành 3-5 ý chính"})
-        if len(suggestions) < 3:
-            suggestions.append({"label": "Nội dung chính của tài liệu", "query": "Tóm tắt nội dung chính của tài liệu này"})
-
-
-    seen = set()
-    unique = []
-    for s in suggestions:
-        q = s["query"].strip().lower()
-        if q not in seen:
-            seen.add(q)
-            unique.append(s)
-        if len(unique) >= 3:
-            break
-
-    return unique
+    """Generate contextual follow-up suggestions. Each item: {label, query}.
+    Delegates to build_contextual_suggestions with correct mode + has_pdf flag.
+    """
+    return build_contextual_suggestions(
+        answer=answer,
+        query=query,
+        sources=sources,
+        doc_title=sources[0].get("title", "") if sources else "",
+        catalog_mode=catalog_mode,
+        has_pdf_sources=has_pdf_sources,
+    )
 
 
 # ── Endpoint /chat ────────────────────────────────────────
@@ -3901,6 +3888,20 @@ async def chat(req: ChatRequest):
 
             # Always run BM25 to catch text/abstract/notes matches too
             bm25_results = retriever.search_by_query(search_query, top_k=retrieval_k)
+            # Catalog mode: loại bỏ PDF pages (chỉ giữ tài liệu từ catalog DB)
+            # PDF pages thường match từ khóa chung nhưng không liên quan đến chủ đề catalog
+            if catalog_mode and bm25_results:
+                filtered = []
+                for r in bm25_results:
+                    doc = r.get("doc", {})
+                    csv_file = str(doc.get("csv_file", ""))
+                    is_pdf = csv_file.startswith("pdf:")
+                    is_pdf_page = doc.get("page") is not None
+                    # Giữ tài liệu từ catalog DB, loại PDF pages
+                    if not is_pdf and not is_pdf_page:
+                        filtered.append(r)
+                bm25_results = filtered
+                logger.info("Catalog mode: filtered %d PDF pages, keeping %d catalog docs", (len(filtered) - len(bm25_results)) * -1, len(filtered))
             catalog_query_token_count = len(topic_tokens(strip_search_intent_phrases(req.query)))
             use_metadata_search = catalog_mode and (
                 is_list_request or catalog_query_token_count <= 7
@@ -4059,17 +4060,26 @@ async def chat(req: ChatRequest):
             seen_related_pdf_ids.add(pdf_id)
             related_pdf_infos.append(pdf_info)
 
-        # Luôn tìm PDF theo tên/title, kể cả khi BM25 có kết quả
+        # ── Tự động inject PDF theo tên file ──
+        # CHỈ áp dụng cho non-catalog mode (content Q&A).
+        # Catalog mode tìm sách theo ngành/chủ đề → KHÔNG nên ép PDF vào.
         try:
-            q_lower = normalize_text(req.query)
-            all_pdfs = pdf_manager.list_all_pdfs()
             _injected = False
-            for pdf in all_pdfs:
-                pdf_id = pdf.get("id") or pdf.get("file_name")
-                if pdf_id in seen_related_pdf_ids:
-                    continue
-                pdf_name = normalize_text(pdf.get("title", "") + " " + pdf.get("file_stem", "") + " " + pdf.get("file_name", ""))
-                if q_lower and pdf_name and any(word in pdf_name for word in q_lower.split() if len(word) > 2):
+            if not catalog_mode:
+                q_lower = normalize_text(req.query)
+                all_pdfs = pdf_manager.list_all_pdfs()
+                q_words = [w for w in q_lower.split() if len(w) > 3]
+                for pdf in all_pdfs:
+                    pdf_id = pdf.get("id") or pdf.get("file_name")
+                    if pdf_id in seen_related_pdf_ids:
+                        continue
+                    pdf_name = normalize_text(pdf.get("title", "") + " " + pdf.get("file_stem", "") + " " + pdf.get("file_name", ""))
+                    if not (q_lower and pdf_name and q_words):
+                        continue
+                    # Yêu cầu ít nhất 2 từ匹配 (>3 ký tự) để tránh false-positive
+                    matched_words = [w for w in q_words if w in pdf_name]
+                    if len(matched_words) < 2:
+                        continue
                     seen_related_pdf_ids.add(pdf_id)
                     related_pdf_infos.append(pdf)
                     pdf_text = pdf_manager.get_chapter_text(pdf['file_path'], 0, 999999)
@@ -4139,12 +4149,20 @@ async def chat(req: ChatRequest):
 
         pdf_fallback_used = False
         if not _relevance_gate and related_pdf_infos and answer_says_no_information(answer):
-            if not catalog_mode and not search_results and len(related_pdf_infos) > 0:
+            # N?u search_results có sách catalog ?i?m cao → dùng catalog answer thay vì ch? hi?n PDF
+            _top_score_cat = search_results[0].get('score', 0) if search_results else 0
+            if search_results and _top_score_cat >= 1.0:
+                answer = build_catalog_answer(search_results, req.query, total_found=total_found)
+                # V?n ?ính kèm PDF info ?? user bi?t có th? m? file
+                if related_pdf_infos:
+                    pdf_names = [p.get("title") or p.get("file_name", "PDF") for p in related_pdf_infos[:3]]
+                    answer += "\n\n" + build_related_pdf_answer(related_pdf_infos, req.query)
+            elif not catalog_mode and not search_results and len(related_pdf_infos) > 0:
                 try:
                     pdf_text = pdf_manager.get_chapter_text(related_pdf_infos[0]['file_path'], 0, 999999)
                     if has_extractable_pdf_text(pdf_text):
                         pdf_title = related_pdf_infos[0].get('title', 'PDF')
-                        new_context = f"Tài liệu được chọn: {pdf_title}\nNội dung trích xuất:\n{pdf_text[:30000]}"
+                        new_context = f"Tài li?u ???c ch?n: {pdf_title}\nN?i dung trích xu?t:\n{pdf_text[:30000]}"
                         chain_func, _ = build_general_chain()
                         new_answer = chain_func(context=new_context, question=req.query)
                         if not answer_says_no_information(new_answer):
@@ -5052,6 +5070,10 @@ async def chat_with_document(req: DocumentChatRequest):
         # Dùng RAG chain
         chain_func, _ = build_general_chain()
         answer = chain_func(context=context, question=effective_query)
+
+        # Không ghi đè câu trả lời "không có thông tin" — đó là câu trả lời đúng
+        # khi tài liệu thực sự không chứa thông tin về câu hỏi.
+        # Chỉ hiển thị gợi ý nếu LLM trả lời hợp lệ.
         
         # Trích xuất các trang liên quan
         relevant_pages = []
@@ -5062,78 +5084,12 @@ async def chat_with_document(req: DocumentChatRequest):
         pdf_hist.append({"query": req.query, "effective_query": effective_query, "topic": "general"})
         pdf_session_history[history_key] = pdf_hist[-MAX_HISTORY:]
 
-        # Generate context-aware follow-up suggestions based on document metadata + query + answer
-        answer_lower = normalize_text(answer or "")
-        pdf_sugs = []
-
-        # Document metadata signals
-        doc_subject = normalize_text(pdf_info.get("subject") or "")
-        doc_major = normalize_text(pdf_info.get("major") or "")
-        doc_title = normalize_text(pdf_info.get("title") or "")
-        query_lower = normalize_text(req.query or "")
-
-        # ── 1. Answer-pattern-based suggestions ──
-        if re.search(r"chuong|chapter|muc|phan|section", answer_lower):
-            pdf_sugs.append({"label": "Phân tích sâu hơn", "query": f"Phân tích chi tiết hơn nội dung chương này"})
-        if re.search(r"phuong phap|methodology|cach tiep can|cong cu|ky thuat|algorithm", answer_lower):
-            pdf_sugs.append({"label": "Nói rõ hơn về phương pháp", "query": "Giải thích chi tiết hơn về phương pháp được sử dụng"})
-        if re.search(r"ket qua|finding|conclusion|ket luan|danh gia", answer_lower):
-            pdf_sugs.append({"label": "Phân tích kết quả", "query": "Phân tích chi tiết hơn về kết quả"})
-        if re.search(r"gioi thieu|introduction|muc tieu|ly do", answer_lower):
-            pdf_sugs.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
-        if re.search(r"điểm mạnh|điểm yếu|ưu điểm|nhược điểm|so sánh|lợi thế|hạn chế", answer_lower):
-            pdf_sugs.append({"label": "Đưa ra đánh giá tổng quan", "query": "Đánh giá tổng quan điểm mạnh và điểm yếu"})
-
-        # ── 2. Query-topic-based suggestions ──
-        topic_keywords = []
-        if doc_subject:
-            topic_keywords.extend(doc_subject.split()[:3])
-        if doc_major:
-            topic_keywords.extend(doc_major.split()[:3])
-
-        # If user asks about a specific concept → suggest real-world application
-        if re.search(r"là gì|định nghĩa|khái niệm|nghĩa là|hiểu sao", query_lower):
-            pdf_sugs.append({"label": "Ứng dụng thực tế", "query": f"Các ứng dụng thực tế trong {doc_subject or doc_major or 'lĩnh vực này'}"})
-            pdf_sugs.append({"label": "Ví dụ minh họa", "query": "Cho ví dụ minh họa cụ thể"})
-
-        # If user asks about comparison → suggest deeper comparison
-        if re.search(r"so sánh|khác biệt|điểm giống|điểm khác|tương tự", query_lower):
-            pdf_sugs.append({"label": "So sánh chi tiết hơn", "query": "So sánh chi tiết hơn giữa các yếu tố"})
-
-        # If user asks about process/how-to → suggest step-by-step
-        if re.search(r"cách|quy trình|các bước|làm thế nào|thực hiện|procedure", query_lower):
-            pdf_sugs.append({"label": "Xem quy trình từng bước", "query": "Mô tả chi tiết từng bước thực hiện"})
-
-        # If user asks about causes/why → suggest solutions
-        if re.search(r"tại sao|nguyên nhân|lý do|vì sao|do đâu", query_lower):
-            pdf_sugs.append({"label": "Giải pháp khắc phục", "query": "Giải pháp và cách khắc phục vấn đề này"})
-
-        # ── 3. Smart fallbacks based on document subject (NOT generic) ──
-        if len(pdf_sugs) < 3 and doc_subject:
-            pdf_sugs.append({
-                "label": f"Liên quan đến {doc_subject[:40]}",
-                "query": f"Kiến thức liên quan đến {doc_subject}"
-            })
-        if len(pdf_sugs) < 3 and topic_keywords:
-            pdf_sugs.append({
-                "label": f"Hỏi về {topic_keywords[0]}",
-                "query": f"Nói thêm về {topic_keywords[0]} trong tài liệu này"
-            })
-        if len(pdf_sugs) < 3 and answer and len(answer) > 200:
-            pdf_sugs.append({"label": "Tóm tắt ngắn gọn", "query": "Tóm tắt lại thành 3-5 ý chính"})
-        if len(pdf_sugs) < 3:
-            pdf_sugs.append({"label": "Nội dung chính của tài liệu", "query": "Tóm tắt nội dung chính của tài liệu này"})
-
-        # Dedupe and limit
-        seen_sugs = set()
-        final_sugs = []
-        for s in pdf_sugs:
-            q = s["query"].strip().lower()
-            if q not in seen_sugs:
-                seen_sugs.add(q)
-                final_sugs.append(s)
-            if len(final_sugs) >= 3:
-                break
+        # Generate context-aware follow-up suggestions from actual answer content
+        final_sugs = build_contextual_suggestions(
+            answer=answer,
+            query=req.query,
+            doc_title=pdf_info.get('title', ''),
+        )
 
         return {
             "answer": answer,
