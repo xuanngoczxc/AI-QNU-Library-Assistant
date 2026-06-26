@@ -180,7 +180,10 @@ try:
             # Không ph?i subject th?c s? → b? qua
             pdf_subject = ""
             kw = meta.get('keywords', '')
-            if kw and len(kw) >= 5 and kw.lower() != 'pdf':
+            # keywords có thể là list (từ load_pdf.py) → chuyển về string
+            if isinstance(kw, list):
+                kw = ' '.join(str(k) for k in kw if k)
+            if isinstance(kw, str) and len(kw) >= 5 and kw.lower() != 'pdf':
                 pdf_subject = kw
 
             pdf_item = {
@@ -413,6 +416,9 @@ def reindex_pdfs(retriever):
 
         # Subject: chỉ dùng keywords từ filename, không dùng section heading (nhiễu)
         pdf_subject = meta.get('keywords', '')
+        # keywords có thể là list (từ load_pdf.py) → chuyển về string
+        if isinstance(pdf_subject, list):
+            pdf_subject = ' '.join(str(k) for k in pdf_subject if k)
         if not pdf_subject or len(pdf_subject) < 5 or pdf_subject.lower() == 'pdf':
             pdf_subject = ''
 
@@ -1797,14 +1803,10 @@ def extract_author_name(query: str) -> str:
         if not any(w in topic_words for w in words[1:]):
             return q
 
-    # Pattern 3: Western/Latin name query "L.G. Alexander" hoặc "Alexander, L.G."
-    # Match names that are 2-4 tokens and contain a comma OR are mostly uppercase initials
     if 2 <= len(words) <= 5:
-        # Check if it looks like a person name: comma OR uppercase initials OR known foreign surname
         if ',' in q:
             parts = [p.strip() for p in q.split(',') if p.strip()]
             if 1 <= len(parts) <= 3:
-                # Reject if any part contains topic words or query noise
                 all_clean = True
                 for p in parts:
                     p_tokens = p.split()
@@ -1814,15 +1816,11 @@ def extract_author_name(query: str) -> str:
                 if all_clean and all(len(p) >= 2 for p in parts):
                     return q
         else:
-            # Check if all tokens are capitalized (Western name style) or contain initials
-            # Reject if any token is a topic word
             if all(w[0].isupper() or '.' in w for w in words if w):
                 if not any(w in topic_words for w in words):
-                    # Reject if very long (likely a sentence, not a name)
                     if len(q) <= 60:
                         return q
     return ""
-
 
 def extract_publisher_name(query: str) -> str:
     """Trích xuất tên nhà xuất bản từ câu hỏi."""
@@ -1847,13 +1845,10 @@ def normalize_author_name(name: str) -> str:
     """Normalize author name for comparison."""
     if not name:
         return ""
-    # Remove content after semicolons FIRST (before normalize_text strips them)
     name = re.sub(r"\s*;.*$", "", name)
     normalized = normalize_text(name)
     normalized = re.sub(r"\s+", " ", normalized).strip()
     normalized = re.sub(r"\s*\([^)]*\)\s*", " ", normalized)
-    # Also handle content after commas that don't match the query
-    # e.g. "Trần Thị Kim Hoa" should not match "Nguyễn Thị Kim Hoa"
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized
 
@@ -1878,35 +1873,22 @@ def author_name_matches(doc_author: str, query_author: str) -> bool:
     # 1. Exact match
     if doc_norm == query_norm:
         return True
-
-    # 2. Query name appears as a whole contiguous phrase in doc name
-    # (e.g. "nguyen thi kim hoa" in "pgs.ts. nguyen thi kim hoa")
     if query_norm in doc_norm:
         return True
-
-    # 3. Strict token matching: first token (họ) AND last token (tên) must match
-    #    plus at least 2 other tokens must match
     first_matches = doc_tokens[0] == query_tokens[0]
     last_matches = doc_tokens[-1] == query_tokens[-1]
 
     if first_matches and last_matches:
-        # Count how many query tokens appear in doc tokens
         doc_set = set(doc_tokens)
         overlap = sum(1 for t in query_tokens if t in doc_set)
-        # Require that at least all query tokens match (full name match)
-        # or all but one (e.g. missing middle name)
-        if overlap >= len(query_tokens) - 1 and overlap >= 3:
+        if overlap == len(query_tokens) and overlap >= 3:
             return True
 
-    # 4. Western/initial style name matching (e.g. "L.G. Alexander" vs "Alexander, L.G.")
-    #    Convert both to normalized initials+surname form
     def _to_initials_surname(name):
         """'L.G. Alexander' or 'Alexander, L.G.' → 'l.g.alexander' (alphabetical concat)"""
         n = re.sub(r'[,\.]+', ' ', name).lower()
         n = re.sub(r'\s+', ' ', n).strip()
-        # Tokenize: each part may be 'l', 'g', 'alexander' etc.
         toks = n.split()
-        # Last token = surname; others = initials
         if len(toks) >= 2:
             surname = toks[-1]
             initials = ''.join(t[0] for t in toks[:-1] if t)
@@ -1918,12 +1900,10 @@ def author_name_matches(doc_author: str, query_author: str) -> bool:
     if doc_key and query_key and len(doc_key) >= 3 and len(query_key) >= 3:
         if doc_key == query_key:
             return True
-        # If one is a substring of the other (e.g. longer with extra initials)
         if query_key in doc_key or doc_key in query_key:
             if abs(len(doc_key) - len(query_key)) <= 4:
                 return True
 
-    # 5. Surname-only match: query is just a last name like "Alexander"
     if len(query_tokens) == 1 and len(query_tokens[0]) >= 3:
         if query_tokens[0] in doc_norm:
             return True
@@ -1936,12 +1916,10 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
     if not search_results:
         return search_results
 
-    # ── Author/Publisher strict filtering ──────────────────
     author_name = extract_author_name(query) if detect_author_query(query) else ""
     publisher_name = extract_publisher_name(query) if detect_publisher_query(query) else ""
 
     if author_name:
-        # Strict filter: chỉ giữ tài liệu có tác giả matching
         author_results = []
         non_author_results = []
         for result in search_results:
@@ -1958,11 +1936,8 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
             if prefer_strict:
                 return author_results
             return author_results + non_author_results[:3]
-        # No author match at all — KHÔNG fall through, trả về rỗng
-        # (trước đây fall through → hiển thị toàn bộ kết quả không liên quan)
         if prefer_strict:
-            logger.info("author strict miss for %r → return empty (0 results)", author_name)
-            return []
+            logger.info("author strict miss for %r — fall through to general reranking", author_name)
 
     if publisher_name:
         publisher_norm = normalize_text(publisher_name)
@@ -2008,8 +1983,6 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
             unmatched.sort(key=lambda item: item.get("score", 0.0), reverse=True)
             return matched + unmatched
 
-    # ── PDF boost: đưa tài liệu PDF có nội dung liên quan lên đầu ──
-    # (collapse_catalog_pdf_pages boost +10000, nhưng đây là lớp bảo vệ thứ 2)
     for result in search_results:
         doc = result.get("doc", {})
         is_pdf = str(doc.get("csv_file", "")).startswith("pdf:") or doc.get("doc_type") == "PDF"
@@ -2023,11 +1996,6 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
     unique_tokens = list(dict.fromkeys(topic_tokens))
     matched = []
     unmatched = []
-
-    # Adaptive threshold: require higher coverage when query has many tokens
-    # Phrase candidates include very long substrings (e.g. the full query text), so
-    # the "phrase hit" check would otherwise let thousands of docs bypass strict coverage.
-    # The MIN phrase length protects against that loophole.
     min_phrase_length_for_bypass = 4
     if len(unique_tokens) >= 6:
         strict_coverage_threshold = 0.80
@@ -2035,8 +2003,6 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
         strict_coverage_threshold = 0.65
     else:
         strict_coverage_threshold = 0.50
-    # Adaptive relaxed threshold: shorter queries → stricter, longer → more lenient
-    # VD: 5 tokens → 0.40, 10 tokens → 0.25, 20 tokens → 0.15
     relaxed_coverage_threshold = max(0.15, min(0.40, 3.0 / max(len(unique_tokens), 1)))
     is_single_token = len(unique_tokens) == 1
 
@@ -2070,17 +2036,14 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
                     unmatched.append(result)
                     continue
 
-        # Strict mode (list/author queries): require strong coverage
         if prefer_strict and len(unique_tokens) >= 2 and coverage < strict_coverage_threshold and not exact_phrase_hit:
             unmatched.append(result)
             continue
 
-        # Relaxed mode: require minimum token overlap to avoid noise
         if not prefer_strict and not exact_phrase_hit and coverage < relaxed_coverage_threshold:
             unmatched.append(result)
             continue
 
-        # Boost subject/major field matches heavily
         doc_subject = normalize_text(doc.get("subject", ""))
         doc_major = normalize_text(doc.get("major", ""))
         doc_title = normalize_text(doc.get("title", ""))
@@ -2108,7 +2071,6 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
     if prefer_strict:
         return []
 
-    # Không có kết quả nào pass rerank → trả rỗng (đúng là không có tài liệu phù hợp)
     logger.info("rerank: 0 matched → return empty for query=%r", query)
     return []
 
@@ -2133,7 +2095,6 @@ def extract_keywords(text: str) -> str:
         for token in normalize_topic_text(term).split()
         if len(token) == 1
     }
-    # Bỏ stop words nhưng giữ lại từ thực và token ngắn trong cụm ngành được bảo toàn.
     filtered = [
         w for w in words
         if w not in VIETNAMESE_STOP_WORDS and (len(w) >= 2 or w in protected_short_tokens)
@@ -2155,9 +2116,6 @@ def extract_content_search_query(text: str) -> str:
     q = re.sub(r"\s+", " ", q).strip()
     return q or normalize_text(text)
 
-# detect_greeting, classify_intent, detect_author_query, detect_publisher_query
-# → moved to intent_classifier.py (score-based entity extraction)
-
 def detect_live_info_request(query: str) -> bool:
     return classify_intent(query) == "live_info"
 
@@ -2168,6 +2126,7 @@ def detect_exhaustion_query(query: str) -> bool:
         "het chua", "con khong", "con tai lieu nao", "con them khong",
         "con nhieu khong", "het tai lieu", "het sach", "het ket qua",
         "con bao nhieu", "con mot nua", "con gi khong",
+        "con nua khong", "con nua ko", "con nua k",
     ]
     return any(phrase in q for phrase in phrases)
 
@@ -2216,7 +2175,6 @@ def resolve_search_query(query: str, history: list, catalog_mode: bool = False) 
     norm = normalize_text(query)
 
     if is_follow_up(query) and history:
-        # Follow-up: dùng chủ đề từ history + query gốc để giữ ngữ cảnh
         last = history[-1]
         topic = normalize_text(last.get("topic", ""))
         last_q = normalize_text(last.get("search_query", ""))
@@ -2225,7 +2183,6 @@ def resolve_search_query(query: str, history: list, catalog_mode: bool = False) 
         if last_q:
             return f"{last_q} {norm}".strip()
     
-    # Có từ khóa rõ ràng
     if keywords:
         return keywords
     
@@ -2261,8 +2218,9 @@ def detect_existence_request(query: str) -> bool:
     if not q:
         return False
 
-    # Nếu query chứa động từ so sánh/phân tích → không phải existence check đơn thuần
-    # VD: "có cuốn nào so sánh U-Net và V-Net không?" muốn tìm sách, không phải yes/no
+    if detect_author_query(query) or detect_publisher_query(query):
+        return False
+
     content_action_words = [
         "so sanh", "sosanh", "phan tich", "giai thich", "trinh bay",
         "tom tat", "chi tiet", "mo ta",
@@ -2330,9 +2288,97 @@ def extract_existence_topic(query: str) -> str:
 
     VD: 'Có tài liệu về văn học Việt Nam không?' → 'văn học Việt Nam'
         'Có sách về CNTT không?' → 'CNTT'
+        'vậy bạn có sách tin học không?' → 'tin học'
     """
     if not query:
         return ""
+
+    cleaned = normalize_text(query)
+
+    preamble = [
+        r"\b(?:vay\s+)?ban\s+(?:co\s+)?the\s*",
+        r"\b(?:vay\s+)?ban\s+",
+        r"\bcho\s+(?:minh|toi|em|anh|chi)\s+(?:hoi|xem|biet)\s*",
+        r"\bminh\s+(?:muon|can)\s+",
+        r"\btoi\s+(?:muon|can)\s+",
+        r"\bem\s+(?:muon|can)\s+",
+        r"\banh\s+(?:muon|can)\s+",
+        r"\bchi\s+(?:muon|can)\s+",
+        r"\bcac\s+ban\s+cho\s+minh\s+hoi\s*",
+        r"\b(?:vay|the|a)\s+",
+    ]
+    for p in preamble:
+        cleaned = re.sub(r"^" + p, " ", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(
+        r"^\s*co\s+(?:tai\s+lieu|sach|cuon|quyen|an\s+pham|giao\s+trinh)\s+"
+        r"(?:cua\s+tac\s+gia\s+)?"
+        r"(?:nao\s+|nào\s+)?(?:ve|về)\s+",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"^\s*co\s+cuon\s+nao\s+ve\s+",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"^\s*co\s+"
+        r"(?:tai\s+lieu|sach|cuon|quyen|an\s+pham|giao\s+trinh)\s+"
+        r"(?:cua\s+tac\s+gia\s+)?",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\?+\s*$", " ", cleaned)
+
+    for _ in range(3):
+        cleaned = cleaned.strip()
+        if not cleaned:
+            break
+        m = re.search(r"\s+(\S+)$", cleaned)
+        if m:
+            if _is_yesno_token(m.group(1)):
+                cleaned = cleaned[:m.start()].rstrip()
+            else:
+                break
+        else:
+            if _is_yesno_token(cleaned):
+                cleaned = ""
+            break
+
+    cleaned = re.sub(
+        r"^\s*(?:v[eề]|lĩnh\s*vực|chủ\s*đề|ngành)\s+",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    ).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    if not cleaned:
+        return ""
+
+    match = re.search(
+        r"\b(?:v[eề]|lĩnh\s*vực|chủ\s*đề|ngành)\s+(.+)$",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        cleaned = match.group(1).strip()
+        for _ in range(3):
+            cleaned = cleaned.strip()
+            if not cleaned:
+                break
+            m = re.search(r"\s+(\S+)$", cleaned)
+            if m:
+                if _is_yesno_token(m.group(1)):
+                    cleaned = cleaned[:m.start()].rstrip()
+                else:
+                    break
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    return cleaned
 
 def _last_existence_topic(history) -> str:
     """Tìm chủ đề cuối cùng mà bot đã xác nhận 'có tài liệu về X' trong lịch sử."""
@@ -2349,86 +2395,6 @@ def _last_existence_topic(history) -> str:
         if m:
             last_topic = m.group(1).strip()
     return last_topic
-
-    cleaned = query
-    # Bỏ cụm mở đầu yes/no kiểu "có tài liệu về", "có sách về", ...
-    cleaned = re.sub(
-        r"^\s*(?:trong\s+(?:kho|thu\s+vien|thu\s+vien\s+cu[aà])\s+)?"
-        r"(?:ban\s+)?co\s+(?:tai\s+lieu|sach|cuon|quyen|an\s+pham|giao\s+trinh)\s+"
-        r"(?:nao\s+|nào\s+)?(?:ve|về)\s+",
-        " ",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(
-        r"^\s*(?:trong\s+(?:kho|thu\s+vien|thu\s+vien\s+cu[aà])\s+)?"
-        r"(?:ban\s+)?co\s+cuon\s+nao\s+ve\s+",
-        " ",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(
-        r"^\s*(?:trong\s+(?:kho|thu\s+vien|thu\s+vien\s+cu[aà])\s+)?"
-        r"(?:ban\s+)?co\s+"
-        r"(?:tai\s+lieu|sach|cuon|quyen|an\s+pham|giao\s+trinh)\s+",
-        " ",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    # Bỏ dấu hỏi
-    cleaned = re.sub(r"\?+\s*$", " ", cleaned)
-
-    # Bỏ các từ yes/no ở cuối câu (dùng _is_yesno_token để handle dấu TV)
-    for _ in range(3):
-        cleaned = cleaned.strip()
-        if not cleaned:
-            break
-        m = re.search(r"\s+(\S+)$", cleaned)
-        if m:
-            if _is_yesno_token(m.group(1)):
-                cleaned = cleaned[:m.start()].rstrip()
-            else:
-                break
-        else:
-            # Cả câu chỉ có 1 từ
-            if _is_yesno_token(cleaned):
-                cleaned = ""
-            break
-
-    # Bỏ "về" / "lĩnh vực" đứng đầu nếu còn
-    cleaned = re.sub(
-        r"^\s*(?:v[eề]|lĩnh\s*vực|chủ\s*đề|ngành)\s+",
-        " ",
-        cleaned,
-        flags=re.IGNORECASE,
-    ).strip()
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-
-    if not cleaned:
-        return ""
-
-    # Nếu vẫn còn marker "về X" → lấy phần sau "về"
-    match = re.search(
-        r"\b(?:v[eề]|lĩnh\s*vực|chủ\s*đề|ngành)\s+(.+)$",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    if match:
-        cleaned = match.group(1).strip()
-        # Lại bỏ yes/no ở cuối
-        for _ in range(3):
-            cleaned = cleaned.strip()
-            if not cleaned:
-                break
-            m = re.search(r"\s+(\S+)$", cleaned)
-            if m:
-                if _is_yesno_token(m.group(1)):
-                    cleaned = cleaned[:m.start()].rstrip()
-                else:
-                    break
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
-
-    return cleaned
 
 
 def clean_display_value(value, max_length: int = 220) -> str:
@@ -2570,7 +2536,7 @@ def call_llm(messages: list, temperature: float = 0.3) -> str:
                     err_detail = f"Model '{model_name}' invalid [{response.status_code}]: {response.text[:200]}"
                     logger.warning("LLM %s → fallback to next model: %s", model_name, err_detail)
                     last_error = err_detail
-                    break  # break retry loop, try next model
+                    break
 
                 if response.status_code != 200:
                     last_error = f"OpenRouter error [{response.status_code}]: {response.text[:200]}"
@@ -2581,7 +2547,7 @@ def call_llm(messages: list, temperature: float = 0.3) -> str:
                         logger.warning("LLM error, retrying in %ss (attempt %d/%d): %s", wait, attempt + 1, max_retries, last_error)
                         time.sleep(wait)
                         continue
-                    break  # hết retry cho model này, thử fallback
+                    break
 
                 # Thành công
                 payload = response.json()
@@ -2606,7 +2572,7 @@ def call_llm(messages: list, temperature: float = 0.3) -> str:
                     logger.warning("LLM error on %s, retrying in %ss (attempt %d/%d): %s", model_name, wait, attempt + 1, max_retries, last_error)
                     time.sleep(wait)
                     continue
-                break  # hết retry cho model này, thử fallback
+                break
 
     # All models failed
     _record_llm_failure(last_error or "All models failed")
@@ -2637,7 +2603,7 @@ def build_summary_prompt():
     
     prompt_text = """Bạn là trợ lý AI của Thư viện Trường Đại học Quy Nhơn (QNU Library Assistant).
 
-⚠️ TUYỆT ĐỐI KHÔNG được thêm thông tin ngoài nội dung tài liệu bên dưới.
+TUYỆT ĐỐI KHÔNG được thêm thông tin ngoài nội dung tài liệu bên dưới.
 Chỉ tóm tắt ĐÚNG những gì có trong tài liệu, không suy luận, không thêm chi tiết.
 
 Hãy tóm tắt tài liệu theo cấu trúc sau — CHỈ viết khi nội dung tương ứng CÓ trong tài liệu (bỏ qua mục không có):
@@ -2804,7 +2770,6 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
             )
         )
         if is_structure_query:
-            # Lấy 8 trang đầu — TOC thường nằm ở đây (giảm context cho free model)
             toc_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 8)
             if has_extractable_pdf_text(toc_text):
                 header = (
@@ -2815,7 +2780,6 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
                 )
                 return f"{header}\nNội dung trích xuất:\n{toc_text[:8000]}", [], None
 
-        # Câu hỏi chung khác → lấy mẫu đại diện (giảm context cho free model)
         full_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 999999)
         if has_extractable_pdf_text(full_text):
             header = (
@@ -2823,13 +2787,12 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
                 f"Tên file: {pdf_source}\n"
                 f"Số trang: {pdf_info.get('pages', 'N/A')}\n"
             )
-            # Lấy phần đầu + phần giữa + phần cuối để đại diện toàn bộ tài liệu
             total_len = len(full_text)
             if total_len <= 12000:
                 # Ngắn → lấy toàn bộ
                 sampled = full_text
             else:
-                chunk = 4000  # 4K chars mỗi phần
+                chunk = 4000
                 head = full_text[:chunk]
                 mid_start = max(0, (total_len - chunk) // 2)
                 mid = full_text[mid_start:mid_start + chunk]
@@ -2837,7 +2800,6 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
                 sampled = f"{head}\n\n[...Phần giữa trang {total_len // 2000}...]\n\n{mid}\n\n[...Phần cuối trang {total_len // 2000}...]\n\n{tail}"
             return f"{header}\nNội dung trích xuất:\n{sampled}", [], None
 
-    # Nếu không có chương cụ thể, search trong chính file PDF này để lấy các trang liên quan nhất
     selected_results = []
     for result in retriever.search_by_query(query, top_k=20):
         doc = result.get('doc', {})
@@ -2845,7 +2807,6 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
             selected_results.append(result)
 
     if selected_results:
-        # Format với đầy đủ nội dung text để LLM có thể trả lời
         texts = []
         for r in selected_results[:6]:
             doc = r['doc']
@@ -2857,7 +2818,6 @@ def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[in
         context = "\n\n---\n\n".join(texts)
         return context, [], None
 
-    # Fallback cuối cùng: lấy toàn bộ text PDF (cắt bớt ở mức hợp lý)
     full_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 999999)
     if not has_extractable_pdf_text(full_text):
         return "", [], None
@@ -2909,7 +2869,7 @@ HƯỚNG DẪN TRẢ LỜI:
 4. Giải thích tại sao phương pháp này phù hợp.
 5. Nếu tài liệu không cung cấp, hãy nói "Tài liệu không đề cập rõ phương pháp nghiên cứu".
 6. Không viết thành một đoạn dài; luôn chia ý bằng tiêu đề ngắn và gạch đầu dòng.
-7. 📌 CẤU TRÚC PHÂN CẤP: PHẢI giữ nguyên cấu trúc gốc từ tài liệu. Nếu phương pháp được trình bày theo "I, 1, 1.1, a, b, c..." thì tái hiện đúng thứ bậc đó. KHÔNG đánh số lại thành 1, 2, 3... liên tục.
+7. CẤU TRÚC PHÂN CẤP: PHẢI giữ nguyên cấu trúc gốc từ tài liệu. Nếu phương pháp được trình bày theo "I, 1, 1.1, a, b, c..." thì tái hiện đúng thứ bậc đó. KHÔNG đánh số lại thành 1, 2, 3... liên tục.
 8. Dùng ## cho mục lớn, ### cho mục vừa, #### cho mục nhỏ. KHÔNG dùng `-` trước heading.
 
 TÀI LIỆU:
@@ -2920,13 +2880,12 @@ CÂU HỎI: {question}
 TRẢ LỜI (Tiếng Việt, chi tiết, tập trung vào phương pháp):
 """
 
-
 def build_general_chain():
     """Build general RAG chain with prompt selection based on question type"""
     
     prompt_text = """Bạn là trợ lý AI của Thư viện Trường Đại học Quy Nhơn (QNU Library Assistant).
 
-⚠️ QUY TẮC VÀNG — TUYỆT ĐỐI TUÂN THỦ:
+QUY TẮC VÀNG — TUYỆT ĐỐI TUÂN THỦ:
 0. **KHÔNG ĐƯỢC DÙNG KIẾN THỨC BÊN NGOÀI.** Bạn CHỈ trả lời dựa trên TÀI LIỆU được cung cấp trong mục [TÀI LIỆU] bên dưới.
    - Nếu tài liệu KHÔNG chứa câu trả lời, hãy nói: *"Tài liệu không cung cấp thông tin này."*
    - KHÔNG suy luận, KHÔNG phỏng đoán, KHÔNG bịa đặt dữ liệu.
@@ -2942,13 +2901,13 @@ CÁC HƯỚNG DẪN KHÁC — CHỈ ÁP DỤNG KHI TÀI LIỆU CÓ CÂU TRẢ L�
 7. KHÔNG trả lời về những chủ đề không liên quan đến câu hỏi dù tài liệu có nhắc đến.
 8. KHÔNG viết thành một đoạn văn dài. Luôn trình bày thành từng ý rõ ràng.
 
-📌 CẤU TRÚC PHÂN CẤP — BẮT BUỘC TUÂN THỦ:
+CẤU TRÚC PHÂN CẤP — BẮT BUỘC TUÂN THỦ:
 - Khi tài liệu gốc có cấu trúc phân cấp (I, II, III... → 1, 2, 3... → 1.1, 1.2... → a, b, c...), BẮT BUỘC tái hiện đúng cấu trúc đó trong câu trả lời.
 - Ví dụ: Nếu tài liệu viết "I. Giới thiệu → 1. Bối cảnh → 1.1 Tại sao nghiên cứu → a. Thực trạng → b. Mục tiêu" thì phải giữ nguyên thứ bậc này.
 - KHÔNG đánh số lại thành 1, 2, 3... liên tục nếu tài liệu gốc có cấu trúc phân cấp khác.
 - Nếu tài liệu không có cấu trúc phân cấp rõ ràng, dùng markdown headings (##, ###) hoặc bullet points.
 
-📌 QUY TẮC FORMAT (Markdown):
+QUY TẮC FORMAT (Markdown):
 - Dùng ## cho mục lớn (A, B, C... hoặc I, II, III...), ### cho mục vừa (1, 2, 3...), #### cho mục nhỏ (1.1, 1.2...).
 - Dùng **inbold** cho tên riêng, thuật ngữ quan trọng.
 - KHÔNG dùng dấu `-` trước heading (mục lớn). Chỉ dùng `-` cho list item thực sự (nội dung chi tiết).
@@ -3089,7 +3048,6 @@ async def suggest_related(req: SuggestRequest):
     except Exception as e:
         return {"error": str(e), "suggestions": [], "total": 0}
 
-# ── Endpoint /spell-check ────────────────────────────────
 class SpellCheckRequest(BaseModel):
     text: str
 
@@ -3111,9 +3069,6 @@ async def spell_check_endpoint(req: SpellCheckRequest):
         }
     except Exception as e:
         return {"error": str(e), "original": req.text, "corrected": req.text}
-
-
-# ── Endpoint /suggest-terms ──────────────────────────────
 class TermRequest(BaseModel):
     term: str
     language: str = "vi"
@@ -3173,7 +3128,6 @@ TRẢ LỜI (dạng danh sách, mỗi mục cách nhau bằng dấu xuống dòn
     except Exception as e:
         return {"error": str(e), "synonyms": [], "en_terms": [], "llm_suggestions": []}
 
-# ── Endpoint /documents (get all) ──────────────────────────
 @app.get("/documents")
 async def list_all_documents(page: int = 1, limit: int = 20):
     """Liệt kê tất cả tài liệu (có phân trang)"""
@@ -3286,9 +3240,6 @@ async def search_documents(req: SearchRequest):
     except Exception as e:
         return {"error": str(e), "results": [], "total": 0}
 
-
-# ── Follow-up suggestions ────────────────────────────────
-
 def extract_answer_headings(answer: str) -> list[str]:
     """Trích xuất tên các heading/section từ nội dung answer markdown.
     VD: '## Chương 1: Tổng quan' → ['Chương 1: Tổng quan']
@@ -3317,18 +3268,15 @@ def extract_answer_sections(answer: str) -> list[str]:
 
         name = None
 
-        # Markdown heading: ##, ###, ####
         m = re.match(r"^#{1,4}\s+(.+)$", stripped)
         if m:
             name = m.group(1).strip()
 
-        # Bold title: **some text**
         if not name:
             m = re.match(r"^\*\*(.+?)\*\*$", stripped)
             if m and len(m.group(1)) >= 5:
                 name = m.group(1).strip()
 
-        # Numbered heading: "1. Title", "1.1 Title", "I. Title"
         if not name:
             m = re.match(r"^(?:\d+(?:\.\d+)*|[IVX]+)\.\s+(.{5,60})$", stripped)
             if m:
@@ -3344,7 +3292,6 @@ def extract_answer_sections(answer: str) -> list[str]:
             break
 
     return sections
-
 
 def build_contextual_suggestions(
     answer: str,
@@ -3363,9 +3310,6 @@ def build_contextual_suggestions(
     query_lower = normalize_text(query or "")
     sources = sources or []
 
-    # ══════════════════════════════════════════════════════════
-    # CATALOG MODE — gợi ý tìm sách/thuộc tính
-    # ══════════════════════════════════════════════════════════
     if catalog_mode:
         _junk_authors = {
             "aspose", "aspose.pdf", "aspose.pdf.epubtopdfconverter",
@@ -3374,7 +3318,6 @@ def build_contextual_suggestions(
         }
         _junk_subjects = {"aspose", "n/a", "unknown", "khong xac dinh", "pdf", "tai lieu so"}
 
-        # Extract metadata from first results
         first_author = ""
         first_subject = ""
         first_major = ""
@@ -3393,7 +3336,6 @@ def build_contextual_suggestions(
             if t and len(t) > 5:
                 first_title = t.split(" - ")[0].strip()[:80]
 
-        # Ưu tiên: ngành → chủ đề → tác giả → gợi ý chung
         if first_major:
             suggestions.append({
                 "label": f"Tìm sách theo ngành: {first_major}",
@@ -3433,9 +3375,6 @@ def build_contextual_suggestions(
                 break
         return unique
 
-    # ══════════════════════════════════════════════════════════
-    # CONTENT MODE — gợi ý phân tích nội dung tài liệu
-    # ══════════════════════════════════════════════════════════
     sections = extract_answer_sections(answer)
     headings = extract_answer_headings(answer)
 
@@ -3449,7 +3388,6 @@ def build_contextual_suggestions(
                 "query": f"Phân tích chi tiết nội dung phần '{section_clean}'"
             })
 
-    # ── Priority 2: Query + answer pattern context ──
     if len(suggestions) < 3:
         if re.search(r"phuong phap|methodology|cach tiep can|cong cu|ky thuat|thuat toan", answer_lower):
             method_names = re.findall(r"(?:\*\*|(?:^##?\s+))([^*\n]{5,50})", answer)
@@ -3468,7 +3406,6 @@ def build_contextual_suggestions(
         if re.search(r"lo ich|uu diem|diem manh|advantage|benefit", answer_lower):
             suggestions.append({"label": "Điểm yếu và hạn chế", "query": "Liệt kê các điểm yếu và hạn chế"})
 
-    # ── Priority 4: Query-based ──
     if len(suggestions) < 3:
         if re.search(r"la gi|dinh nghia|khai niem", query_lower):
             suggestions.append({"label": "Ví dụ minh họa cụ thể", "query": "Cho ví dụ minh họa cụ thể"})
@@ -3477,9 +3414,7 @@ def build_contextual_suggestions(
         if re.search(r"bo cuc|cau truc|muc luc", query_lower):
             suggestions.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt nội dung chính của tài liệu"})
 
-    # ── Priority 4: Smart fallback từ sources metadata ──
     if len(suggestions) < 3 and sources:
-        # Lấy subject thực tế từ sources
         for s in sources[:3]:
             subj = (s.get("subject") or "").strip()
             if subj and len(subj) >= 3:
@@ -3500,7 +3435,6 @@ def build_contextual_suggestions(
     if len(suggestions) < 3 and answer and len(answer) > 200:
         suggestions.append({"label": "Tóm tắt nội dung", "query": "Tóm tắt lại nội dung thành 3-5 ý chính"})
 
-    # Dedupe & limit
     seen = set()
     unique = []
     for s in suggestions:
@@ -3533,20 +3467,14 @@ def build_follow_up_suggestions(
         has_pdf_sources=has_pdf_sources,
     )
 
-
-# ── Endpoint /chat ────────────────────────────────────────
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     try:
-        # 🔥 OPTIMIZED: Normalize query for better matching
         normalized_query = normalize_text(req.query)
         
-        # Lấy lịch sử session
-        # Phan loai intent truoc khi xu ly
         intent = classify_intent(req.query)
         logger.info("Intent: %s for query: %s", intent, req.query)
 
-        # Chitchat / unknown → tra ve cung, khong goi LLM
         if intent == "chitchat":
             return ChatResponse(
                 answer="Xin chào! Mình là trợ lý Thư viện Trường Đại học Quy Nhơn. Mình có thể giúp gì cho bạn về tra cứu sách, tài liệu số, hoặc nội dung các tài liệu trong thư viện ạ? 📚",
@@ -3567,8 +3495,71 @@ async def chat(req: ChatRequest):
                 current_document=None,
                 follow_up_suggestions=[],
             )
-        # unknown → nếu có PDF, thử search (có thể user hỏi nội dung file mới upload)
-        # nếu không có PDF, trả lời trực tiếp "không có thông tin"
+
+        hist = session_history.get(req.session_id, [])
+        if detect_exhaustion_query(req.query):
+            entry_count = len(hist)
+            if entry_count > 0:
+                last_topic = hist[-1].get("topic", "")
+                last_search = hist[-1].get("search_query", "")
+                query_for_count = last_topic or last_search or normalized_query
+            else:
+                query_for_count = normalized_query
+
+            if query_for_count == normalized_query:
+                stripped = re.sub(r"\b(vay|con|khong|nua|thi|da|het|bao nhieu|them|nào|không|còn|nữa|thì|đã|hết|bao nhiêu|thêm)\b", " ", normalized_query, flags=re.IGNORECASE)
+                stripped = re.sub(r"\s+", " ", stripped).strip()
+                if stripped:
+                    query_for_count = stripped
+
+            total_count = retriever.count_matching(query_for_count)
+
+            # Trả lời tự nhiên dựa trên context
+            if entry_count == 0:
+                answer_text = (
+                    "Bạn chưa hỏi chủ đề nào trước đó. "
+                    "Hãy thử hỏi cụ thể hơn, ví dụ: **tìm sách về trí tuệ nhân tạo**, "
+                    "**có tài liệu về giáo dục không?**"
+                )
+            elif total_count <= 0:
+                answer_text = (
+                    f"Không còn tài liệu nào về chủ đề **{last_topic or 'này'}** nữa. "
+                    f"Đó là tất cả kết quả trong thư viện rồi! Bạn muốn tìm chủ đề khác không?"
+                )
+            elif total_count <= 5:
+                answer_text = (
+                    f"Chỉ còn **{total_count} tài liệu** liên quan đến chủ đề này "
+                    f"trong kho lưu trữ. Bạn có muốn xem tiếp không? "
+                    f"Hãy nói **liệt kê thêm** để mình hiển thị tiếp."
+                )
+            else:
+                # Đếm số đã hiển thị từ history
+                shown_titles = set()
+                for h in hist:
+                    for title in h.get("shown_titles", []):
+                        if title:
+                            shown_titles.add(title.lower().strip())
+                shown_count = len(shown_titles)
+
+                answer_text = (
+                    f"Còn khoảng **{total_count} tài liệu** liên quan đến chủ đề này. "
+                    f"Bạn đã xem **{shown_count} tài liệu** trước đó.\n\n"
+                    f"Hãy thử hỏi cụ thể hơn để lọc kết quả, ví dụ:\n"
+                    f"- **tên sách** hoặc **tác giả** cụ thể\n"
+                    f"- **năm xuất bản** bạn muốn tìm\n"
+                    f"- **chủ đề chi tiết hơn**"
+                )
+
+            return ChatResponse(
+                answer=answer_text,
+                sources=[],
+                total_sources=0,
+                total_found=total_count,
+                summary="",
+                current_document=None,
+                follow_up_suggestions=[],
+            )
+
         if intent == "unknown":
             try:
                 _has_pdfs = len(pdf_manager.list_all_pdfs()) > 0
@@ -3587,7 +3578,6 @@ async def chat(req: ChatRequest):
                 )
             logger.info("Unknown intent %r → có PDF, thử search...", req.query)
 
-        # clarify -> Hoi lai user vi cau hoi chua ro y dinh
         if intent == "clarify":
             logger.info("Clarify intent %r -> hoi lai user", req.query)
             query_normalized = normalize_text(req.query).strip()
@@ -3619,12 +3609,10 @@ async def chat(req: ChatRequest):
                 ],
             )
 
-        hist = session_history.get(req.session_id, [])
         request_content = detect_content_request(req.query)
         is_list_request = detect_list_request(req.query)
         catalog_mode = is_list_request or (not request_content and intent != "unknown")
 
-        # Handle greetings & chitchat — respond naturally, no search
         if detect_greeting(req.query):
             greeting_answer = (
                 "Xin chào bạn!\n\n"
@@ -3646,79 +3634,12 @@ async def chat(req: ChatRequest):
                 follow_up_suggestions=[],
             )
 
-        # Handle exhaustion queries ("hết chưa?", "còn tài liệu nữa không?")
-        if detect_exhaustion_query(req.query):
-            # Phải dùng CHỦ ĐỀ từ lịch sử session, KHÔNG dùng query gốc
-            # (vì query gốc chỉ là câu hỏi "hỏi thêm", không chứa chủ đề)
-            entry_count = len(hist)
-            if entry_count > 0:
-                last_topic = hist[-1].get("topic", "")
-                last_search = hist[-1].get("search_query", "")
-                query_for_count = last_topic or last_search or normalized_query
-            else:
-                query_for_count = normalized_query
-
-            # Nếu vẫn không có chủ đề rõ ràng từ history, thử trích xuất từ query
-            if query_for_count == normalized_query:
-                # Loại bỏ các từ hỏi chung chung để lấy từ khóa còn lại
-                stripped = re.sub(r"\b(vay|con|khong|nua|thi|da|het|bao nhieu|them|nào|không|còn|nữa|thì|đã|hết|bao nhiêu|thêm)\b", " ", normalized_query, flags=re.IGNORECASE)
-                stripped = re.sub(r"\s+", " ", stripped).strip()
-                if stripped:
-                    query_for_count = stripped
-
-            # Count total matching docs (không giới hạn top_k)
-            total_count = retriever.count_matching(query_for_count)
-
-            # Trả lời tự nhiên dựa trên context
-            if entry_count == 0:
-                answer_text = (
-                    "Bạn chưa hỏi chủ đề nào trước đó. "
-                    "Hãy thử hỏi cụ thể hơn, ví dụ: **tìm sách về trí tuệ nhân tạo**, "
-                    "**có tài liệu về giáo dục không?**"
-                )
-            elif total_count <= 5:
-                answer_text = (
-                    f"Chỉ có **{total_count} tài liệu** liên quan đến chủ đề này "
-                    f"trong kho lưu trữ. Đó là tất cả kết quả rồi!"
-                )
-            else:
-                # Đếm số đã hiển thị từ history
-                shown_titles = set()
-                for h in hist:
-                    for title in h.get("shown_titles", []):
-                        if title:
-                            shown_titles.add(title.lower().strip())
-                shown_count = len(shown_titles)
-
-                answer_text = (
-                    f"Còn khoảng **{total_count} tài liệu** liên quan đến chủ đề này. "
-                    f"Bạn đã xem **{shown_count} tài liệu** trước đó.\n\n"
-                    f"Hãy thử hỏi cụ thể hơn để lọc kết quả, ví dụ:\n"
-                    f"- **tên sách** hoặc **tác giả** cụ thể\n"
-                    f"- **năm xuất bản** bạn muốn tìm\n"
-                    f"- **chủ đề chi tiết hơn**"
-                )
-
-            return ChatResponse(
-                answer=answer_text,
-                sources=[],
-                total_sources=0,
-                total_found=total_count,
-                summary="",
-                current_document=None,
-                follow_up_suggestions=[],
-            )
-
-
-        # ── Xử lý yêu cầu __LIST_TOPIC__:<topic> (từ follow-up của existence check) ──
         list_topic_marker = "__LIST_TOPIC__:"
         list_topic_query = None
         if req.query.startswith(list_topic_marker):
             list_topic_query = req.query[len(list_topic_marker):].strip()
             logger.info("List-topic follow-up: '%s'", list_topic_query)
 
-        # ── Handle existence questions ("Có tài liệu về X không?") ──
-        # ── Handle user declining to list ("không", "cảm ơn", ...) sau khi bot đã hỏi "có muốn liệt kê không?" ──
         _decline_pat = re.compile(
             r"^\s*(không|khong|thôi|thoi|thôi nhé|thoi nha|cảm ơn|cam on|cám ơn|"
             r"cam_on|thank|thanks|no|nah|ok|okie|okela|đủ rồi|du roi|"
@@ -3771,7 +3692,15 @@ async def chat(req: ChatRequest):
                         ],
                     )
 
-                # Có tài liệu → hỏi người dùng có muốn liệt kê không (không hiển thị con số)
+                hist.append({
+                    "query": req.query,
+                    "search_query": topic,
+                    "topic": topic_label,
+                    "source_count": count,
+                    "shown_titles": [],
+                })
+                session_history[req.session_id] = hist[-MAX_HISTORY:]
+
                 answer_text = (
                     f"Có, thư viện hiện có tài liệu về **{topic_label}**. "
                     f"Bạn có muốn mình liệt kê chi tiết ra không? "
@@ -3795,8 +3724,27 @@ async def chat(req: ChatRequest):
                         },
                     ],
                 )
+            else:
+                logger.info("extract_existence_topic returned empty for '%s' → fallthrough to catalog search", req.query)
+                return ChatResponse(
+                    answer=answer_text,
+                    sources=[],
+                    total_sources=0,
+                    total_found=count,
+                    summary="",
+                    current_document=None,
+                    follow_up_suggestions=[
+                        {
+                            "label": "Có, liệt kê chi tiết ra giúp mình",
+                            "query": f"{list_topic_marker}{topic}",
+                        },
+                        {
+                            "label": "Không, cảm ơn bạn",
+                            "query": "Cảm ơn bạn",
+                        },
+                    ],
+                )
 
-        # ── Follow-up từ existence: list topic thay vì trả lời bằng chính marker ──
         if list_topic_query:
             req_query_for_search = f"tìm sách về {list_topic_query}"
             req.query = req_query_for_search
@@ -3805,12 +3753,6 @@ async def chat(req: ChatRequest):
             catalog_mode = True
             logger.info("List-topic converted to: '%s'", req_query_for_search)
 
-        # ── Auto-detect major/ngành from natural-language queries ──
-        # When the user asks things like "Tìm sách thuộc ngành Công nghệ thông tin"
-        # the frontend does not send a `major` field, so the major filter at the
-        # end of the search flow is never triggered. Detect patterns like
-        # "ngành X", "lĩnh vực X", "chủ đề X" using the existing marker regex
-        # and inject the canonical major so the major filter can run.
         if not req.major and not req.document_id:
             try:
                 _detected_major = _extract_major_from_query(req.query)
@@ -3823,7 +3765,6 @@ async def chat(req: ChatRequest):
             except Exception as _e:
                 logger.debug("Major auto-detect failed: %s", _e)
 
-        # Auto-reindex nếu folder pdfs/ hoặc Data/ thay đổi
         file_changes = check_files_changed()
         if file_changes["pdf"]:
             logger.info("PDF folder changed → auto reindexing...")
@@ -3834,15 +3775,12 @@ async def chat(req: ChatRequest):
         if file_changes["data"]:
             logger.info("Data folder changed (XLSX/CSV) → reloading...")
             try:
-                # Xóa documents cache để startup lần sau cũng load lại
                 _cache_pkl = Path("Data/_documents_cache.pkl")
                 if _cache_pkl.exists():
                     _cache_pkl.unlink()
-                # Load lại documents từ Data/ và rebuild BM25 index tại chỗ
                 new_documents = DocumentIndexer.load_from_data("Data")
                 retriever.bm25.documents = new_documents
                 retriever.bm25._build_index()
-                # Reset semantic engine để load lại với data mới
                 global _semantic_engine
                 _semantic_engine = None
                 reindex_pdfs(retriever)
@@ -3890,7 +3828,8 @@ async def chat(req: ChatRequest):
             bm25_results = retriever.search_by_query(search_query, top_k=retrieval_k)
             # Catalog mode: loại bỏ PDF pages (chỉ giữ tài liệu từ catalog DB)
             # PDF pages thường match từ khóa chung nhưng không liên quan đến chủ đề catalog
-            if catalog_mode and bm25_results:
+            # NGOẠI LỆ: nếu user hỏi theo tác giả, giữ lại PDF pages (vì PDF thường đặt theo tên tác giả)
+            if catalog_mode and bm25_results and not _prefer_strict:
                 filtered = []
                 for r in bm25_results:
                     doc = r.get("doc", {})
@@ -4992,7 +4931,7 @@ async def get_pdf_summary(pdf_id: str):
         raise HTTPException(500, str(e))
 
 class DocumentChatRequest(BaseModel):
-    query: str
+    query: str 
     pdf_id: str
     chapter: Optional[int] = None
     search_type: str = "full_pdf"  # "chapter", "full_pdf", "question"

@@ -1661,12 +1661,9 @@ function appendSources(afterId, sources, totalFound, followUps) {
       pagEl.innerHTML = '';
     }
 
-    // Bind PDF attach buttons
     bindSourcePdfCards(gridEl);
-    // Không auto-scroll để user tự cuộn xem sources
   }
 
-  // Expose pagination function globally via window (avoids minus-sign issue in onclick)
   window[containerId + '_goPage'] = function(page) {
     if (page >= 1 && page <= totalPages) renderPage(page);
   };
@@ -1675,7 +1672,7 @@ function appendSources(afterId, sources, totalFound, followUps) {
   const followupsEl = document.getElementById(containerId + '-followups');
   if (followupsEl && followUps && followUps.length) {
     let chipsHtml = '<div style="padding-top:8px; border-top:1px solid var(--border-light);">';
-    chipsHtml += '<div class="follow-up-label">💡 Bạn muốn biết thêm gì?</div>';
+    chipsHtml += '<div class="follow-up-label">Bạn muốn biết thêm gì?</div>';
     chipsHtml += '<div class="follow-up-chips">';
     followUps.forEach((item) => {
       if (item.query === "__SUGGEST_RELATED__") {
@@ -2179,13 +2176,11 @@ function copyAnswer(btn) {
   });
 }
 
-// ── Get current time string ───────────────────────────
 function getCurrentTime() {
   const now = new Date();
   return now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Faculty tree (Khoa → Ngành) — inlined server-side, renders synchronously ──
 let __facultiesCache = null;
 function loadFacultyTree(force=false) {
   const root = document.getElementById("facultyTree");
@@ -2195,12 +2190,10 @@ function loadFacultyTree(force=false) {
     return;
   }
   let data = null;
-  // 1) Prefer the inlined JSON block injected by the server
   const inline = document.getElementById("__FACULTIES_TREE_DATA");
   if (inline && inline.textContent) {
     try { data = JSON.parse(inline.textContent); } catch (e) { data = null; }
   }
-  // 2) Fallback: fetch from the API (only on first load if inlining failed)
   if (data) {
     __facultiesCache = data;
     renderFacultyTree(data);
@@ -2231,20 +2224,16 @@ function renderFacultyTree(data) {
     html += `  <button class="faculty-header" data-target="${kId}" aria-expanded="false">`;
     html += `    <svg class="faculty-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
     html += `    <span class="faculty-name">${esc(f.khoa)}</span>`;
-    // (đã bỏ badge số tổng tài liệu của khoa theo yêu cầu)
     html += `  </button>`;
     html += `  <div class="faculty-children" id="${kId}">`;
     nganh.forEach((ng) => {
       html += `    <button class="faculty-row" data-nganh="${esc(ng.nganh)}" data-khoa="${esc(f.khoa)}">`;
       html += `      <span class="name">${esc(ng.nganh)}</span>`;
-      // (đã bỏ badge số tài liệu của ngành theo yêu cầu)
       html += `    </button>`;
     });
     html += `  </div>`;
     html += `</div>`;
   });
-  // Bỏ hiển thị "Đang lọc: …" ở sidebar — user không còn bị ghim bộ lọc ngành.
-  // (logic clear/refreshMajorUI vẫn còn để tránh lỗi tham chiếu nếu có nơi khác gọi)
   root.innerHTML = html;
 
   // Bind toggles
@@ -2436,9 +2425,7 @@ function debounceSearch() {
   }, 300);
 }
 
-document.getElementById("questionInput").addEventListener("input", function(){
-  // Không resize — textarea giữ nguyên 1 dòng, CSS min-height xử lý
-});
+document.getElementById("questionInput").addEventListener("input", function(){});
 let _isComposing = false;
 const _qInput = document.getElementById("questionInput");
 _qInput.addEventListener("compositionstart", function(){ _isComposing = true; });
