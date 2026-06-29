@@ -147,73 +147,22 @@ app.add_middleware(
 logger.info("Load BM25 Full-Text Search Index...")
 documents = DocumentIndexer.load_from_data("Data")
 
+# ── Khởi tạo PDF Index — ĐÃ TẮT ─────────────────────────────────────
+# Chức năng load PDF vào BM25 index đã bị tắt.
+# Chỉ dùng dữ liệu CSV/XLSX từ thư mục Data/.
 pdf_docs = []
-try:
-    loaded = load_all_pdfs()
-    if loaded:
-        logger.info("Adding %d PDF pages to BM25 documents...", len(loaded))
-        seen_hashes = {d.get('hash') for d in documents if d.get('hash')}
-        for doc in loaded:
-            meta = doc.metadata or {}
-            h = meta.get('hash')
-            if h and h in seen_hashes:
-                continue
-            seen_hashes.add(h)
-
-            # Trích xuất tên tác giả từ tên file PDF khi metadata thiếu
-            # VD: "DO VU NHAT LINH - KHDL.pdf" → author = "Đỗ Vũ Nhật Linh"
-            pdf_source = meta.get('source', 'pdf')
-            pdf_author = meta.get('author', 'Unknown')
-            if not pdf_author or pdf_author == 'Unknown' or 'aspose' in pdf_author.lower() or 'epubtopdfconverter' in pdf_author.lower() or 'pdf converter' in pdf_author.lower():
-                # Cố gắng trích xuất tên từ tên file
-                file_stem = Path(pdf_source).stem if pdf_source else ""
-                # Pattern: "TEN TAC GIA - TEN LUAN VAN" hoặc "TEN TAC GIA-TEN..."
-                m = re.match(r"^([A-Z][A-Z\s\.]+?)\s*[-–]\s*", file_stem)
-                if m:
-                    raw_name = m.group(1).strip()
-                    # Map chữ cái đầu → tên đầy đủ bằng cách giữ nguyên
-                    # "DO VU NHAT LINH" → vẫn dùng uppercase
-                    pdf_author = raw_name
-
-            # Subject: ch? dùng keywords t? filename title, KHÔNG dùng section heading (nhi?u)
-            # Section heading là dòng UPPERCASE ??u tiên c?a PDF (nh? "B? GIÁO D?C...")
-            # Không ph?i subject th?c s? → b? qua
-            pdf_subject = ""
-            kw = meta.get('keywords', '')
-            # keywords có thể là list (từ load_pdf.py) → chuyển về string
-            if isinstance(kw, list):
-                kw = ' '.join(str(k) for k in kw if k)
-            if isinstance(kw, str) and len(kw) >= 5 and kw.lower() != 'pdf':
-                pdf_subject = kw
-
-            pdf_item = {
-                'title': meta.get('title', meta.get('source', 'PDF')).strip(),
-                'author': pdf_author,
-                'year': meta.get('year', 'N/A'),
-                'subject': pdf_subject,
-                'link': '',
-                'source': meta.get('source', 'pdf'),
-                'page': meta.get('page'),
-                'text': doc.page_content or '',
-                'csv_file': 'pdf:' + meta.get('source', 'pdf') ,
-                'hash': h
-            }
-            pdf_docs.append(pdf_item)
-        documents.extend(pdf_docs)
-    else:
-        logger.info("No PDF pages found to add to BM25 index.")
-except Exception as e:
-    logger.warning("Error loading PDFs for BM25: %s", e)
-
+use_pdf = False
+logger.info("PDF index DISABLED — only CSV/XLSX documents loaded.")
 bm25_engine = BM25SearchEngine(documents)
 retriever = HybridSearchEngine(bm25_engine)
 
 logger.info("Search index ready: %d documents", len(documents))
 logger.info("Memory: ~50MB (no ML model loaded)")
-use_pdf = len(pdf_docs) > 0
 
-# ── File Change Detection ──────────────────────────────
-# Detect khi có file mới/xóa trong pdfs/ hoặc Data/ folder (so với lúc startup)
+# ── File Change Detection — phát hiện file PDF/CSV mới/xóa ──────────
+# Lưu lại trạng thái lúc startup (số file PDF, mtime của Data/)
+# Sau đó định kỳ check (mỗi 10s) xem có file mới/xóa không
+# Nếu có thay đổi → flag để tái index (reindex) khi cần
 _startup_pdf_count = sum(1 for _ in Path("pdfs").glob("*.pdf")) if Path("pdfs").exists() else 0
 _startup_data_mtime = 0.0  # mtime lớn nhất của tất cả file trong Data/
 for _f in Path("Data").glob("*"):
@@ -224,7 +173,11 @@ _last_check_time = 0.0
 _check_interval = 10  # chỉ check mỗi 10 giây, không check mỗi request
 
 def check_files_changed():
-    """Check xem có file PDF hoặc CSV/XLSX mới/xóa/sửa so với lúc startup không."""
+    """
+    Check xem có file PDF hoặc CSV/XLSX mới/xóa/sửa so với lúc startup.
+    Trả về dict {"pdf": bool, "data": bool} — True nếu có thay đổi.
+    Được gọi định kỳ, không mỗi request để tránh lag.
+    """
     global _last_check_time, _startup_pdf_count, _startup_data_mtime
     now = time.time()
     if now - _last_check_time < _check_interval:
@@ -381,7 +334,10 @@ _build_topic_cache()
 pdf_manager = PDFManager(pdf_dir="pdfs")
 logger.info("PDF Manager initialized")
 
-# ── Hàm tái index PDF vào BM25 ──────────────────────────
+# ── Hàm tái index PDF vào BM25 ──────────────────────────────────────
+# Khi admin upload PDF mới hoặc khi có file thay đổi,
+# gọi hàm này để load lại PDF → thêm vào BM25 index → rebuild index
+# Không xóa dữ liệu CSV/XLSX đã có, chỉ thêm PDF mới
 def reindex_pdfs(retriever):
     """Load lại tất cả PDF và cập nhật BM25 index (không ảnh hưởng dữ liệu CSV)"""
     from load_pdf import load_all_pdfs
@@ -446,13 +402,19 @@ def reindex_pdfs(retriever):
         logger.info("No new PDF pages to reindex")
     return new_count
 
+# ── Hỗ trợ kiểm tra nội dung PDF ─────────────────────────────────
+# Các marker đánh dấu PDF không có text (scan/ảnh, hoặc pypdf không đọc được)
 PDF_EMPTY_TEXT_MARKERS = {
     "[Không có nội dung]",
     "[pypdf not available - cannot extract text]",
 }
 
 def has_extractable_pdf_text(text: str) -> bool:
-    """Return True only when PDF parser produced meaningful text."""
+    """
+    Kiểm tra xem text trích xuất từ PDF có ý nghĩa hay không.
+    Trả về False nếu text rỗng, quá ngắn, hoặc chứa marker lỗi.
+    Dùng để quyết định có dùng nội dung PDF làm context cho LLM không.
+    """
     if not text:
         return False
 
@@ -466,7 +428,10 @@ def has_extractable_pdf_text(text: str) -> bool:
     return len(compact) >= 50
 
 def is_general_pdf_content_request(query: str) -> bool:
-    """Detect broad questions that should use a document preview/full text."""
+    """
+    Phát hiện câu hỏi rộng về nội dung PDF (VD: "nội dung file này", "tóm tắt tài liệu này").
+    Khi match → hệ thống sẽ đọc toàn bộ PDF làm context thay vì chỉ 1 trang.
+    """
     q = normalize_text(query or "")
     broad_phrases = [
         "noi dung",
@@ -489,6 +454,10 @@ def is_general_pdf_content_request(query: str) -> bool:
     return any(phrase in q for phrase in broad_phrases)
 
 def build_empty_pdf_answer(pdf_title: str) -> str:
+    """
+    Tạo câu trả lời khi PDF không có text layer (scan/ảnh).
+    Thông báo user rằng hệ thống không thể đọc nội dung và gợi ý cách xử lý.
+    """
     return (
         f"File PDF **{pdf_title}** không có lớp văn bản để hệ thống trích xuất nội dung. "
         "File này có thể là bản scan/ảnh hoặc bị khóa text, nên chatbot không thể đọc để trả lời theo nội dung bên trong.\n\n"
@@ -496,7 +465,11 @@ def build_empty_pdf_answer(pdf_title: str) -> str:
     )
 
 def remove_pdf_from_index(file_name: str) -> int:
-    """Remove a deleted PDF from the in-memory BM25 index."""
+    """
+    Xóa tất cả document của 1 file PDF khỏi BM25 index (in-memory).
+    Được gọi khi admin xóa PDF → đảm bảo search không trả kết quả cũ.
+    Trả về số document đã xóa.
+    """
     if not file_name or not hasattr(retriever, "bm25"):
         return 0
 
@@ -516,7 +489,10 @@ def remove_pdf_from_index(file_name: str) -> int:
     return removed
 
 def find_pdf_info_for_source(source: str = "", title: str = "") -> Optional[dict]:
-    """Find PDF metadata for a search source returned by BM25."""
+    """
+    Tìm metadata PDF (từ PDFManager) dựa trên source/title từ kết quả BM25 search.
+    Dùng để hiển thị thông tin PDF trong kết quả trả lời (tên file, số trang, năm...).
+    """
     source_norm = (source or "").strip().lower()
     title_norm = (title or "").strip().lower()
     if not source_norm and not title_norm:
@@ -3496,7 +3472,31 @@ async def chat(req: ChatRequest):
                 follow_up_suggestions=[],
             )
 
+        # ── Xử lý câu trả lời xác nhận ("có", "ừ", "ok"...) ──────────
+        # Khi bot vừa hỏi "Bạn có muốn mình liệt kê chi tiết không?"
+        # và user trả lời "có" → tự động liệt kê sách từ context trước
+        AFFIRMATION_WORDS = {
+            "co", "ok", "oke", "okie", "duoc", "can", "muon",
+            "u", "um", "ừ", "ừm", "được", "cần", "muốn",
+            "liet ke", "liệt kê", "xem", "cho xem", "cho minh xem",
+        }
+        q_normalized_affirm = normalize_text(req.query or "").strip()
         hist = session_history.get(req.session_id, [])
+
+        if q_normalized_affirm in AFFIRMATION_WORDS and hist:
+            # Lấy context từ câu hỏi trước
+            last_entry = hist[-1]
+            prev_topic = last_entry.get("topic", "")
+            prev_search = last_entry.get("search_query", "")
+            # Nếu trước đó bot đã liệt kê sách và hỏi "liệt kê thêm?" → dùng topic cũ
+            # Nếu trước đó bot trả lời "có sách về X, muốn liệt kê không?" → search topic đó
+            reconstructed_query = prev_topic or prev_search or ""
+            if reconstructed_query:
+                # Thay query bằng reconstructed_query để search tự động
+                req.query = reconstructed_query
+                normalized_query = normalize_text(req.query)
+                logger.info("Affirmation detected → auto-search: %r", req.query)
+
         if detect_exhaustion_query(req.query):
             entry_count = len(hist)
             if entry_count > 0:
@@ -4657,6 +4657,21 @@ async def voice_status():
         return {"available": False, "error": "voice_input module not found"}
 
 
+# ═══════════════════════════════════════════════════════════════
+# API ENDPOINTS LIÊN QUAN ĐẾN PDF
+# ═══════════════════════════════════════════════════════════════
+# Các endpoint quản lý file PDF:
+#   GET  /api/pdfs                          — Liệt kê danh sách PDF
+#   GET  /api/pdfs/{id}/structure            — Lấy cấu trúc chương/phần
+#   GET  /api/pdfs/{id}/content              — Lấy toàn bộ nội dung text
+#   GET  /api/pdfs/{id}/summary              — Lấy tóm tắt PDF
+#   GET  /api/pdf/{id}/content-with-ocr      — Đọc PDF với OCR fallback
+#   GET  /api/pdf/{id}/is-scanned            — Kiểm tra PDF có phải scan
+#   POST /api/admin/upload                   — Upload PDF mới (admin)
+#   DELETE /api/admin/pdfs/{id}              — Xóa PDF (admin)
+#   POST /chat/with-document                 — Hỏi đáp theo nội dung 1 PDF
+# ═══════════════════════════════════════════════════════════════
+
 @app.get("/api/pdf/{pdf_id}/content-with-ocr")
 async def get_pdf_content_with_ocr(
     pdf_id: str,
@@ -4666,7 +4681,11 @@ async def get_pdf_content_with_ocr(
 ):
     """
     Giai đoạn 3: Đọc PDF với OCR fallback tự động.
-    Nếu text extraction rỗng → dùng Tesseract OCR.
+    Quy trình:
+      1. Thử đọc text bằng MarkItDown (Markdown chất lượng cao)
+      2. Nếu rỗng → thử pypdf trích xuất theo trang
+      3. Nếu vẫn rỗng → dùng Tesseract OCR (nhận diện ảnh → text)
+    Tham số: start/end là chỉ số trang (0-based)
     """
     pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p["id"] == pdf_id), None)
     if not pdf_info:
@@ -4686,7 +4705,11 @@ async def get_pdf_content_with_ocr(
 
 @app.get("/api/pdf/{pdf_id}/is-scanned")
 async def check_pdf_scanned(pdf_id: str):
-    """Check PDF có phải scan không (text rỗng)."""
+    """
+    Kiểm tra PDF có phải bản scan/ảnh không.
+    Heuristic: nếu ≥2/3 trang đầu có text < 50 chars → coi là scan.
+    Dùng để frontend hiển thị cảnh báo "PDF scan, cần OCR".
+    """
     pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p["id"] == pdf_id), None)
     if not pdf_info:
         raise HTTPException(404, f"PDF không tồn tại: {pdf_id}")
@@ -4696,7 +4719,11 @@ async def check_pdf_scanned(pdf_id: str):
 
 @app.get("/api/pdfs")
 async def list_pdfs():
-    """Liệt kê tất cả PDF documents"""
+    """
+    Liệt kê tất cả PDF documents có trong thư mục pdfs/.
+    Trả về danh sách metadata: id, title, author, year, pages, file_size, ...
+    Dùng để hiển thị danh sách PDF trong sidebar.
+    """
     try:
         pdfs = pdf_manager.list_all_pdfs()
         return {
@@ -4731,7 +4758,16 @@ async def admin_logout(data: dict):
 
 @app.post("/api/admin/upload")
 async def admin_upload(token: str = Form(...), file: UploadFile = File(...)):
-    """Upload PDF (yêu cầu token admin)"""
+    """
+    Upload file PDF mới (yêu cầu admin login).
+    Quy trình:
+      1. Kiểm tra token admin hợp lệ
+      2. Chỉ chấp nhận file .pdf, giới hạn 50MB
+      3. Kiểm tra trùng tên file
+      4. Ghi file vào thư mục pdfs/
+      5. Xóa cache metadata + extraction cache
+      6. Tái index BM25 (reindex_pdfs) để search ngay được
+    """
     if is_vercel_runtime():
         raise HTTPException(405, VERCEL_READ_ONLY_MESSAGE)
     if token not in ADMIN_TOKENS:
@@ -4780,7 +4816,15 @@ async def admin_upload(token: str = Form(...), file: UploadFile = File(...)):
 
 @app.delete("/api/admin/pdfs/{pdf_id}")
 async def admin_delete_pdf(pdf_id: str, data: dict = Body(...)):
-    """Xóa PDF khỏi thư mục pdfs/ (yêu cầu token admin)."""
+    """
+    Xóa PDF khỏi thư mục pdfs/ (yêu cầu admin login).
+    Quy trình:
+      1. Tìm PDF theo id trong danh sách
+      2. Xóa file vật lý khỏi thư mục pdfs/
+      3. Xóa cache metadata + extraction cache
+      4. Xóa document khỏi BM25 index (remove_pdf_from_index)
+      5. Xóa cache search results cũ
+    """
     if is_vercel_runtime():
         raise HTTPException(405, VERCEL_READ_ONLY_MESSAGE)
     token = data.get("token", "")
@@ -4836,7 +4880,14 @@ async def admin_delete_pdf(pdf_id: str, data: dict = Body(...)):
 
 @app.get("/api/pdfs/{pdf_id}/structure")
 async def get_pdf_structure(pdf_id: str):
-    """Lấy cấu trúc chương/phần của PDF"""
+    """
+    Lấy cấu trúc chương/phần của PDF.
+    Quy trình:
+      1. Thử lấy outline (mục lục) từ PDF bằng pypdf
+      2. Nếu outline hợp lệ (≥2 mục) → chia PDF thành các chương
+      3. Nếu không có outline → fallback: chia đều theo số trang (heuristic)
+    Dùng để hiển thị mục lục PDF trong overlay panel.
+    """
     try:
         pdfs = pdf_manager.list_all_pdfs()
         
@@ -4867,7 +4918,11 @@ async def get_pdf_structure(pdf_id: str):
 
 @app.get("/api/pdfs/{pdf_id}/content")
 async def get_pdf_content(pdf_id: str):
-    """Lấy toàn bộ nội dung text của PDF"""
+    """
+    Lấy toàn bộ nội dung text của PDF.
+    Đọc bằng MarkItDown (ưu tiên) → fallback pypdf.
+    Trả về text đầy đủ + metadata (tên, số trang, độ dài nội dung).
+    """
     try:
         pdfs = pdf_manager.list_all_pdfs()
         pdf_info = next((p for p in pdfs if p['id'] == pdf_id), None)
@@ -4875,6 +4930,7 @@ async def get_pdf_content(pdf_id: str):
         if not pdf_info:
             raise HTTPException(404, f"PDF không tìm thấy: {pdf_id}")
 
+        # Đọc toàn bộ PDF (start=0, end=999999 = đến trang cuối)
         full_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 999999)
 
         if not full_text or len(full_text.strip()) < 50:
@@ -4894,7 +4950,11 @@ async def get_pdf_content(pdf_id: str):
 
 @app.get("/api/pdfs/{pdf_id}/summary")
 async def get_pdf_summary(pdf_id: str):
-    """Lấy tóm tắt PDF"""
+    """
+    Lấy tóm tắt nhanh PDF (trích xuất 5 trang đầu).
+    Hiện tại chỉ lấy preview text, chưa dùng LLM để tóm tắt.
+    Dùng để hiển thị thông tin tổng quan khi user chọn PDF.
+    """
     try:
         pdfs = pdf_manager.list_all_pdfs()
         pdf_info = next((p for p in pdfs if p['id'] == pdf_id), None)
@@ -4930,18 +4990,30 @@ async def get_pdf_summary(pdf_id: str):
         logger.warning("Error getting PDF summary: %s", e)
         raise HTTPException(500, str(e))
 
+# ── Schema cho chat với PDF cụ thể ─────────────────────────────────
 class DocumentChatRequest(BaseModel):
-    query: str 
-    pdf_id: str
-    chapter: Optional[int] = None
-    search_type: str = "full_pdf"  # "chapter", "full_pdf", "question"
+    query: str         # Câu hỏi của user
+    pdf_id: str        # ID của PDF muốn hỏi
+    chapter: Optional[int] = None   # Chương cụ thể (nếu có)
+    search_type: str = "full_pdf"   # "chapter", "full_pdf", "question"
     session_id: str = "default"
 
+# Lưu lịch sử chat theo từng PDF (key = session_id:pdf_id)
+# Dùng để xử lý follow-up question (VD: "nó nói gì?" → hỏi tiếp câu trước)
 pdf_session_history: dict[str, list[dict]] = {}
 
 @app.post("/chat/with-document")
 async def chat_with_document(req: DocumentChatRequest):
-    """Hỏi đáp dựa trên nội dung của một PDF cụ thể"""
+    """
+    Hỏi đáp dựa trên nội dung của một PDF cụ thể (PDF chat overlay).
+    Quy trình:
+      1. Tìm PDF theo id, lấy metadata
+      2. Xử lý follow-up: nối câu hỏi mới với câu trước
+      3. Nếu hỏi "tài liệu tham khảo" → scan PDF tìm section references
+      4. Nếu không → trích xuất context từ PDF (toàn bộ hoặc theo query)
+      5. Gửi context + query vào LLM → trả lời
+      6. Trả về answer + follow-up suggestions
+    """
     try:
         pdfs = pdf_manager.list_all_pdfs()
         pdf_info = next((p for p in pdfs if p['id'] == req.pdf_id), None)

@@ -32,7 +32,10 @@ _PDF_CACHE_FILE = "Data/_pdf_extract_cache.pkl"
 
 
 class Document:
-    """Minimal document class — thay thế langchain_core.documents.Document."""
+    """
+    Minimal document class — thay thế langchain_core.documents.Document.
+    Mỗi Document = 1 trang PDF với page_content (text) và metadata (page, title, source, hash...)
+    """
     def __init__(self, page_content: str, metadata: Optional[dict] = None):
         self.page_content = page_content or ""
         self.metadata = metadata or {}
@@ -40,9 +43,14 @@ class Document:
 
 def _read_pdf_with_markitdown(pdf_path: str) -> list[Document]:
     """
-    Đọc PDF bằng MarkItDown.
-    Output là Markdown với page markers: <!-- page N -->
-    Trả về list[Document] (mỗi trang một Document), nội dung là Markdown.
+    Đọc PDF bằng MarkItDown (Microsoft) — ưu tiên.
+    MarkItDown chuyển PDF → Markdown chất lượng cao, giữ nguyên:
+      - Cấu trúc bảng biểu
+      - Heading (H1, H2, H3...)
+      - Danh sách (bullet, numbered)
+      - Định dạng text (bold, italic)
+    Output có page markers: <!-- page N --> → tách thành list[Document].
+    Trả về list[Document] (mỗi trang 1 Document).
     """
     docs: list[Document] = []
     if not _markitdown:
@@ -72,7 +80,11 @@ def _read_pdf_with_markitdown(pdf_path: str) -> list[Document]:
 
 
 def _read_pdf_with_pypdf(pdf_path: str) -> list[Document]:
-    """Đọc PDF bằng pypdf (fallback), trả về list[Document] (mỗi trang một Document)."""
+    """
+    Đọc PDF bằng pypdf (fallback khi MarkItDown không hoạt động).
+    Đọc từng trang, extract text, trả về list[Document].
+    Chất lượng thấp hơn MarkItDown nhưng hoạt động khi không cài markitdown.
+    """
     docs: list[Document] = []
     if not PdfReader:
         print("   ⚠️  pypdf not available — skipping PDF text extraction")
@@ -89,8 +101,11 @@ def _read_pdf_with_pypdf(pdf_path: str) -> list[Document]:
 
 def extract_pdf_title(pdf_path: str, pages: list[Document]) -> str:
     """
-    Extract title t? first page c?a PDF.
-    ?u tiên dùng filename, ch? dùng first-line n?u không ph?i boilerplate.
+    Extract title từ PDF — ưu tiên tên file, fallback first line.
+    Chiến lược:
+      1. Luôn dùng filename (chuẩn xác nhất, VD: "DO VU NHAT LINH - KHDL.pdf")
+      2. Fallback: lấy dòng đầu tiên của trang đầu nếu không phải boilerplate
+         (loại bỏ: "BỘ GIÁO DỤC...", "ĐẠI HỌC QUY NHƠN...", "CỘNG HÒA...")
     """
     # ?u tiên: dùng filename (luôn ch?nh x?c nh?t)
     filename = Path(pdf_path).stem
@@ -127,8 +142,10 @@ def extract_pdf_title(pdf_path: str, pages: list[Document]) -> str:
 
 def extract_section_heading(page_text: str) -> str:
     """
-    Extract section heading từ page text
-    Logic: Tìm dòng đầu tiên với < 80 chars (probable heading)
+    Extract section heading từ page text.
+    Logic: tìm dòng UPPERCASE đầu tiên có độ dài 5-80 chars.
+    VD: "CHƯƠNG 1: GIỚI THIỆU" → trả về dòng đó.
+    Dùng làm metadata section cho mỗi trang PDF.
     """
     lines = page_text.split("\n")
     for line in lines[:5]:  # Check first 5 lines
@@ -139,7 +156,12 @@ def extract_section_heading(page_text: str) -> str:
 
 
 def _load_pdf_cache() -> dict:
-    """Load PDF extraction cache: {filename: (mtime, docs_data)}"""
+    """
+    Load PDF extraction cache từ file _pdf_extract_cache.pkl.
+    Cache lưu kết quả đọc PDF (đã trích xuất text) để lần sau load nhanh.
+    Key: filename, Value: (mtime, docs_data)
+    Nếu file PDF không thay đổi (same mtime) → dùng cache, bỏ qua extraction.
+    """
     try:
         if Path(_PDF_CACHE_FILE).exists():
             with open(_PDF_CACHE_FILE, "rb") as f:
@@ -166,9 +188,15 @@ def _cacheable_to_docs(data: list[dict]) -> list[Document]:
 
 def load_all_pdfs() -> list[Document]:
     """
-    Load tất cả PDF trong thư mục pdfs/.
-    Incremental: chỉ extract PDF mới hoặc thay đổi (so với cache).
-    PDF đã extract trước đó → load từ cache instantly.
+    Load tất cả PDF trong thư mục pdfs/ — hàm chính.
+    Incremental loading (tối ưu hiệu năng):
+      1. Quét tất cả file .pdf trong thư mục pdfs/
+      2. Với mỗi file: check cache (filename + mtime)
+      3. Nếu file đã cache và không thay đổi → load từ cache (instant)
+      4. Nếu file mới/thay đổi → extract text (MarkItDown → pypdf)
+      5. Thêm metadata: source, title, keywords, hash (dedup)
+      6. Lưu vào cache cho lần sau
+    Trả về list[Document] — mỗi Document = 1 trang PDF.
     """
     folder = Path(PDF_FOLDER)
     if not folder.exists():

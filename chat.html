@@ -212,11 +212,12 @@
     .pdf-item.active .pdf-delete-btn{border-color:var(--border);background:var(--surface);color:var(--text-tertiary);}
     .pdf-item.active .pdf-delete-btn:hover{background:var(--pastel-red);border-color:var(--pastel-red);color:var(--pastel-red-text);}
     .admin-active .pdf-delete-btn{display:flex;}
-    /* Ẩn phần PDF section mặc định; chỉ hiện khi admin đã login */
-    .pdf-section{display:none;}
-    .pdf-section-title{display:none;}
-    .sidebar.show-pdf .pdf-section{display:flex;}
-    .sidebar.show-pdf .pdf-section-title{display:block;}
+    /* Ẩn phần PDF sidebar + overlay (giữ nguyên admin login/logout) */
+    .pdf-section{display:none !important;}
+    .pdf-section-title{display:none !important;}
+    .sidebar.show-pdf .pdf-section{display:none !important;}
+    .sidebar.show-pdf .pdf-section-title{display:none !important;}
+    .pdf-overlay{display:none !important;}
 
     /* ── Admin Section ── */
     .admin-section{padding:0;}
@@ -825,27 +826,20 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       <span>Đối thoại mới</span>
     </button>
+    <!-- Ẩn toàn bộ phần PDF list trong sidebar -->
+    <!--
     <p class="section-title pdf-section-title">Tài liệu PDF</p>
     <div class="section-card pdf-section">
       <div id="pdfList" class="pdf-list">
         <div style="font-size:11px;color:rgba(255,255,255,0.45);">Đang tải...</div>
       </div>
     </div>
+    -->
     <div class="section-card">
       <p class="section-title">Tra cứu theo ngành</p>
       <div class="faculty-tree" id="facultyTree"></div>
     </div>
-    <!-- Tra cứu nhanh đã ẩn để dành không gian cho cây khoa→ngành -->
-    <div class="section-card" style="display:none;">
-      <p class="section-title">Tra cứu nhanh</p>
-      <div class="chips">
-        <button class="chip" onclick="quickAsk(this)">Kinh tế vi mô</button>
-        <button class="chip" onclick="quickAsk(this)">Lịch sử Việt Nam</button>
-        <button class="chip" onclick="quickAsk(this)">Luật dân sự</button>
-        <button class="chip" onclick="quickAsk(this)">Công tác xã hội</button>
-        <button class="chip" onclick="quickAsk(this)">Giải tích</button>
-      </div>
-    </div>
+
     <div class="status-panel">
       <div>
         <span class="status-dot" id="statusDot"></span>
@@ -855,25 +849,6 @@
     </div>
     </div>
     <div class="sidebar-sticky">
-    <div class="admin-section" id="adminPdfArea">
-        <div class="admin-badge">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          Quản trị
-        </div>
-        <div class="admin-login-row" id="adminLoginRow">
-          <input type="password" class="admin-input" id="adminPwd" placeholder="Mật khẩu" autocomplete="new-password">
-          <button class="admin-btn primary" onclick="adminLogin()">Đăng nhập</button>
-        </div>
-        <div class="admin-msg" id="adminLoginMsg" style="margin-top:4px;"></div>
-        <div class="admin-upload-area" id="adminUploadArea">
-          <input type="file" id="pdfUploadInput" accept=".pdf" style="display:none;" onchange="uploadPdf(this)">
-          <button class="admin-upload-btn" onclick="document.getElementById('pdfUploadInput').click()">+ Upload PDF</button>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-            <div class="admin-msg" id="uploadMsg"></div>
-            <button class="admin-btn small" onclick="adminLogout()">Đăng xuất</button>
-          </div>
-        </div>
-      </div>
   </aside>
 
   <main class="chat-panel">
@@ -918,37 +893,6 @@
       </button>
     </form>
   </main>
-
-  <!-- PDF Chat Overlay Panel -->
-  <div class="pdf-overlay" id="pdfOverlay">
-    <div class="pdf-overlay-backdrop" onclick="closePdfOverlay()"></div>
-    <div class="pdf-overlay-panel">
-      <div class="pdf-overlay-header">
-        <div class="pdf-overlay-header-left">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6M10 11v4M14 11v4"/></svg>
-          <span class="pdf-overlay-title" id="pdfOverlayTitle">--</span>
-          <span class="pdf-overlay-meta" id="pdfOverlayMeta"></span>
-        </div>
-        <button class="pdf-overlay-close" onclick="closePdfOverlay()" title="Đóng">✕</button>
-      </div>
-      <div class="pdf-overlay-messages" id="pdfOverlayMessages">
-        <div class="pdf-overlay-msg bot">
-          <div class="avatar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          </div>
-          <div class="bubble" id="pdfOverlayWelcome">
-            Đang tải thông tin tài liệu...
-          </div>
-        </div>
-      </div>
-      <form class="pdf-overlay-composer" onsubmit="return false;">
-        <textarea id="pdfOverlayInput" rows="1" placeholder="Hỏi nội dung trong tài liệu này..." autocomplete="off"></textarea>
-        <button class="send-btn" id="pdfOverlaySendBtn" onclick="sendPdfOverlayMessage()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
-      </form>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -993,12 +937,6 @@ window.addEventListener("load", async () => {
   // Check voice availability + setup mic
   setupVoiceInput();
 
-  // Load PDF list (chỉ hiển thị khi admin login)
-  if (adminToken && !backendReadOnly) {
-    document.querySelector(".sidebar")?.classList.add("show-pdf");
-    loadPdfList();
-  }
-
   // Load faculty tree
   loadFacultyTree();
 });
@@ -1025,7 +963,6 @@ async function setupVoiceInput() {
   }
 
   if (!voiceAvailable) {
-    // Vẫn hiển thị nút mic nhưng disabled + tooltip hướng dẫn cài
     micBtn.title = "Voice input chưa được kích hoạt. Cài: pip install faster-whisper rồi restart backend.";
     micBtn.disabled = true;
     micBtn.style.opacity = "0.4";
@@ -1160,8 +1097,27 @@ async function sendAudioToBackend() {
   }
 }
 
-// ── PDF Management Functions ──────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// QUẢN LÝ PDF — Frontend JavaScript
+// ═══════════════════════════════════════════════════════════════
+// Các hàm chính:
+//   loadPdfList()          — Tải danh sách PDF từ backend, hiển thị sidebar
+//   renderPdfList(pdfs)    — Render danh sách PDF vào sidebar
+//   selectPdf(pdf)         — Chọn PDF → mở overlay panel hỏi đáp
+//   findPdfItem(...)       — Tìm PDF theo id/file_name/title
+//   attachSourcePdf(...)   — Đính kèm PDF từ kết quả search
+//   openPdfOverlay(pdf)    — Mở panel overlay hỏi đáp theo PDF
+//   closePdfOverlay()      — Đóng panel overlay
+//   sendPdfOverlayMessage()— Gửi câu hỏi trong overlay → backend /chat/with-document
+//   deletePdf(pdf)         — Xóa PDF (admin)
+//   uploadPdf(input)       — Upload PDF mới (admin)
+// ═══════════════════════════════════════════════════════════════
 
+/**
+ * Tải danh sách PDF từ backend (/api/pdfs) và hiển thị trong sidebar.
+ * Chỉ admin mới thấy danh sách PDF (ẩn bằng CSS .pdf-section).
+ * Sau khi tải, gọi renderPdfList() để render vào DOM.
+ */
 async function loadPdfList() {
   try {
     const res = await fetch(BACKEND + "/api/pdfs");
@@ -1184,6 +1140,12 @@ async function loadPdfList() {
   }
 }
 
+/**
+ * Render danh sách PDF vào sidebar.
+ * Mỗi PDF hiển thị: tên, subtitle (năm, metadata), nút xóa (admin).
+ * Kích hoạt highlight cho PDF đang chọn (currentSelectedPdf).
+ * Bind sự kiện click → selectPdf(), click nút xóa → deletePdf().
+ */
 function renderPdfList(pdfs) {
   const pdfListDiv = document.getElementById("pdfList");
   pdfListDiv.classList.toggle("admin-active", Boolean(adminToken) && !backendReadOnly);
@@ -1229,8 +1191,12 @@ function renderPdfList(pdfs) {
 
 }
 
+/**
+ * Chọn 1 PDF từ sidebar → mở overlay panel hỏi đáp.
+ * Cập nhật highlight trong sidebar (active class).
+ */
 async function selectPdf(pdf) {
-  // Open PDF in overlay panel
+  // Mở overlay panel để chat với nội dung PDF
   openPdfOverlay(pdf);
   
   // Update sidebar highlight
@@ -1243,6 +1209,11 @@ async function selectPdf(pdf) {
   });
 }
 
+/**
+ * Tìm PDF trong danh sách theo id, file_name, hoặc title.
+ * Dùng pdfCache (Map) để tra cứu nhanh theo id.
+ * Fallback: tìm trong allPdfItems bằng cách so sánh tất cả trường tên.
+ */
 function findPdfItem(pdfId, fileName, title) {
   const norm = (value) => String(value || "").trim().toLowerCase();
   const id = norm(pdfId);
@@ -1266,6 +1237,11 @@ function findPdfItem(pdfId, fileName, title) {
   }) || null;
 }
 
+/**
+ * Đính kèm 1 PDF từ kết quả search → mở overlay panel.
+ * Dùng khi user bấm "Đính kèm PDF" trên book card trong chat.
+ * Nếu PDF chưa có trong danh sách → load lại list trước.
+ */
 async function attachSourcePdf(pdfId, fileName, title) {
   let pdf = findPdfItem(pdfId, fileName, title);
   if (!pdf) {
@@ -1689,6 +1665,10 @@ function appendSources(afterId, sources, totalFound, followUps) {
   renderPage(1);
 }
 
+/**
+ * Gắn sự kiện click cho các nút "Đính kèm PDF" trên book card.
+ * Dùng trong render kết quả search — khi user bấm → mở overlay chat với PDF.
+ */
 function bindSourcePdfCards(scope) {
   scope.querySelectorAll(".source-attach-btn").forEach((btn) => {
     btn.onclick = (event) => {
@@ -1728,31 +1708,12 @@ function askFollowUp(btn) {
     showRelatedSuggestions();
     return;
   }
-  // Special: view PDF content
-  if (query.startsWith("__VIEW_PDF__:")) {
-    const parts = query.split(":");
-    const pdfId = parts[1] || "";
-    const pdfTitle = parts.slice(2).join(":") || "";
-    // Click the PDF card to trigger open content view
-    const pdfCard = document.querySelector(`.book-card[data-pdf-id="${pdfId}"]`);
-    if (pdfCard) {
-      pdfCard.click();
-    }
-    return;
-  }
-  // Special: list topic from existence-question follow-up
-  // Backend sẽ tự chuyển "__LIST_TOPIC__:topic" thành câu truy vấn tìm sách
-  if (query.startsWith("__LIST_TOPIC__:")) {
-    // Hiển thị status "đang tìm tài liệu" để user biết là đang xử lý
-    setStatus("loading", "Đang tìm tài liệu, có thể tốn một chút thời gian, vui lòng chờ...");
-    const ta = document.getElementById("questionInput");
-    ta.value = query;
-    ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
-    sendMessage();
-    return;
-  }
-  document.getElementById("questionInput").value = query;
+  // Luôn dùng text hiển thị trên chip để search
+  // VD: "Tìm sách theo ngành: Sư phạm Sinh học"
+  //     "Sách cùng chủ đề: Sinh học"
+  //     "Sách cùng tác giả: Nguyễn Như Khanh"
+  const displayText = btn.textContent.trim();
+  document.getElementById("questionInput").value = displayText;
   document.getElementById("questionInput").style.height = "auto";
   document.getElementById("questionInput").style.height = Math.min(document.getElementById("questionInput").scrollHeight, 120) + "px";
   sendMessage();
@@ -1855,6 +1816,10 @@ async function showRelatedSuggestions() {
   }
 }
 
+/**
+ * Hỏi tiếp theo 1 PDF cụ thể từ kết quả chat chính.
+ * Mở overlay panel → đặt query → gửi câu hỏi.
+ */
 async function askFollowUpPdf(pdfId, btn) {
   const query = btn.dataset.query || btn.textContent.trim();
   if (query === "__SUGGEST_RELATED__") {
@@ -1874,9 +1839,17 @@ async function askFollowUpPdf(pdfId, btn) {
   sendPdfOverlayMessage();
 }
 
-// ── PDF Overlay Panel ──
+// ── PDF Overlay Panel — Hỏi đáp theo nội dung PDF ───────────────
+// Overlay panel hiển thị khi user chọn 1 PDF để chat.
+// Giao diện: header (tên PDF) + messages (lịch sử chat) + input (câu hỏi)
+// Backend endpoint: POST /chat/with-document
 let currentOverlayPdf = null;
 
+/**
+ * Mở overlay panel để hỏi đáp với nội dung PDF.
+ * Hiển thị tên PDF, năm, tin nhắn chào mừng.
+ * Focus vào ô input để user bắt đầu hỏi.
+ */
 function openPdfOverlay(pdf) {
   currentOverlayPdf = pdf;
   const overlay = document.getElementById("pdfOverlay");
@@ -1902,6 +1875,9 @@ function openPdfOverlay(pdf) {
   document.getElementById("pdfOverlayInput").focus();
 }
 
+/**
+ * Đóng overlay panel hỏi đáp PDF.
+ */
 function closePdfOverlay() {
   document.getElementById("pdfOverlay").classList.remove("open");
   currentOverlayPdf = null;
@@ -2438,18 +2414,6 @@ _qInput.addEventListener("keydown", function(e){
   if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendMessage(); }
 });
 // PDF Overlay keyboard handlers
-document.getElementById("pdfOverlayInput").addEventListener("input", function(){
-  this.style.height = "auto";
-  this.style.height = Math.min(this.scrollHeight, 100) + "px";
-});
-document.getElementById("pdfOverlayInput").addEventListener("keydown", function(e){
-  // Bỏ qua khi đang dùng IME
-  if (e.isComposing || e.keyCode === 229) return;
-  if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendPdfOverlayMessage(); }
-});
-document.getElementById("pdfOverlay").addEventListener("keydown", function(e){
-  if (e.key === "Escape") closePdfOverlay();
-});
 document.getElementById("adminPwd").addEventListener("input", function(){
   document.getElementById("adminLoginMsg").textContent = "";
 });
@@ -2458,14 +2422,7 @@ document.getElementById("adminPwd").addEventListener("keydown", function(e){
   if (e.key === "Enter") { e.preventDefault(); adminLogin(); }
 });
 
-// ── Admin Functions ──────────────────────────────────────
 let adminToken = localStorage.getItem("qnu_admin_token") || "";
-
-// Auto-show upload area if token exists
-if (adminToken && !backendReadOnly) {
-  document.getElementById("adminLoginRow").style.display = "none";
-  document.getElementById("adminUploadArea").style.display = "block";
-}
 
 function configureReadOnlyMode() {
   if (!backendReadOnly) return;
@@ -2505,12 +2462,8 @@ async function adminLogin() {
   adminToken = data.token;
   localStorage.setItem("qnu_admin_token", adminToken);
   document.getElementById("adminLoginRow").style.display = "none";
-  // Hiện section PDF sau khi login thành công
-  document.querySelector(".sidebar")?.classList.add("show-pdf");
-  if (!backendReadOnly) await loadPdfList();
-    document.getElementById("adminUploadArea").style.display = "block";
-    renderPdfList(allPdfItems);
-    showUploadMsg("Đã đăng nhập", false);
+  document.getElementById("adminUploadArea").style.display = "block";
+  showUploadMsg("Đã đăng nhập", false);
   } catch(e) {
     showUploadMsg("Lỗi: " + e.message, true);
   }
@@ -2540,67 +2493,72 @@ function showUploadMsg(text, isError) {
   el.className = "admin-msg" + (isError ? " error" : "");
 }
 
-async function deletePdf(pdf, event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-  if (!adminToken) {
-    showUploadMsg("Cần đăng nhập admin", true);
-    return;
-  }
+// /**
+//  * Xóa 1 file PDF (chỉ admin).
+//  * Gọi DELETE /api/admin/pdfs/{id} → xóa file vật lý + cache + index.
+//  * Sau khi xóa → reload danh sách PDF.
+//  */
+// async function deletePdf(pdf, event) {
+//   if (event) {
+//     event.preventDefault();
+//     event.stopPropagation();
+//   }
+//   if (!adminToken) {
+//     showUploadMsg("Cần đăng nhập admin", true);
+//     return;
+//   }
 
-  const label = pdf.display_name || pdf.file_stem || pdf.file_name || pdf.title || "PDF";
-  if (!confirm(`Xóa PDF "${label}"?`)) return;
+//   const label = pdf.display_name || pdf.file_stem || pdf.file_name || pdf.title || "PDF";
+//   if (!confirm(`Xóa PDF "${label}"?`)) return;
 
-  showUploadMsg("Đang xóa...", false);
-  try {
-    const res = await fetch(BACKEND + "/api/admin/pdfs/" + encodeURIComponent(pdf.id), {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: adminToken })
-    });
-    const data = await res.json();
-    if (!res.ok) { throw new Error(data.detail || "Xóa thất bại"); }
+//   showUploadMsg("Đang xóa...", false);
+//   try {
+//     const res = await fetch(BACKEND + "/api/admin/pdfs/" + encodeURIComponent(pdf.id), {
+//       method: "DELETE",
+//       headers: { "Content-Type": "application/json" },
+//       body: JSON.stringify({ token: adminToken })
+//     });
+//     const data = await res.json();
+//     if (!res.ok) { throw new Error(data.detail || "Xóa thất bại"); }
 
-    if (currentSelectedPdf && currentSelectedPdf.id === pdf.id) {
-      currentSelectedPdf = null;
-      document.querySelectorAll(".pdf-item").forEach(item => item.classList.remove("active"));
-    }
-    showUploadMsg("✓ Đã xóa " + (data.file_name || label), false);
-    loadPdfList();
-  } catch(e) {
-    showUploadMsg("Lỗi: " + e.message, true);
-  }
-}
+//     if (currentSelectedPdf && currentSelectedPdf.id === pdf.id) {
+//       currentSelectedPdf = null;
+//       document.querySelectorAll(".pdf-item").forEach(item => item.classList.remove("active"));
+//     }
+//     showUploadMsg("✓ Đã xóa " + (data.file_name || label), false);
+//     loadPdfList();
+//   } catch(e) {
+//     showUploadMsg("Lỗi: " + e.message, true);
+//   }
+// }
 
-async function uploadPdf(input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (!file.name.toLowerCase().endsWith(".pdf")) {
-    showUploadMsg("Chỉ chấp nhận file PDF!", true); return;
-  }
-  showUploadMsg("Đang upload...", false);
+// async function uploadPdf(input) {
+//   const file = input.files[0];
+//   if (!file) return;
+//   if (!file.name.toLowerCase().endsWith(".pdf")) {
+//     showUploadMsg("Chỉ chấp nhận file PDF!", true); return;
+//   }
+//   showUploadMsg("Đang upload...", false);
 
-  const formData = new FormData();
-  formData.append("token", adminToken);
-  formData.append("file", file);
+//   const formData = new FormData();
+//   formData.append("token", adminToken);
+//   formData.append("file", file);
 
-  try {
-    const res = await fetch(BACKEND + "/api/admin/upload", {
-      method: "POST",
-      body: formData
-    });
-    const data = await res.json();
-    if (!res.ok) { throw new Error(data.detail || "Upload thất bại"); }
-    showUploadMsg("✓ " + data.file_name, false);
-    input.value = "";
-    // Reload PDF list
-    loadPdfList();
-  } catch(e) {
-    showUploadMsg("Lỗi: " + e.message, true);
-  }
-}
+//   try {
+//     const res = await fetch(BACKEND + "/api/admin/upload", {
+//       method: "POST",
+//       body: formData
+//     });
+//     const data = await res.json();
+//     if (!res.ok) { throw new Error(data.detail || "Upload thất bại"); }
+//     showUploadMsg("✓ " + data.file_name, false);
+//     input.value = "";
+//     // Reload PDF list
+//     loadPdfList();
+//   } catch(e) {
+//     showUploadMsg("Lỗi: " + e.message, true);
+//   }
+// }
 </script>
 </body>
 </html>

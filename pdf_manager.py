@@ -1,5 +1,18 @@
 """
-pdf_manager.py — Quản lý PDF: metadata, chapters, preview
+pdf_manager.py — Quản lý PDF: metadata, chapters, preview, OCR
+
+Chức năng chính:
+  1. Liệt kê tất cả PDF trong thư mục pdfs/ (list_all_pdfs)
+  2. Trích xuất metadata PDF: title, author, year, pages, subject (_extract_metadata)
+  3. Trích xuất cấu trúc chương/phần từ outline hoặc heuristic (extract_chapters)
+  4. Đọc nội dung text PDF: MarkItDown → pypdf → OCR (get_chapter_text, get_chapter_text_with_ocr_fallback)
+  5. Kiểm tra PDF scan/ảnh (is_scanned_pdf)
+  6. OCR fallback bằng Tesseract (_ocr_page)
+
+Thư viện sử dụng:
+  - MarkItDown (Microsoft): đọc PDF → Markdown chất lượng cao
+  - pypdf: đọc metadata, outline, text theo trang (fallback)
+  - pytesseract + pdf2image: OCR cho PDF scan/ảnh (tùy chọn)
 """
 
 import os
@@ -40,17 +53,27 @@ if _TESSERACT_CMD and pytesseract:
 
 
 class PDFManager:
-    """Quản lý metadata PDF, cấu trúc chương, và preview"""
+    """
+    Quản lý tất cả thao tác với file PDF:
+      - Liệt kê PDF (list_all_pdfs): quét thư mục pdfs/, trích xuất metadata
+      - Trích xuất chương (extract_chapters): từ outline hoặc chia đều
+      - Đọc nội dung (get_chapter_text): ưu tiên MarkItDown, fallback pypdf
+      - OCR (get_chapter_text_with_ocr_fallback): cho PDF scan/ảnh
+      - Cache: metadata cache, MarkItDown text cache, OCR cache
+    """
     
     def __init__(self, pdf_dir: str = "pdfs", cache_file: str = "pdf_cache.json"):
-        self.pdf_dir = Path(pdf_dir)
-        self.cache_file = cache_file
+        self.pdf_dir = Path(pdf_dir)          # Thư mục chứa file PDF
+        self.cache_file = cache_file           # File cache metadata (JSON)
         self.pdf_cache = self._load_cache()
         
-        # MarkItDown text cache: {file_path: markdown_text}
+        # MarkItDown text cache: lưu kết quả đọc PDF → Markdown
+        # Key: file_path, Value: markdown_text
         self._md_text_cache: dict[str, str] = {}
 
-        # OCR cache: {file_path: {page_num: ocr_text}}
+        # OCR cache: lưu kết quả OCR theo trang
+        # Key: file_path, Value: {page_num: ocr_text}
+        # Dùng threading.Lock vì OCR có thể chạy song song
         self._ocr_cache: dict[str, dict[int, str]] = {}
         self._ocr_cache_lock = threading.Lock()
         
@@ -63,7 +86,15 @@ class PDFManager:
         self._md_text_cache.clear()
     
     def list_all_pdfs(self) -> List[Dict]:
-        """Liệt kê tất cả PDF với metadata"""
+        """
+        Liệt kê tất cả PDF trong thư mục pdfs/ với metadata đầy đủ.
+        Quy trình:
+          1. Quét tất cả file .pdf trong thư mục
+          2. Với mỗi file: trích xuất metadata (title, author, year, pages, subject)
+          3. Resolve display name (ưu tiên tên file nếu metadata title rác)
+          4. Cache kết quả TTL 5 giây để tránh load lại mỗi request
+        Trả về list dict: [{id, title, author, year, pages, file_path, file_size_mb, ...}]
+        """
         # Xoá MarkItDown cache khi danh sách file thay đổi
         self._md_text_cache.clear()
         # Cache: dùng lại kết quả nếu chưa có file nào thay đổi
@@ -111,10 +142,13 @@ class PDFManager:
     
     def extract_chapters(self, pdf_path: str) -> List[Dict]:
         """
-        Trích xuất cấu trúc chương từ PDF
-        Chiến lược: 
-        1. Cố gắng lấy outline (mục lục)
-        2. Nếu không có, chia PDF thành các phần bằng heuristic
+        Trích xuất cấu trúc chương/phần từ PDF.
+        Chiến lược:
+          1. Thử lấy outline (mục lục) từ PDF bằng pypdf
+          2. Validate outline: phải có ≥2 mục hợp lệ (loại bỏ entry rác)
+          3. Nếu outline hợp lệ → chia PDF thành các chương theo số trang
+          4. Nếu outline không có hoặc quá nông → fallback heuristic (chia đều)
+        Trả về list: [{chapter, title, pages, start_page, end_page}]
         """
         if not PdfReader:
             print("pypdf not available, returning simple chapters")
@@ -167,7 +201,11 @@ class PDFManager:
             return self._generate_simple_chapters(pdf_path)
 
     def _flatten_outline(self, outline) -> List[Dict]:
-        """Chuyển outline lồng nhau thành danh sách phẳng."""
+        """
+        Chuyển outline lồng nhau (nested) thành danh sách phẳng.
+        Outline của PDF có thể lồng nhau (chapter → section → subsection)
+        → flatten để xử lý dễ dàng hơn.
+        """
         flattened = []
 
         def walk(items):
@@ -239,7 +277,13 @@ class PDFManager:
         return cleaned
     
     def _generate_simple_chapters(self, pdf_path: str) -> List[Dict]:
-        """Tạo chapters đơn giản dựa trên số trang"""
+        """
+        Tạo chapters đơn giản dựa trên số trang (heuristic fallback).
+        Khi PDF không có outline → chia đều:
+          - PDF ≤12 trang: mỗi phần ~4 trang
+          - PDF >12 trang: mỗi phần ~10 trang
+        Trả về list: [{chapter, title, pages, start_page, end_page}]
+        """
         if not PdfReader:
             # Nếu không có pypdf, trả về 5 chapters chuẩn
             return [
@@ -279,7 +323,12 @@ class PDFManager:
             return []
     
     def _load_markitdown_text(self, pdf_path: str) -> str | None:
-        """Đọc toàn bộ PDF bằng MarkItDown, cache kết quả."""
+        """
+        Đọc toàn bộ PDF bằng MarkItDown, cache kết quả.
+        MarkItDown (Microsoft) chuyển PDF → Markdown chất lượng cao,
+        giữ nguyên cấu trúc bảng biểu, heading, danh sách.
+        Kết quả được cache trong _md_text_cache để tránh đọc lại.
+        """
         if pdf_path in self._md_text_cache:
             return self._md_text_cache[pdf_path]
         
@@ -298,9 +347,12 @@ class PDFManager:
     
     def get_chapter_text(self, pdf_path: str, start_page: int, end_page: int) -> str:
         """
-        Trích xuất nội dung từ PDF.
-        Ưu tiên dùng MarkItDown (Markdown chất lượng cao).
-        Fallback sang pypdf nếu cần đọc theo trang cụ thể.
+        Trích xuất nội dung text từ PDF (theo khoảng trang).
+        Chiến lược:
+          1. Nếu đọc toàn bộ hoặc khoảng lớn (≥3 trang) → dùng MarkItDown
+          2. Nếu đọc 1-2 trang cụ thể → ưu tiên pypdf (chính xác theo trang)
+          3. Fallback: MarkItDown full text nếu pypdf thất bại
+          4. Fallback cuối: pypdf nếu MarkItDown không khả dụng
         """
         # Nếu đọc toàn bộ hoặc 1 khoảng lớn → dùng MarkItDown
         is_full_read = (end_page - start_page) >= 3 or end_page >= 9999
@@ -351,7 +403,14 @@ class PDFManager:
             return f"[Lỗi: {str(e)}]"
     
     def _extract_metadata(self, pdf_path: Path) -> Dict:
-        """Trích xuất metadata từ PDF"""
+        """
+        Trích xuất metadata từ file PDF.
+        Lấy từ pypdf: /Title, /Author, /Subject, /CreationDate, số trang.
+        Xử lý垃圾 metadata:
+          - Author rác (aspose, pdf converter, unknown) → parse từ tên file
+          - Subject rác (aspose, pdf, n/a) → bỏ trống
+          - Year: parse từ /CreationDate (format D:YYYYMMDDHHmmSS)
+        """
         _junk_authors = {
             'aspose', 'aspose.pdf', 'aspose.pdf.epubtopdfconverter',
             'pdf converter', 'epubtopdfconverter', 'unknown',
@@ -416,7 +475,10 @@ class PDFManager:
             }
 
     def _resolve_display_name(self, metadata: Dict, file_stem: str) -> str:
-        """Ưu tiên tên file thay vì title metadata khi metadata là tên chung/generic."""
+        """
+        Ưu tiên tên file thay vì title metadata khi metadata là tên chung/generic.
+        Nhiều PDF có title rác (aspose, document, untitled) → dùng tên file.
+        """
         title = str(metadata.get('title', '') or '').strip()
         normalized = title.lower()
         generic_titles = {
@@ -476,13 +538,17 @@ class PDFManager:
             print(f"Lỗi lưu cache: {e}")
 
     # ═══════════════════════════════════════════════════════
-    # Giai đoạn 3 — OCR cho PDF scan
+    # Giai đoạn 3 — OCR cho PDF scan/ảnh
     # ═══════════════════════════════════════════════════════
+    # Khi PDF là bản scan (không có text layer),
+    # dùng Tesseract OCR để nhận diện chữ từ ảnh.
+    # Quy trình: PDF → ảnh (pdf2image) → text (pytesseract)
 
     def is_scanned_pdf(self, pdf_path: str, sample_pages: int = 3) -> bool:
         """
-        Heuristic: PDF scan = text extraction trả về rất ít text.
-        Kiểm tra vài trang đầu; nếu tất cả < 50 chars → có thể là scan.
+        Heuristic phát hiện PDF scan/ảnh.
+        Kiểm tra vài trang đầu: nếu text trích xuất được < 50 chars/trang
+        và ≥2/3 trang rỗng → coi là PDF scan.
         """
         if not PdfReader:
             return False
@@ -507,7 +573,12 @@ class PDFManager:
             return False
 
     def _ocr_page(self, pdf_path: str, page_num: int, lang: str = "vie+eng") -> str:
-        """OCR 1 trang PDF cụ thể bằng Tesseract. Có cache."""
+        """
+        OCR 1 trang PDF cụ thể bằng Tesseract.
+        Quy trình: chuyển trang PDF → ảnh (pdf2image, dpi=200) → OCR (pytesseract).
+        Có cache: mỗi trang chỉ OCR 1 lần, kết quả lưu trong _ocr_cache.
+        Ngôn ngữ mặc định: vie+eng (tiếng Việt + tiếng Anh).
+        """
         if not _ocr_available:
             return ""
 
@@ -539,12 +610,14 @@ class PDFManager:
         self, pdf_path: str, start_page: int, end_page: int, lang: str = "vie+eng"
     ) -> Dict:
         """
-        Đọc PDF với fallback OCR:
-        1. Thử MarkItDown (markdown chất lượng cao)
-        2. Nếu rỗng/ngắn → thử pypdf theo trang
-        3. Nếu vẫn rỗng → OCR bằng Tesseract
-
-        Returns: dict với text, method (markitdown/pypdf/ocr), scanned (bool)
+        Đọc PDF với 3 cấp fallback:
+          1. MarkItDown → text chất lượng cao (Markdown)
+          2. pypdf → text theo trang
+          3. Tesseract OCR → cho PDF scan/ảnh
+        Trả về dict:
+          - text: nội dung trích xuất
+          - method: "markitdown" | "pypdf" | "ocr" | "none"
+          - scanned: True nếu PDF là bản scan
         """
         # 1. MarkItDown
         md_text = self._load_markitdown_text(pdf_path) or ""
