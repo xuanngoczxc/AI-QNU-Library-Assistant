@@ -16,7 +16,7 @@ import hashlib
 import threading
 from pathlib import Path
 from typing import List, Dict, Optional
-from text_utils import normalize_text
+from .text_utils import normalize_text
 
 # Lazy import để tránh load model khi không dùng
 _MODEL = None

@@ -32,12 +32,25 @@ pinned: false
 
 ```
 app.py                  # FastAPI app chính (chat, search, admin, voice, OCR)
-search_engine.py        # BM25 + hybrid search
-semantic_search.py      # Sentence-Transformers (lazy load)
-pdf_manager.py          # PDF metadata + structure + content
-load_pdf.py             # PDF loader → LangChain Documents
-text_utils.py           # Vietnamese normalization
-voice_input.py          # Whisper transcription (optional)
+lib/                    # Core library modules
+  __init__.py
+  config.py             # Env vars, API keys, model names, thresholds
+  state.py              # Runtime state: stats, circuit breaker, session history
+  logging_setup.py      # Logging config
+  models.py             # Pydantic models
+  llm_client.py         # OpenRouter API client
+  llm_prompts.py        # Prompt templates
+  pdf_helpers.py        # PDF extraction helpers
+  catalog.py            # Catalog search, topic index
+  reranking.py          # Result reranking
+  followup.py           # Follow-up suggestion generation
+  text_utils.py         # Vietnamese normalization + synonyms
+  search_engine.py      # BM25 + hybrid search
+  semantic_search.py    # Sentence-Transformers (lazy load)
+  intent_classifier.py  # Score-based intent classification
+  load_pdf.py           # PDF loader → Documents
+  pdf_manager.py        # PDF metadata + structure + content
+  voice_input.py        # Whisper transcription (optional)
 eval/                   # Test suite (15 cases, stdlib runner)
   run_eval.py
   sample_queries.json
@@ -45,7 +58,7 @@ eval/                   # Test suite (15 cases, stdlib runner)
 Data/                   # Catalog CSV (input — KHÔNG chỉnh sửa)
 pdfs/                   # PDF storage (input — KHÔNG chỉnh sửa)
 api/index.py            # Vercel serverless entrypoint
-chat(1).html            # Frontend chatbot UI
+chat.html               # Frontend chatbot UI
 vercel.json             # Vercel deploy config
 Dockerfile              # Docker build
 requirements.txt        # Python dependencies

@@ -12,7 +12,7 @@ import pickle
 import hashlib
 from pathlib import Path
 from typing import Optional
-from text_utils import normalize_text, generate_document_hash, extract_keywords
+from .text_utils import normalize_text, generate_document_hash, extract_keywords
 
 # ── MarkItDown (Microsoft) — giữ cấu trúc Markdown chất lượng cao ──
 try:

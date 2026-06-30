@@ -13,7 +13,7 @@ import pickle
 import pandas as pd
 from pathlib import Path
 from collections import Counter
-from text_utils import normalize_text
+from .text_utils import normalize_text
 
 DATA_DIR = Path("Data")
 
