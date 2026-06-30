@@ -6,7 +6,7 @@
   <title>Tra cứu Sách – Thư viện QNU</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
       --bg:#F0F4F8;
@@ -32,8 +32,8 @@
       --pastel-red-text:#9E3A3A;
       --shadow-card:0 1px 3px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.02);
       --shadow-elevated:0 8px 25px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
-      --font-sans:'Outfit', 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      --font-serif:'Fraunces', 'Instrument Serif', Georgia, serif;
+      --font-sans:'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-serif:'Roboto', Georgia, serif;
       --radius-sm:8px;
       --radius-md:12px;
       --radius-lg:20px;
@@ -800,7 +800,7 @@
       .shell{border-radius:0;height:100dvh;border:none;max-width:100%;position:relative;}
       .sidebar{
         position:fixed;top:0;left:0;bottom:0;z-index:500;
-        width:280px;padding:16px 12px;
+        width:280px;padding:12px 10px;
         transform:translateX(-100%);
         transition:transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s;
         box-shadow:none;
@@ -817,35 +817,46 @@
       .brand-text h1{font-size:14px;}
       .chat-panel{width:100%;}
       .hamburger{display:flex;}
-      .chat-header{padding:10px 12px;gap:8px;}
-      .chat-header-left h2{font-size:16px;}
-      .messages{padding:12px 12px;}
-      .msg{gap:10px;}
-      .bubble{max-width:88%;font-size:13px;padding:10px 14px;}
-      .msg.user .bubble{max-width:88%;font-size:13px;}
-      .book-card{padding:10px 12px;margin:8px 0;border-left-width:2px;}
-      .book-card .book-title{font-size:13px;}
-      .book-card-header{gap:10px;}
-      .book-card-header-icon{width:24px;height:24px;}
-      .book-card-header-icon svg{width:14px;height:14px;}
-      .book-card-chevron{width:14px;height:14px;}
-      .book-details{padding-left:34px;}
-      .book-details-inner{padding-top:6px;}
-      .book-field{font-size:11.5px;padding:1px 0;}
-      .source-pdf-badge{font-size:9px;padding:1px 6px;}
-      .book-details-actions a,.source-attach-btn{font-size:11px;padding:5px 10px;}
-      .book-abstract{font-size:11px;padding:8px 10px;}
-      .composer{padding:8px 10px 10px;gap:6px;}
-      .composer textarea{font-size:13px;padding:5px 10px;height:32px;}
-      .send-btn{height:32px;padding:5px 12px;font-size:11px;}
-      .mic-btn{height:32px;width:32px;}
-      .stop-btn{height:32px;padding:5px 12px;font-size:11px;}
-      .more-body{padding:10px 12px 14px;}
+      .chat-header{padding:8px 10px;gap:6px;min-height:44px;}
+      .chat-header-left .eyebrow{font-size:9px;}
+      .chat-header-left h2{font-size:15px;margin-top:0;}
+      .clear-btn{width:28px;height:28px;}
+      .hamburger{width:28px;height:28px;}
+      .messages{padding:8px 10px;gap:10px;}
+      .msg{gap:8px;}
+      .bubble{max-width:90%;font-size:12.5px;padding:8px 12px;}
+      .msg.user .bubble{max-width:90%;font-size:12.5px;}
+      .avatar{width:26px;height:26px;}
+      .avatar svg{width:15px;height:15px;}
+      .book-card{padding:8px 10px;margin:6px 0;border-left-width:2px;border-radius:var(--radius-sm);}
+      .book-card .book-title{font-size:12.5px;}
+      .book-card-header{gap:8px;}
+      .book-card-header-icon{width:22px;height:22px;border-radius:6px;}
+      .book-card-header-icon svg{width:13px;height:13px;}
+      .book-card-chevron{width:13px;height:13px;}
+      .book-details{padding-left:30px;}
+      .book-details-inner{padding-top:4px;}
+      .book-details-grid{gap:2px;}
+      .book-field{font-size:11px;padding:1px 0;line-height:1.35;}
+      .source-pdf-badge{font-size:8.5px;padding:0 5px;}
+      .book-details-actions a,.source-attach-btn{font-size:10.5px;padding:4px 8px;}
+      .book-abstract{font-size:10.5px;padding:6px 8px;}
+      .composer{padding:6px 8px 8px;gap:5px;}
+      .composer textarea{font-size:12.5px;padding:5px 8px;height:30px;min-height:30px;}
+      .send-btn{height:30px;padding:4px 10px;font-size:10.5px;}
+      .mic-btn{height:30px;width:30px;padding:5px;}
+      .stop-btn{height:30px;padding:4px 10px;font-size:10.5px;}
+      .more-body{padding:8px 10px 12px;max-height:360px;}
       .more-grid{grid-template-columns:1fr;}
-      .more-grid .book-card{padding:10px 12px;}
+      .more-grid .book-card{padding:8px 10px;}
       .more-grid .book-card-header-icon{width:20px;height:20px;}
-      .more-search{padding:8px 12px;font-size:12px;}
-      .more-toggle{padding:10px 16px;font-size:12px;}
+      .more-search{padding:6px 10px;font-size:11.5px;}
+      .more-toggle{padding:8px 14px;font-size:11.5px;}
+      .follow-up-chip{font-size:11px;padding:5px 10px;}
+      .msg-actions{opacity:1;}
+      .follow-up-chips{gap:5px;margin-top:6px;}
+      .more-pagination{gap:4px;padding-top:10px;}
+      .more-pagination button{padding:4px 8px;font-size:10px;}
       .follow-up-chip{font-size:11.5px;padding:6px 12px;}
       .avatar{width:28px;height:28px;font-size:14px;}
       .msg-actions{opacity:1;}

@@ -766,6 +766,11 @@ def extract_existence_topic(query: str) -> str:
 def _last_existence_topic(history) -> str:
     if not history:
         return ""
+    # Ưu tiên: tìm entry có key "topic" (do handler existence lưu)
+    for msg in reversed(history):
+        if isinstance(msg, dict) and msg.get("topic") and msg.get("search_query"):
+            return msg["topic"]
+    # Fallback: regex từ assistant messages
     last_topic = ""
     for msg in history:
         if msg.get("role") != "assistant":
@@ -1164,6 +1169,50 @@ async def chat(req: ChatRequest):
         intent = classify_intent(req.query)
         logger.info("Intent: %s for query: %s", intent, req.query)
 
+        # ── Xử lý câu trả lời khẳng định/phủ định (trước intent) ──
+        list_topic_marker = "__LIST_TOPIC__:"
+        list_topic_query = None
+        if req.query.startswith(list_topic_marker):
+            list_topic_query = req.query[len(list_topic_marker):].strip()
+
+        hist = session_history.get(req.session_id, [])
+
+        # Phủ định: "không", "thôi"...
+        _affirm_yes = {"co", "ok", "oke", "okie", "duoc", "can", "muon",
+                       "u", "um", "ừ", "ừm", "được", "cần", "muốn",
+                       "liet ke", "liệt kê", "xem", "cho xem", "cho minh xem"}
+        q_affirm = normalize_text(req.query or "").strip()
+        if q_affirm in _affirm_yes and hist:
+            last_entry = hist[-1]
+            prev_topic = last_entry.get("topic", "")
+            if prev_topic:
+                list_topic_query = prev_topic
+
+        _decline_pat = re.compile(
+            r"^\s*(không|khong|thôi|thoi|thôi nhé|thoi nha|cảm ơn|cam on|cám ơn|cam_on|thank|thanks|no|nah|đủ rồi|du roi|thôi bỏ qua|thoi bo qua)\s*[.!]?\s*$",
+            re.IGNORECASE,
+        )
+        if not list_topic_query and hist and _decline_pat.match(req.query.strip()):
+            last_topic_entry = None
+            for entry in reversed(hist):
+                if isinstance(entry, dict) and entry.get("topic"):
+                    last_topic_entry = entry
+                    break
+            if last_topic_entry:
+                decline_topic = last_topic_entry.get("topic", "")
+                answer_text = f"Được, mình sẽ không liệt kê **{decline_topic}** nữa. Bạn muốn mình hỗ trợ gì khác không?"
+                hist.append({"role": "assistant", "content": answer_text})
+                session_history[req.session_id] = hist[-MAX_HISTORY:]
+                return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, summary="", current_document=None,
+                    follow_up_suggestions=[{"label": "Gợi ý chủ đề khác", "query": "Gợi ý tài liệu phổ biến"}, {"label": "Tìm sách theo tác giả", "query": "sách của Nguyễn Nhật Ánh"}, {"label": "Xem giới thiệu thư viện", "query": "Giới thiệu thư viện QNU"}])
+
+        if list_topic_query:
+            req_query_for_search = f"tìm sách về {list_topic_query}"
+            req.query = req_query_for_search
+            normalized_query = normalize_text(req_query_for_search)
+            intent = classify_intent(req_query_for_search)
+            logger.info("List-topic redirect → query=%r intent=%s", req.query, intent)
+
         if intent == "chitchat":
             return ChatResponse(
                 answer="Xin chào! Mình là trợ lý Thư viện Trường Đại học Quy Nhơn. Mình có thể giúp gì cho bạn về tra cứu sách, tài liệu số, hoặc nội dung các tài liệu trong thư viện ạ? 📚",
@@ -1183,25 +1232,6 @@ async def chat(req: ChatRequest):
                     {"label": "Xem giới thiệu thư viện", "query": "Giới thiệu thư viện QNU"},
                 ],
             )
-
-        # ── Xử lý câu trả lời xác nhận ──────────
-        AFFIRMATION_WORDS = {
-            "co", "ok", "oke", "okie", "duoc", "can", "muon",
-            "u", "um", "ừ", "ừm", "được", "cần", "muốn",
-            "liet ke", "liệt kê", "xem", "cho xem", "cho minh xem",
-        }
-        q_normalized_affirm = normalize_text(req.query or "").strip()
-        hist = session_history.get(req.session_id, [])
-
-        if q_normalized_affirm in AFFIRMATION_WORDS and hist:
-            last_entry = hist[-1]
-            prev_topic = last_entry.get("topic", "")
-            prev_search = last_entry.get("search_query", "")
-            reconstructed_query = prev_topic or prev_search or ""
-            if reconstructed_query:
-                req.query = reconstructed_query
-                normalized_query = normalize_text(req.query)
-                logger.info("Affirmation detected → auto-search: %r", req.query)
 
         if detect_exhaustion_query(req.query):
             entry_count = len(hist)
@@ -1298,23 +1328,6 @@ async def chat(req: ChatRequest):
                 "- *\"Sách của tác giả Nguyễn Văn A\"*"
             )
             return ChatResponse(answer=greeting_answer, sources=[], total_sources=0, summary="", current_document=None, follow_up_suggestions=[])
-
-        list_topic_marker = "__LIST_TOPIC__:"
-        list_topic_query = None
-        if req.query.startswith(list_topic_marker):
-            list_topic_query = req.query[len(list_topic_marker):].strip()
-
-        _decline_pat = re.compile(
-            r"^\s*(không|khong|thôi|thoi|thôi nhé|thoi nha|cảm ơn|cam on|cám ơn|cam_on|thank|thanks|no|nah|ok|okie|okela|đủ rồi|du roi|kệ|ke|thôi bỏ qua|thoi bo qua)\s*[.!]?\s*$",
-            re.IGNORECASE,
-        )
-        if hist and _decline_pat.match(req.query.strip()):
-            last_topic = _last_existence_topic(hist)
-            if last_topic:
-                answer_text = f"Được, mình sẽ không liệt kê **{last_topic}** nữa. Bạn muốn mình hỗ trợ gì khác không?"
-                hist.append({"role": "assistant", "content": answer_text})
-                return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, summary="", current_document=None,
-                    follow_up_suggestions=[{"label": "Gợi ý chủ đề khác", "query": "Gợi ý tài liệu phổ biến"}, {"label": "Tìm sách theo tác giả", "query": "sách của Nguyễn Nhật Ánh"}, {"label": "Xem giới thiệu thư viện", "query": "Giới thiệu thư viện QNU"}])
 
         if detect_existence_request(req.query):
             topic = extract_existence_topic(req.query)
@@ -1712,11 +1725,6 @@ def stats():
         return {"status": "ok", "documents": {"total": total, "csv_rows": csv_rows, "pdf_pages": pdf_pages, "empty_major": empty_major, "empty_major_pct": round(empty_major / total * 100, 1) if total else 0}, "top_majors": [{"name": n, "count": c} for n, c in top_majors], "by_source": source_counter, "by_type": type_counter, "indexes": {"bm25_ready": bm25_engine is not None and bool(documents), "semantic_available": sem_available, "topic_cache_size": topic_cache_size}, "cache": cache_info, "llm": llm_info, "sessions": {"chat": len(session_history), "pdf": len(pdf_session_history)}, "model": OPENROUTER_MODEL}
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "error": str(e)})
-
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTES: Semantic search, Faculties, Voice
-# ═══════════════════════════════════════════════════════════════
 
 @app.post("/api/semantic-search", response_model=SemanticSearchResponse)
 async def semantic_search_endpoint(req: SemanticSearchRequest):
