@@ -1885,6 +1885,76 @@ async def admin_upload(token: str = Form(...), file: UploadFile = File(...)):
     except Exception: pass
     return {"status": "ok", "file_name": file.filename, "file_size_mb": round(len(contents) / (1024 * 1024), 2), "message": f"Đã upload {file.filename} thành công!"}
 
+@app.post("/api/admin/upload-data")
+async def admin_upload_data(token: str = Form(...), file: UploadFile = File(...)):
+    """Upload file Excel dữ liệu catalog. Tự động reload nếu dữ liệu khác, skip nếu giống."""
+    if is_vercel_runtime(): raise HTTPException(405, VERCEL_READ_ONLY_MESSAGE)
+    if token not in ADMIN_TOKENS: raise HTTPException(401, "Token không hợp lệ")
+    if not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(400, "Chỉ chấp nhận file Excel (.xlsx / .xls)")
+    contents = await file.read()
+    if len(contents) > 50 * 1024 * 1024:
+        raise HTTPException(400, "File vượt quá 50MB")
+
+    # Tính hash nội dung file
+    import hashlib
+    new_hash = hashlib.md5(contents).hexdigest()
+    data_dir = Path("Data")
+
+    # Tìm file dữ liệu hiện tại
+    existing_file = None
+    for f in data_dir.glob("qnu-allITEM-*-chuan-hoa.xlsx"):
+        existing_file = f
+        break
+
+    file_name_saved = file.filename
+    saved_path = data_dir / file_name_saved
+
+    # Nếu file đã tồn tại & cùng hash → skip
+    if existing_file and existing_file.exists():
+        old_hash = hashlib.md5(existing_file.read_bytes()).hexdigest()
+        if new_hash == old_hash:
+            return {
+                "status": "skipped",
+                "message": "Dữ liệu không thay đổi, bỏ qua reload.",
+                "file_name": file_name_saved,
+            }
+
+    # Ghi file mới
+    with open(saved_path, "wb") as f:
+        f.write(contents)
+
+    # Xoá cache cũ
+    _cache_pkl = data_dir / "_documents_cache.pkl"
+    if _cache_pkl.exists():
+        _cache_pkl.unlink()
+
+    # Reload dữ liệu
+    try:
+        new_documents = DocumentIndexer.load_from_data("Data")
+        retriever.bm25.documents = new_documents
+        retriever.bm25._build_index()
+        global _semantic_engine
+        _semantic_engine = None
+        _build_topic_cache()
+        _search_cache.invalidate()
+        # Cập nhật mtime để check_files_changed không reload lại
+        global _startup_data_mtime
+        _startup_data_mtime = max(_startup_data_mtime, saved_path.stat().st_mtime)
+        for _f in data_dir.glob("*"):
+            if _f.is_file() and _f.name != "_documents_cache.pkl":
+                _startup_data_mtime = max(_startup_data_mtime, _f.stat().st_mtime)
+    except Exception as e:
+        logger.error("Reload dữ liệu thất bại: %s", e)
+        raise HTTPException(500, f"Reload dữ liệu thất bại: {str(e)}")
+
+    return {
+        "status": "ok",
+        "file_name": file_name_saved,
+        "file_size_mb": round(len(contents) / (1024 * 1024), 2),
+        "message": f"Đã cập nhật dữ liệu từ {file_name_saved} thành công!",
+    }
+
 @app.delete("/api/admin/pdfs/{pdf_id}")
 async def admin_delete_pdf(pdf_id: str, data: dict = Body(...)):
     if is_vercel_runtime(): raise HTTPException(405, VERCEL_READ_ONLY_MESSAGE)
@@ -1911,11 +1981,6 @@ async def admin_delete_pdf(pdf_id: str, data: dict = Body(...)):
     _search_cache.invalidate()
     removed = remove_pdf_from_index(file_name)
     return {"status": "ok", "pdf_id": pdf_id, "file_name": file_name, "removed_index_docs": removed, "message": f"Đã xóa {file_name}"}
-
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTE: /chat/with-document
-# ═══════════════════════════════════════════════════════════════
 
 @app.post("/chat/with-document")
 async def chat_with_document(req: DocumentChatRequest):

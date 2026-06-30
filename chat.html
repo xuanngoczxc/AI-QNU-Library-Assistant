@@ -236,8 +236,8 @@
     .admin-upload-btn{width:100%;padding:8px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);font-size:11px;font-weight:600;cursor:pointer;transition:var(--transition);font-family:var(--font-sans);}
     .admin-upload-btn:hover{background:rgba(255,255,255,0.1);color:#fff;}
     .admin-upload-btn:active{transform:scale(0.98);}
-    .admin-msg{font-size:10px;color:var(--pastel-green);margin-top:4px;min-height:14px;}
-    .admin-msg.error{color:var(--pastel-red-text);}
+    .admin-msg{font-size:10px;color:var(--pastel-green);margin-top:4px;min-height:14px;line-height:1.4;}
+    .admin-msg.error{color:#e57373;}
     .admin-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;margin-bottom:4px;}
 
     /* ── Chat Panel ── */
@@ -332,8 +332,9 @@
     .book-card{
       background:var(--surface);
       border:1px solid var(--border);
+      border-left:3px solid var(--accent-muted);
       border-radius:var(--radius-md);
-      padding:16px 18px;
+      padding:14px 18px;
       margin:10px 0;
       font-size:13px;
       transition:var(--transition);
@@ -345,59 +346,124 @@
     }
     .book-card:hover{
       border-color:var(--text-tertiary);
+      border-left-color:var(--accent);
       box-shadow:var(--shadow-elevated);
       transform:translateY(-1px);
     }
-    .book-card.pdf-source{cursor:pointer;}
-    .book-card.pdf-source:hover{border-color:var(--accent);}
+    .book-card.pdf-source{border-left-color:var(--accent-warm);}
+    .book-card.pdf-source:hover{border-left-color:var(--accent-warm);border-color:var(--accent);}
+
+    .book-card-header{
+      cursor:pointer;user-select:none;
+      display:flex;gap:12px;align-items:flex-start;
+      transition:var(--transition);
+    }
+    .book-card-header:hover .book-title{color:var(--accent);}
+    .book-card-header:active{opacity:0.85;}
+
+    .book-card-header-icon{
+      flex-shrink:0;margin-top:2px;
+      width:28px;height:28px;border-radius:8px;
+      background:var(--accent-soft);color:var(--accent);
+      display:flex;align-items:center;justify-content:center;
+      transition:var(--transition);
+    }
+    .book-card.pdf-source .book-card-header-icon{background:var(--accent-warm-light);color:var(--accent-warm);}
+    .book-card-header:hover .book-card-header-icon{background:var(--accent);color:#fff;transform:scale(1.05);}
+
+    .book-card-header-text{flex:1;min-width:0;}
+    .book-card-header-row{
+      display:flex;align-items:center;gap:8px;
+    }
+    .book-card-header .book-title{
+      flex:1;font-weight:600;color:var(--text-primary);
+      font-size:14px;letter-spacing:-0.01em;
+      overflow-wrap:anywhere;word-break:break-word;
+      transition:color 0.2s;
+    }
+    .book-card-chevron{
+      flex-shrink:0;color:var(--text-tertiary);
+      transition:transform 0.3s cubic-bezier(0.16,1,0.3,1), color 0.2s;
+    }
+    .book-card-chevron.open{transform:rotate(180deg);color:var(--accent);}
+    .book-card-header:hover .book-card-chevron{color:var(--accent);}
+
+    .book-card-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;}
     .source-pdf-badge{
       display:inline-flex;align-items:center;gap:4px;
-      margin-bottom:6px;padding:3px 8px;
-      border:1px solid var(--accent-muted);
+      padding:2px 8px;
+      border:1px solid var(--accent-warm);
       border-radius:999px;
-      background:var(--accent-soft);
-      color:var(--accent);
-      font-size:10.5px;font-weight:700;
+      background:var(--accent-warm-light);
+      color:var(--accent-warm);
+      font-size:10px;font-weight:700;letter-spacing:0.02em;
     }
-    .book-card .book-title{
-      font-weight:600;color:var(--text-primary);
-      margin-bottom:4px;font-size:14px;letter-spacing:-0.01em;
-      overflow-wrap:anywhere;
-      word-break:break-word;
+
+    .book-details-wrapper{
+      display:grid;
+      grid-template-rows:0fr;
+      transition:grid-template-rows 0.35s cubic-bezier(0.16,1,0.3,1);
+    }
+    .book-details-wrapper.open{grid-template-rows:1fr;}
+    .book-details{
+      overflow:hidden;min-height:0;
+      padding:0 0 0 40px;
+    }
+    .book-details-inner{padding-top:10px;}
+    .book-details-grid{
+      margin-bottom:8px;
     }
     .book-field{
-      font-size:12px;
-      color:var(--text-secondary);
-      line-height:1.35;
-      overflow-wrap:anywhere;
-      word-break:break-word;
-      white-space:normal;
-      min-width:0;
+      font-size:12px;color:var(--text-secondary);
+      line-height:1.45;overflow-wrap:anywhere;word-break:break-word;
+      white-space:normal;min-width:0;
+      padding:2px 0;
     }
-    .more-grid .book-field{font-size:11px;}
+    .book-field .book-field-label{color:var(--text-tertiary);font-weight:500;}
+    .book-field-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;}
+    .book-field-tag{
+      display:inline-block;padding:1px 7px;
+      background:var(--accent-soft);color:var(--accent);
+      border-radius:999px;font-size:11px;font-weight:500;
+    }
+
+    .book-details-sep{border:none;border-top:1px solid var(--border-light);margin:8px 0;}
+    .book-details-actions{
+      display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;
+    }
+    .book-details-actions a{
+      color:#fff;font-size:11.5px;text-decoration:none;
+      display:inline-flex;align-items:center;gap:5px;
+      background:var(--accent);padding:5px 12px;
+      border-radius:var(--radius-sm);font-weight:600;
+      transition:var(--transition);letter-spacing:-0.01em;
+    }
+    .book-details-actions a:hover{background:var(--accent-hover);}
+    .book-details-actions a:active{transform:scale(0.97);}
     .source-attach-btn{
-      display:inline-flex;align-items:center;gap:4px;
-      margin-top:8px;padding:4px 9px;
+      display:inline-flex;align-items:center;gap:5px;
+      padding:5px 12px;
       border:1px solid var(--border);
       border-radius:var(--radius-sm);
       background:var(--accent-soft);
       color:var(--accent);
-      font-size:11px;font-weight:600;
-      cursor:pointer;
-      font-family:var(--font-sans);
+      font-size:11.5px;font-weight:600;
+      cursor:pointer;font-family:var(--font-sans);
       transition:var(--transition);
     }
     .source-attach-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
-    .book-card .book-meta{color:var(--text-secondary);font-size:12px;margin-bottom:4px;}
-    .book-card a{
-      color:#fff;font-size:12px;text-decoration:none;
-      display:inline-flex;align-items:center;gap:4px;
-      background:var(--accent);padding:6px 12px;
-      border-radius:var(--radius-sm);font-weight:600;
-      transition:var(--transition);letter-spacing:-0.01em;
+
+    .book-details .book-abstract{
+      font-size:12px;color:var(--text-secondary);
+      margin:8px 0;padding:10px 12px;
+      background:var(--accent-soft);border:1px solid var(--border);
+      border-radius:var(--radius-sm);line-height:1.55;
     }
-    .book-card a:hover{background:var(--accent-hover);}
-    .book-card a:active{transform:scale(0.97);}
+
+    .more-grid .book-field{font-size:11px;}
+    .more-grid .book-field-tag{font-size:10px;}
+    .more-grid .book-card{border-left-width:2px;padding:12px 14px;}
+    .more-grid .book-card-header-icon{width:24px;height:24px;}
 
     .composer{
       position:relative;
@@ -824,7 +890,30 @@
       <span class="book-count" id="bookCount">--</span>
     </div>
     </div>
-    <div class="sidebar-sticky">
+    <div class="sidebar-sticky" id="adminPdfArea">
+      <!-- Admin Section -->
+      <div class="admin-section" style="padding:0;">
+        <div class="admin-login-row" id="adminLoginRow" style="display:flex;">
+          <input type="password" id="adminPwd" class="admin-input" placeholder="Mật khẩu quản trị" autocomplete="new-password">
+          <button class="admin-btn primary" onclick="adminLogin()">Đăng nhập</button>
+        </div>
+        <div id="adminUploadArea" style="display:none;">
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="display:flex;gap:4px;align-items:center;">
+              <button class="admin-btn" onclick="document.getElementById('xlsxInput').click()" style="flex:1;justify-content:center;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Cập nhật dữ liệu Excel
+              </button>
+              <button class="admin-btn small" onclick="adminLogout()" title="Đăng xuất">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="uploadMsg" class="admin-msg"></div>
+        <input type="file" id="xlsxInput" accept=".xlsx,.xls" style="display:none" onchange="uploadData(this)">
+      </div>
+    </div>
   </aside>
 
   <main class="chat-panel">
@@ -1415,13 +1504,6 @@ function appendSources(afterId, sources, totalFound, followUps) {
     return junk.some(k => v.includes(k));
   }
 
-  function fieldArray(label, val) {
-    if (Array.isArray(val) && val.length > 0) {
-      return `<div class="book-field"><span style="color:var(--text-tertiary);">${label}:</span> ${val.map(esc).join(', ')}</div>`;
-    }
-    return '';
-  }
-
   function bookCard(b, idx) {
     let linkUrl = b.link || "";
     let linkMatch = null;
@@ -1435,62 +1517,84 @@ function appendSources(afterId, sources, totalFound, followUps) {
     const pdfFileName = b.file_name || b.source || "";
     const pdfTitle = b.display_name || b.title || "";
     const attachAttrs = canAttachPdf
-      ? ` data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}" title="Click để xem nội dung"`
+      ? ` data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}"`
       : "";
 
-    let followUpHtml = '';
+    const uid = `${containerId}-${idx}`;
+    const wrapperId = `book-wrap-${uid}`;
+    const detailsId = `book-details-${uid}`;
+    const chevId = `book-chev-${uid}`;
+
+    // Fields
+    let fieldsHtml = '';
+    const addField = (label, val, isArr) => {
+      if (!val || (typeof val === 'string' && ['Unknown','N/A','Không xác định','nan'].includes(val.trim()))) return;
+      if (Array.isArray(val) && val.length === 0) return;
+      const content = Array.isArray(val)
+        ? val.map(v => `<span class="book-field-tag">${esc(v)}</span>`).join('')
+        : esc(val);
+      fieldsHtml += `<div class="book-field"><span class="book-field-label">${label}:</span> ${content}</div>`;
+    };
+
+    addField('Tên song ngữ', b.bilingual_title);
+    if (!_isJunkValue(b.author)) addField('Tác giả', b.author);
+    addField('Năm XB', b.year);
+    addField('Lần XB', b.edition);
+    addField('NXB', b.publisher);
+    addField('Nơi XB', b.place);
+    addField('Loại tài liệu', b.doc_type);
+    addField('Chuyên ngành', b.major);
+    addField('Học phần', b.course);
+    addField('Từ khóa', b.keywords || b.subject);
+    addField('DDC', b.ddc);
+    addField('Vị trí', b.location);
+
+    // Abstract
+    let abstractHtml = '';
+    if (b.abstract) {
+      abstractHtml = `<div class="book-abstract">${esc(b.abstract)}</div>`;
+    }
+
+    // Actions
+    let actionsHtml = '';
+    if (linkUrl && linkUrl.startsWith('http')) {
+      actionsHtml += `<a href="${attr(linkUrl)}" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Mở tài liệu
+      </a>`;
+    }
+    if (canAttachPdf) {
+      actionsHtml += `<button type="button" class="source-attach-btn" data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        Xem nội dung
+      </button>`;
+    }
+    if (actionsHtml) {
+      actionsHtml = `<hr class="book-details-sep"><div class="book-details-actions">${actionsHtml}</div>`;
+    }
+
+    const chevronSvg = `<svg id="${chevId}" class="book-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
 
     return `<div class="${cardClass}"${attachAttrs}>
-      <div style="display:flex; gap:10px; align-items:flex-start;">
-        <div style="font-size:20px; flex-shrink:0; margin-top:2px; color:var(--accent);">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <div class="book-card-header" onclick="toggleBookDetails('${wrapperId}','${chevId}')">
+        <div class="book-card-header-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         </div>
-        <div style="flex:1; min-width:0;">
-          ${canAttachPdf ? `
-            <div class="source-pdf-badge">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              PDF có thể đọc nội dung
-            </div>
-          ` : ''}
-          <div class="book-title">${esc(b.title||"Tài liệu")}</div>
-          ${field('Tên song ngữ', b.bilingual_title || '')}
-          ${_isJunkValue(b.author) ? '' : field('Tác giả', b.author)}
-          ${field('Năm XB', b.year)}
-          ${field('Lần XB', b.edition || '')}
-          ${field('NXB', b.publisher)}
-          ${field('Nơi XB', b.place || '')}
-          ${field('Loại tài liệu', b.doc_type)}
-          ${field('Chuyên ngành', b.major)}
-          ${field('Học phần', b.course || '')}
-          ${fieldArray('Từ khóa', b.keywords)}
-          ${_isJunkValue(b.subject) ? '' : field('Từ khóa', b.subject)}
-          ${field('DDC', b.ddc)}
-          ${field('Vị trí', b.location || '')}
-          ${b.abstract ? `
-            <div id="abstract-${containerId}-${idx}" style="display:none; font-size:12px; color:var(--text-secondary); margin:6px 0; padding:8px 10px; background:var(--accent-soft); border:1px solid var(--border); border-radius:var(--radius-sm); line-height:1.5;">${esc(b.abstract)}</div>
-            <button onclick="toggleAbstractById('abstract-${containerId}-${idx}')" style="font-size:11px; color:var(--text-secondary); background:var(--accent-soft); border:1px solid var(--border); padding:4px 10px; border-radius:var(--radius-sm); cursor:pointer; font-weight:500; margin-bottom:6px; transition:var(--transition); font-family:var(--font-sans);" onmouseover="this.style.background='var(--border-light)'" onmouseout="this.style.background='var(--accent-soft)'">
-              <span id="abstract-btn-${containerId}-${idx}">Xem tóm tắt</span>
-            </button>
-          ` : ''}
-          ${linkUrl && linkUrl.startsWith('http') ? `
-            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
-              <a href="${esc(linkUrl)}" target="_blank" rel="noopener">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Mở tài liệu
-              </a>
-              <button onclick="copyLink('${esc(linkUrl)}')" style="display:inline-flex;align-items:center;gap:4px;color:var(--text-tertiary); background:var(--accent-soft); border:1px solid var(--border); padding:5px 10px; border-radius:var(--radius-sm); font-size:11px; cursor:pointer; font-weight:500; transition:var(--transition); font-family:var(--font-sans);" onmouseover="this.style.background='var(--border-light)'" onmouseout="this.style.background='var(--accent-soft)'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                Copy link
-              </button>
-            </div>
-          ` : ''}
-          ${canAttachPdf ? `
-            <button type="button" class="source-attach-btn" data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              Xem nội dung tài liệu
-            </button>
-          ` : ''}
-          ${followUpHtml}
+        <div class="book-card-header-text">
+          <div class="book-card-header-row">
+            <div class="book-title">${esc(b.title||"Tài liệu")}</div>
+            ${chevronSvg}
+          </div>
+          ${canAttachPdf ? `<div class="book-card-badges"><span class="source-pdf-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF</span></div>` : ''}
+        </div>
+      </div>
+      <div id="${wrapperId}" class="book-details-wrapper">
+        <div class="book-details">
+          <div class="book-details-inner">
+            <div class="book-details-grid">${fieldsHtml}</div>
+            ${abstractHtml}
+            ${actionsHtml}
+          </div>
         </div>
       </div>
     </div>`;
@@ -1558,19 +1662,20 @@ function appendSources(afterId, sources, totalFound, followUps) {
   renderPage(1);
 }
 
+function toggleBookDetails(wrapperId, chevId) {
+  const wrap = document.getElementById(wrapperId);
+  const ch = document.getElementById(chevId);
+  if (!wrap) return;
+  const isOpen = wrap.classList.toggle('open');
+  if (ch) ch.classList.toggle('open', isOpen);
+}
+
 function bindSourcePdfCards(scope) {
   scope.querySelectorAll(".source-attach-btn").forEach((btn) => {
     btn.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
       attachSourcePdf(btn.dataset.pdfId, btn.dataset.pdfFile, btn.dataset.pdfTitle);
-    };
-  });
-
-  scope.querySelectorAll(".book-card.pdf-source").forEach((card) => {
-    card.onclick = (event) => {
-      if (event.target.closest("a,button")) return;
-      attachSourcePdf(card.dataset.pdfId, card.dataset.pdfFile, card.dataset.pdfTitle);
     };
   });
 }
@@ -1655,6 +1760,7 @@ async function showRelatedSuggestions() {
     for (const [reason, docs] of Object.entries(groups)) {
       html += `<div style="margin-bottom:6px;"><span style="font-weight:700;color:var(--accent);font-size:11px;letter-spacing:0.03em;">${esc(reason)}</span></div>`;
       docs.forEach((d) => {
+        const _ruid = "rel-" + Math.random().toString(36).slice(2, 8);
         const year = d.year && d.year !== 'N/A' ? d.year : '';
         const author = d.author && d.author !== 'Unknown' ? d.author : '';
         const major = d.major || '';
@@ -1665,25 +1771,25 @@ async function showRelatedSuggestions() {
         const location = d.location || '';
         const abstract = d.abstract || '';
         const linkUrl = d.link || '';
-        html += `<div class="book-card" style="margin-bottom:8px;"><div style="display:flex;gap:10px;align-items:flex-start;"><div style="font-size:20px;flex-shrink:0;margin-top:2px;color:var(--accent);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>`;
-        html += `<div style="flex:1;min-width:0;"><div class="book-title">${esc(d.title || "Tài liệu")}</div>`;
-        if (author) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Tác giả:</span> ${esc(author)}</div>`;
-        if (year) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Năm:</span> ${esc(year)}</div>`;
-        if (docType) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Loại:</span> ${esc(docType)}</div>`;
-        if (major) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Ngành:</span> ${esc(major)}</div>`;
-        if (subject) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Từ khóa:</span> ${esc(subject)}</div>`;
-        if (ddc) html += `<div class="book-field"><span style="color:var(--text-tertiary);">DDC:</span> ${esc(ddc)}</div>`;
-        if (publisher) html += `<div class="book-field"><span style="color:var(--text-tertiary);">NXB:</span> ${esc(publisher)}</div>`;
-        if (location) html += `<div class="book-field"><span style="color:var(--text-tertiary);">Vị trí:</span> ${esc(location)}</div>`;
-        if (abstract) {
-          const absId = "rel-abs-" + Math.random().toString(36).slice(2, 8);
-          html += `<div id="${absId}" style="display:none;font-size:12px;color:var(--text-secondary);margin:6px 0;padding:8px 10px;background:var(--accent-soft);border:1px solid var(--border);border-radius:var(--radius-sm);line-height:1.5;">${esc(abstract)}</div>`;
-          html += `<button onclick="toggleAbstractById('${absId}')" style="font-size:11px;color:var(--text-secondary);background:var(--accent-soft);border:1px solid var(--border);padding:4px 10px;border-radius:var(--radius-sm);cursor:pointer;font-weight:500;margin-bottom:6px;font-family:var(--font-sans);">Xem tóm tắt</button>`;
-        }
-        if (linkUrl && linkUrl.startsWith('http')) {
-          html += `<div style="margin-top:4px;"><a href="${esc(linkUrl)}" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a></div>`;
-        }
-        html += `</div></div></div>`;
+        let _relDet = '';
+        if (author) _relDet += '<div class="book-field"><span class="book-field-label">Tác giả:</span> ' + esc(author) + '</div>';
+        if (year) _relDet += '<div class="book-field"><span class="book-field-label">Năm:</span> ' + esc(year) + '</div>';
+        if (docType) _relDet += '<div class="book-field"><span class="book-field-label">Loại:</span> ' + esc(docType) + '</div>';
+        if (major) _relDet += '<div class="book-field"><span class="book-field-label">Ngành:</span> ' + esc(major) + '</div>';
+        if (subject) _relDet += '<div class="book-field"><span class="book-field-label">Từ khóa:</span> ' + esc(subject) + '</div>';
+        if (ddc) _relDet += '<div class="book-field"><span class="book-field-label">DDC:</span> ' + esc(ddc) + '</div>';
+        if (publisher) _relDet += '<div class="book-field"><span class="book-field-label">NXB:</span> ' + esc(publisher) + '</div>';
+        if (location) _relDet += '<div class="book-field"><span class="book-field-label">Vị trí:</span> ' + esc(location) + '</div>';
+        if (abstract) _relDet += '<div class="book-abstract">' + esc(abstract) + '</div>';
+        let _relAct = '';
+        if (linkUrl && linkUrl.startsWith('http')) _relAct += '<a href="' + attr(linkUrl) + '" target="_blank" rel="noopener"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a>';
+        if (_relAct) _relAct = '<hr class="book-details-sep"><div class="book-details-actions">' + _relAct + '</div>';
+        html += `<div class="book-card" style="margin-bottom:8px;">
+          <div class="book-card-header" onclick="toggleBookDetails('${_ruid}-w','${_ruid}-c')">
+            <div class="book-card-header-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+            <div class="book-card-header-text"><div class="book-card-header-row"><div class="book-title">${esc(d.title || "Tài liệu")}</div><svg id="${_ruid}-c" class="book-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div></div>
+          </div>
+          <div id="${_ruid}-w" class="book-details-wrapper"><div class="book-details"><div class="book-details-inner"><div class="book-details-grid">${_relDet}</div>${_relAct}</div></div></div></div>`;
       });
     }
 
@@ -1842,14 +1948,6 @@ function toggleAbstractById(id) {
   const isHidden = el.style.display === 'none';
   el.style.display = isHidden ? 'block' : 'none';
   if (btn) btn.textContent = isHidden ? 'Ẩn tóm tắt' : 'Tóm tắt';
-}
-
-function copyLink(url) {
-  navigator.clipboard.writeText(url).then(() => {
-    alert('Đã copy link vào clipboard!');
-  }).catch(err => {
-    console.error('Copy failed:', err);
-  });
 }
 
 function toggleAbstract(idx) {
@@ -2182,31 +2280,33 @@ async function loadMoreDocs(page, search) {
     if (!items.length) { grid.innerHTML = '<div class="more-loading">Không có tài liệu</div>'; return; }
     let html = "";
     items.forEach(function(b) {
-      let linkUrl = b.link || "";
-      function field(label, val) {
-        if (val && val !== 'Unknown' && val !== 'N/A' && val !== 'Không xác định')
-          return '<div class="book-field"><span style="color:var(--text-tertiary);">' + label + ':</span> ' + esc(val).substring(0,160) + '</div>';
-        return '';
+      const _uid = 'more-' + page + '-' + items.indexOf(b);
+      let _moreDetails = '';
+      function _moreField(l, v) {
+        if (v && v !== 'Unknown' && v !== 'N/A' && v !== 'Không xác định')
+          _moreDetails += '<div class="book-field"><span class="book-field-label">' + l + ':</span> ' + esc(v) + '</div>';
       }
-      function _isJunk(val) {
-        var v = String(val || '').toLowerCase().trim();
-        if (!v || v === 'unknown' || v === 'n/a' || v === 'pdf' || v === 'nan') return true;
-        return ['aspose','converter','epubtopdf','pdftool','pdfsharp','itext'].some(function(k){ return v.indexOf(k) >= 0; });
+      function _moreJunk(v) {
+        var s = String(v||'').toLowerCase().trim();
+        if (!s||s==='unknown'||s==='n/a'||s==='pdf'||s==='nan') return true;
+        return ['aspose','converter','epubtopdf','pdftool','pdfsharp','itext'].some(function(k){return s.indexOf(k)>=0;});
       }
-      html += '<div class="book-card"><div style="display:flex;gap:10px;align-items:flex-start;">' +
-        '<div style="font-size:16px;flex-shrink:0;margin-top:2px;color:var(--accent);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>' +
-        '<div style="flex:1;min-width:0;">' +
-        '<div class="book-title">' + esc(b.title||"Tài liệu") + '</div>' +
-        (_isJunk(b.author) ? '' : field('Tác giả', b.author)) +
-        field('Năm', b.year) +
-        field('Loại', b.doc_type) +
-        field('Ngành', b.major) +
-        (_isJunk(b.subject) ? '' : field('Chủ đề', b.subject)) +
-        field('DDC', b.ddc) +
-        field('NXB', b.publisher) +
-        field('Vị trí', b.location ? b.location.substring(0,120) : '') +
-        (linkUrl && linkUrl.startsWith('http') ? '<div style="margin-top:4px;"><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a></div>' : '') +
-        '</div></div></div>';
+      if (!_moreJunk(b.author)) _moreField('Tác giả', b.author);
+      _moreField('Năm', b.year);
+      _moreField('Loại', b.doc_type);
+      _moreField('Ngành', b.major);
+      if (!_moreJunk(b.subject)) _moreField('Chủ đề', b.subject);
+      _moreField('DDC', b.ddc);
+      _moreField('NXB', b.publisher);
+      _moreField('Vị trí', b.location);
+      var _moreActions = '';
+      if (linkUrl && linkUrl.startsWith('http')) _moreActions += '<a href="' + attr(linkUrl) + '" target="_blank" rel="noopener"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a>';
+      if (_moreActions) _moreActions = '<hr class="book-details-sep"><div class="book-details-actions">' + _moreActions + '</div>';
+      html += '<div class="book-card"><div class="book-card-header" onclick="toggleBookDetails(\'' + _uid + '-w\',\'' + _uid + '-c\')">' +
+        '<div class="book-card-header-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>' +
+        '<div class="book-card-header-text"><div class="book-card-header-row"><div class="book-title">' + esc(b.title||"Tài liệu") + '</div><svg id="' + _uid + '-c" class="book-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div></div>' +
+        '</div>' +
+        '<div id="' + _uid + '-w" class="book-details-wrapper"><div class="book-details"><div class="book-details-inner"><div class="book-details-grid">' + _moreDetails + '</div>' + _moreActions + '</div></div></div></div>';
     });
     grid.innerHTML = html;
     // Pagination
@@ -2250,31 +2350,33 @@ function debounceSearch() {
       if (!items.length) { grid.innerHTML = '<div class="more-loading">Không tìm thấy</div>'; return; }
       let html = "";
       items.forEach(function(b) {
-        let linkUrl = b.link || "";
-        function field(label, val) {
-          if (val && val !== 'Unknown' && val !== 'N/A' && val !== 'Không xác định')
-            return '<div class="book-field"><span style="color:var(--text-tertiary);">' + label + ':</span> ' + esc(val).substring(0,160) + '</div>';
-          return '';
+        const _uid2 = 'browse-' + items.indexOf(b);
+        let _browseDetails = '';
+        function _browseField(l, v) {
+          if (v && v !== 'Unknown' && v !== 'N/A' && v !== 'Không xác định')
+            _browseDetails += '<div class="book-field"><span class="book-field-label">' + l + ':</span> ' + esc(v) + '</div>';
         }
-        function _isJunk(val) {
-          var v = String(val || '').toLowerCase().trim();
-          if (!v || v === 'unknown' || v === 'n/a' || v === 'pdf' || v === 'nan') return true;
-          return ['aspose','converter','epubtopdf','pdftool','pdfsharp','itext'].some(function(k){ return v.indexOf(k) >= 0; });
+        function _browseJunk(v) {
+          var s = String(v||'').toLowerCase().trim();
+          if (!s||s==='unknown'||s==='n/a'||s==='pdf'||s==='nan') return true;
+          return ['aspose','converter','epubtopdf','pdftool','pdfsharp','itext'].some(function(k){return s.indexOf(k)>=0;});
         }
-        html += '<div class="book-card"><div style="display:flex;gap:10px;align-items:flex-start;">' +
-          '<div style="font-size:16px;flex-shrink:0;margin-top:2px;color:var(--accent);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>' +
-          '<div style="flex:1;min-width:0;">' +
-          '<div class="book-title">' + esc(b.title||"Tài liệu") + '</div>' +
-          (_isJunk(b.author) ? '' : field('Tác giả', b.author)) +
-          field('Năm', b.year) +
-          field('Loại', b.doc_type) +
-          field('Ngành', b.major) +
-          (_isJunk(b.subject) ? '' : field('Chủ đề', b.subject)) +
-          field('DDC', b.ddc) +
-          field('NXB', b.publisher) +
-          field('Vị trí', b.location || '') +
-          (linkUrl && linkUrl.startsWith('http') ? '<div style="margin-top:4px;"><a href="' + esc(linkUrl) + '" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a></div>' : '') +
-          '</div></div></div>';
+        if (!_browseJunk(b.author)) _browseField('Tác giả', b.author);
+        _browseField('Năm', b.year);
+        _browseField('Loại', b.doc_type);
+        _browseField('Ngành', b.major);
+        if (!_browseJunk(b.subject)) _browseField('Chủ đề', b.subject);
+        _browseField('DDC', b.ddc);
+        _browseField('NXB', b.publisher);
+        _browseField('Vị trí', b.location || '');
+        var _browseActions = '';
+        if (linkUrl && linkUrl.startsWith('http')) _browseActions += '<a href="' + attr(linkUrl) + '" target="_blank" rel="noopener"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a>';
+        if (_browseActions) _browseActions = '<hr class="book-details-sep"><div class="book-details-actions">' + _browseActions + '</div>';
+        html += '<div class="book-card"><div class="book-card-header" onclick="toggleBookDetails(\'' + _uid2 + '-w\',\'' + _uid2 + '-c\')">' +
+          '<div class="book-card-header-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>' +
+          '<div class="book-card-header-text"><div class="book-card-header-row"><div class="book-title">' + esc(b.title||"Tài liệu") + '</div><svg id="' + _uid2 + '-c" class="book-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div></div>' +
+          '</div>' +
+          '<div id="' + _uid2 + '-w" class="book-details-wrapper"><div class="book-details"><div class="book-details-inner"><div class="book-details-grid">' + _browseDetails + '</div>' + _browseActions + '</div></div></div></div>';
       });
       document.getElementById("morePagination").innerHTML = "";
       grid.innerHTML = html;
@@ -2296,7 +2398,8 @@ _qInput.addEventListener("keydown", function(e){
 });
 // PDF Overlay keyboard handlers
 document.getElementById("adminPwd").addEventListener("input", function(){
-  document.getElementById("adminLoginMsg").textContent = "";
+  const el = document.getElementById("uploadMsg");
+  if (el) el.textContent = "";
 });
 // Nhấn Enter trong ô mật khẩu → submit luôn
 document.getElementById("adminPwd").addEventListener("keydown", function(e){
@@ -2304,6 +2407,15 @@ document.getElementById("adminPwd").addEventListener("keydown", function(e){
 });
 
 let adminToken = localStorage.getItem("qnu_admin_token") || "";
+
+// Khôi phục session admin nếu đã có token
+(function restoreAdminSession() {
+  if (!adminToken) return;
+  const loginRow = document.getElementById("adminLoginRow");
+  const uploadArea = document.getElementById("adminUploadArea");
+  if (loginRow) loginRow.style.display = "none";
+  if (uploadArea) uploadArea.style.display = "block";
+})();
 
 function configureReadOnlyMode() {
   if (!backendReadOnly) return;
@@ -2332,19 +2444,17 @@ async function adminLogin() {
       body: JSON.stringify({ password: pwd })
     });
     if (!res.ok) {
-      const el = document.getElementById("adminLoginMsg");
-      el.textContent = "Sai mật khẩu!";
-      el.className = "admin-msg error";
+      showUploadMsg("Sai mật khẩu!", true);
       document.getElementById("adminPwd").value = "";
       document.getElementById("adminPwd").focus();
       return;
     }
     const data = await res.json();
-  adminToken = data.token;
-  localStorage.setItem("qnu_admin_token", adminToken);
-  document.getElementById("adminLoginRow").style.display = "none";
-  document.getElementById("adminUploadArea").style.display = "block";
-  showUploadMsg("Đã đăng nhập", false);
+    adminToken = data.token;
+    localStorage.setItem("qnu_admin_token", adminToken);
+    document.getElementById("adminLoginRow").style.display = "none";
+    document.getElementById("adminUploadArea").style.display = "block";
+    showUploadMsg("Đã đăng nhập", false);
   } catch(e) {
     showUploadMsg("Lỗi: " + e.message, true);
   }
@@ -2356,90 +2466,52 @@ function adminLogout() {
   document.getElementById("adminLoginRow").style.display = "flex";
   document.getElementById("adminPwd").value = "";
   document.getElementById("adminUploadArea").style.display = "none";
-  document.getElementById("adminLoginMsg").textContent = "";
-  // Ẩn section PDF khi logout
-  document.querySelector(".sidebar")?.classList.remove("show-pdf");
-  document.getElementById("pdfList").innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,0.45);">Đang tải...</div>';
-  localStorage.removeItem("qnu_admin_token");
-  document.getElementById("adminLoginRow").style.display = "flex";
-  document.getElementById("adminUploadArea").style.display = "none";
-  document.getElementById("adminPwd").value = "";
-  renderPdfList(allPdfItems);
+  const msgEl = document.getElementById("uploadMsg");
+  if (msgEl) { msgEl.textContent = ""; }
   showUploadMsg("", false);
 }
 
 function showUploadMsg(text, isError) {
   const el = document.getElementById("uploadMsg");
+  if (!el) return;
   el.textContent = text;
   el.className = "admin-msg" + (isError ? " error" : "");
 }
 
-// /**
-//  * Xóa 1 file PDF (chỉ admin).
-//  * Gọi DELETE /api/admin/pdfs/{id} → xóa file vật lý + cache + index.
-//  * Sau khi xóa → reload danh sách PDF.
-//  */
-// async function deletePdf(pdf, event) {
-//   if (event) {
-//     event.preventDefault();
-//     event.stopPropagation();
-//   }
-//   if (!adminToken) {
-//     showUploadMsg("Cần đăng nhập admin", true);
-//     return;
-//   }
+async function uploadData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".xlsx") && !file.name.toLowerCase().endsWith(".xls")) {
+    showUploadMsg("Chỉ chấp nhận file Excel (.xlsx / .xls)!", true);
+    return;
+  }
+  showUploadMsg("Đang xử lý dữ liệu...", false);
 
-//   const label = pdf.display_name || pdf.file_stem || pdf.file_name || pdf.title || "PDF";
-//   if (!confirm(`Xóa PDF "${label}"?`)) return;
+  const formData = new FormData();
+  formData.append("token", adminToken);
+  formData.append("file", file);
 
-//   showUploadMsg("Đang xóa...", false);
-//   try {
-//     const res = await fetch(BACKEND + "/api/admin/pdfs/" + encodeURIComponent(pdf.id), {
-//       method: "DELETE",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({ token: adminToken })
-//     });
-//     const data = await res.json();
-//     if (!res.ok) { throw new Error(data.detail || "Xóa thất bại"); }
+  try {
+    const res = await fetch(BACKEND + "/api/admin/upload-data", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) { throw new Error(data.detail || "Upload thất bại"); }
 
-//     if (currentSelectedPdf && currentSelectedPdf.id === pdf.id) {
-//       currentSelectedPdf = null;
-//       document.querySelectorAll(".pdf-item").forEach(item => item.classList.remove("active"));
-//     }
-//     showUploadMsg("✓ Đã xóa " + (data.file_name || label), false);
-//     loadPdfList();
-//   } catch(e) {
-//     showUploadMsg("Lỗi: " + e.message, true);
-//   }
-// }
-
-// async function uploadPdf(input) {
-//   const file = input.files[0];
-//   if (!file) return;
-//   if (!file.name.toLowerCase().endsWith(".pdf")) {
-//     showUploadMsg("Chỉ chấp nhận file PDF!", true); return;
-//   }
-//   showUploadMsg("Đang upload...", false);
-
-//   const formData = new FormData();
-//   formData.append("token", adminToken);
-//   formData.append("file", file);
-
-//   try {
-//     const res = await fetch(BACKEND + "/api/admin/upload", {
-//       method: "POST",
-//       body: formData
-//     });
-//     const data = await res.json();
-//     if (!res.ok) { throw new Error(data.detail || "Upload thất bại"); }
-//     showUploadMsg("✓ " + data.file_name, false);
-//     input.value = "";
-//     // Reload PDF list
-//     loadPdfList();
-//   } catch(e) {
-//     showUploadMsg("Lỗi: " + e.message, true);
-//   }
-// }
+    if (data.status === "skipped") {
+      showUploadMsg("✓ Dữ liệu không đổi, không cần reload", false);
+    } else {
+      showUploadMsg("✓ " + (data.message || "Cập nhật thành công!"), false);
+      // Refresh lại book count
+      if (typeof loadPdfList === 'function') loadPdfList();
+    }
+    input.value = "";
+  } catch(e) {
+    showUploadMsg("Lỗi: " + e.message, true);
+    input.value = "";
+  }
+}
 </script>
 </body>
 </html>
