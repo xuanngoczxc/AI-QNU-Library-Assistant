@@ -329,7 +329,6 @@
     }
     .msg.user .bubble .cursor{background:rgba(255,255,255,0.8);}
 
-    /* ── Book Cards (taste-skill: Double-Bezel + Bento) ── */
     .book-card{
       background:var(--surface);
       border:1px solid var(--border);
@@ -400,7 +399,6 @@
     .book-card a:hover{background:var(--accent-hover);}
     .book-card a:active{transform:scale(0.97);}
 
-    /* ── Composer ── */
     .composer{
       position:relative;
       padding:12px 24px 16px;
@@ -435,7 +433,6 @@
     .send-btn:active{transform:scale(0.97);}
     .send-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
 
-    /* ── Stop Button ── */
     .stop-btn{
       padding:7px 16px;height:36px;
       background:#F04444;color:#fff;
@@ -450,7 +447,6 @@
     .stop-btn.show{display:flex;}
     .send-btn.hide{display:none;}
 
-    /* ── Mic (voice) button ── */
     .mic-btn{
       padding:7px;height:36px;width:36px;
       background:var(--bg);color:var(--text-secondary);
@@ -475,10 +471,6 @@
       transition:opacity 0.2s;z-index:10;
     }
     .mic-hint.show{opacity:1;}
-    /* (mic CSS is inside the .composer block above for clarity) */
-    /* (duplicate .composer{position:relative} removed; see main .composer block) */
-
-    /* ── Typing ── */
     .typing-indicator{display:flex;gap:5px;align-items:center;padding:6px 0;}
     .typing-indicator span{
       width:8px;height:8px;border-radius:50%;
@@ -526,7 +518,6 @@
     .more-pagination button:disabled{opacity:0.4;cursor:default;}
     .more-pagination span{font-size:12px;color:var(--text-tertiary);font-weight:500;}
 
-    /* ── Animations ── */
     @keyframes fadeSlideIn{
       from{opacity:0;transform:translateY(10px);}
       to{opacity:1;transform:none;}
@@ -538,7 +529,6 @@
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
     @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
 
-    /* ── Highlight ── */
     strong{color:var(--text-primary);font-weight:700;}
     .bubble p{margin:0 0 8px;}
     .bubble p:last-child{margin-bottom:0;}
@@ -553,7 +543,6 @@
     .bubble h4{font-size:13px;font-weight:600;margin:8px 0 4px;color:var(--text-primary);line-height:1.4;}
     .bubble ul,.bubble ol{margin:7px 0 10px 18px;padding-left:14px;}
 
-    /* ── Welcome Card ── */
     .welcome-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
     .welcome-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-hover));display:flex;align-items:center;justify-content:center;flex-shrink:0;}
     .welcome-title{font-size:16px;font-weight:700;color:var(--text-primary);letter-spacing:-0.02em;}
@@ -565,18 +554,15 @@
     .welcome-card:active{transform:scale(0.98);}
     .welcome-card-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
 
-    /* ── Copy Button ── */
     .msg-actions{display:flex;gap:4px;margin-top:6px;opacity:0;transition:opacity 0.2s;}
     .msg.bot:hover .msg-actions{opacity:1;}
     .copy-btn{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text-tertiary);font-size:10px;font-weight:500;font-family:var(--font-sans);cursor:pointer;transition:var(--transition);}
     .copy-btn:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}
     .copy-btn.copied{background:var(--pastel-green);color:var(--pastel-green-text);border-color:var(--pastel-green);}
 
-    /* ── Message Timestamp ── */
     .msg-time{font-size:10px;color:var(--text-tertiary);margin-top:4px;opacity:0.6;}
     .msg.user .msg-time{text-align:right;}
 
-    /* ── Typing Indicator v2 ── */
     .typing-indicator{display:flex;gap:5px;align-items:center;padding:6px 0;}
     .typing-indicator span{
       width:7px;height:7px;border-radius:50%;
@@ -623,7 +609,6 @@
       margin-bottom:6px;letter-spacing:0.02em;
     }
 
-    /* ── PDF Chat Overlay ── */
     .pdf-overlay{
       position:fixed;inset:0;z-index:1000;
       display:none;
@@ -826,15 +811,6 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       <span>Đối thoại mới</span>
     </button>
-    <!-- Ẩn toàn bộ phần PDF list trong sidebar -->
-    <!--
-    <p class="section-title pdf-section-title">Tài liệu PDF</p>
-    <div class="section-card pdf-section">
-      <div id="pdfList" class="pdf-list">
-        <div style="font-size:11px;color:rgba(255,255,255,0.45);">Đang tải...</div>
-      </div>
-    </div>
-    -->
     <div class="section-card">
       <p class="section-title">Tra cứu theo ngành</p>
       <div class="faculty-tree" id="facultyTree"></div>
@@ -934,14 +910,9 @@ window.addEventListener("load", async () => {
     appendMsg("bot", `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Backend chưa chạy!<br>Mở terminal và chạy:<br><code>uvicorn app:app --reload --port 8000</code>`);
   }
 
-  // Check voice availability + setup mic
   setupVoiceInput();
-
-  // Load faculty tree
   loadFacultyTree();
 });
-
-// ── Voice Input (Giai đoạn 3) ──────────────────────────────
 
 let mediaRecorder = null;
 let audioChunks = [];
@@ -951,7 +922,6 @@ async function setupVoiceInput() {
   const micBtn = document.getElementById("micBtn");
   if (!micBtn) return;
 
-  // Check voice status from backend
   try {
     const res = await fetch(BACKEND + "/api/voice/status");
     if (res.ok) {
@@ -982,7 +952,6 @@ async function toggleRecording() {
     return;
   }
 
-  // Kiểm tra trình duyệt có hỗ trợ không
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     appendMsg("bot", "Trình duyệt không hỗ trợ microphone. Hãy dùng Chrome/Edge mới nhất, mở bằng http://localhost:8000 (không phải file://).");
     return;
@@ -990,7 +959,6 @@ async function toggleRecording() {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // Chọn mimeType hỗ trợ (ưu tiên webm, fallback mp4)
     const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
       ? "audio/webm;codecs=opus"
       : (MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "");
@@ -1023,7 +991,6 @@ async function toggleRecording() {
     } else {
       msg += `Lỗi: ${err.message || err.name}`;
     }
-    // Thêm gợi ý cho deployment HTTPS
     if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
       msg += ' — Trên deployment, micro chỉ hoạt động qua HTTPS.';
     }
@@ -1097,27 +1064,6 @@ async function sendAudioToBackend() {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// QUẢN LÝ PDF — Frontend JavaScript
-// ═══════════════════════════════════════════════════════════════
-// Các hàm chính:
-//   loadPdfList()          — Tải danh sách PDF từ backend, hiển thị sidebar
-//   renderPdfList(pdfs)    — Render danh sách PDF vào sidebar
-//   selectPdf(pdf)         — Chọn PDF → mở overlay panel hỏi đáp
-//   findPdfItem(...)       — Tìm PDF theo id/file_name/title
-//   attachSourcePdf(...)   — Đính kèm PDF từ kết quả search
-//   openPdfOverlay(pdf)    — Mở panel overlay hỏi đáp theo PDF
-//   closePdfOverlay()      — Đóng panel overlay
-//   sendPdfOverlayMessage()— Gửi câu hỏi trong overlay → backend /chat/with-document
-//   deletePdf(pdf)         — Xóa PDF (admin)
-//   uploadPdf(input)       — Upload PDF mới (admin)
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * Tải danh sách PDF từ backend (/api/pdfs) và hiển thị trong sidebar.
- * Chỉ admin mới thấy danh sách PDF (ẩn bằng CSS .pdf-section).
- * Sau khi tải, gọi renderPdfList() để render vào DOM.
- */
 async function loadPdfList() {
   try {
     const res = await fetch(BACKEND + "/api/pdfs");
@@ -1140,12 +1086,6 @@ async function loadPdfList() {
   }
 }
 
-/**
- * Render danh sách PDF vào sidebar.
- * Mỗi PDF hiển thị: tên, subtitle (năm, metadata), nút xóa (admin).
- * Kích hoạt highlight cho PDF đang chọn (currentSelectedPdf).
- * Bind sự kiện click → selectPdf(), click nút xóa → deletePdf().
- */
 function renderPdfList(pdfs) {
   const pdfListDiv = document.getElementById("pdfList");
   pdfListDiv.classList.toggle("admin-active", Boolean(adminToken) && !backendReadOnly);
@@ -1191,15 +1131,9 @@ function renderPdfList(pdfs) {
 
 }
 
-/**
- * Chọn 1 PDF từ sidebar → mở overlay panel hỏi đáp.
- * Cập nhật highlight trong sidebar (active class).
- */
 async function selectPdf(pdf) {
-  // Mở overlay panel để chat với nội dung PDF
   openPdfOverlay(pdf);
   
-  // Update sidebar highlight
   document.querySelectorAll(".pdf-item").forEach((item) => {
     if (item.dataset.pdfId === pdf.id) {
       item.classList.add("active");
@@ -1209,11 +1143,6 @@ async function selectPdf(pdf) {
   });
 }
 
-/**
- * Tìm PDF trong danh sách theo id, file_name, hoặc title.
- * Dùng pdfCache (Map) để tra cứu nhanh theo id.
- * Fallback: tìm trong allPdfItems bằng cách so sánh tất cả trường tên.
- */
 function findPdfItem(pdfId, fileName, title) {
   const norm = (value) => String(value || "").trim().toLowerCase();
   const id = norm(pdfId);
@@ -1237,11 +1166,6 @@ function findPdfItem(pdfId, fileName, title) {
   }) || null;
 }
 
-/**
- * Đính kèm 1 PDF từ kết quả search → mở overlay panel.
- * Dùng khi user bấm "Đính kèm PDF" trên book card trong chat.
- * Nếu PDF chưa có trong danh sách → load lại list trước.
- */
 async function attachSourcePdf(pdfId, fileName, title) {
   let pdf = findPdfItem(pdfId, fileName, title);
   if (!pdf) {
@@ -1250,14 +1174,6 @@ async function attachSourcePdf(pdfId, fileName, title) {
   }
   if (!pdf) return;
   selectPdf(pdf);
-}
-
-function updateAttachedDocument(pdf) {
-  // No-op: attach UI removed
-}
-
-function detachDocument() {
-  // No-op: attach UI removed
 }
 
 async function sendMessage() {
@@ -1270,11 +1186,8 @@ async function sendMessage() {
   appendMsg("user", esc(query.replace(/\n/g, " ")));
   const botId = "bot_" + Date.now();
   createStreamBubble(botId);
-
-  // ── Hiển thị nút Dừng, ẩn nút Gửi ──
   setStreamingUI(true);
 
-  // ── Status message: nếu là follow-up liệt kê chủ đề thì hiện thông báo chờ ──
   if (query.startsWith("__LIST_TOPIC__:")) {
     setStatus("loading", "Đang tìm tài liệu, có thể tốn một chút thời gian, vui lòng chờ...");
   } else {
@@ -1282,7 +1195,6 @@ async function sendMessage() {
   }
 
   try {
-    // ── Tạo AbortController cho request này ─────────────
     currentAbortController = new AbortController();
     const timeout    = setTimeout(() => currentAbortController.abort("timeout"), CHAT_TIMEOUT_MS);
 
@@ -1292,8 +1204,6 @@ async function sendMessage() {
       body:    JSON.stringify({
         query: query,
         session_id: sessionId
-        // major: đã bỏ ghim — chỉ dùng khi user vừa bấm chọn ngành trong cây khoa→ngành,
-        // các câu hỏi tiếp theo sẽ tìm sách liên quan tự do, không bị khoá theo ngành đã chọn.
       }),
       signal:  currentAbortController.signal
     });
@@ -1304,7 +1214,6 @@ async function sendMessage() {
       throw new Error(err.detail || `HTTP ${res.status}`);
     }
 
-    // ── Đọc response (JSON hoặc SSE) ─────────────────────
     const contentType = res.headers.get("content-type") || "";
 
     if (contentType.includes("text/event-stream")) {
@@ -1334,7 +1243,6 @@ async function sendMessage() {
                 const ctx = (s.subject || s.title || "").trim();
                 if (ctx && ctx !== "N/A") lastQueryContext = ctx;
               }
-              // Fallback: use raw query if no subject/title available
               if (!lastQueryContext) lastQueryContext = query;
             } else if (payload.type === "total_found") {
               totalFound = payload.total_found || 0;
@@ -1352,7 +1260,6 @@ async function sendMessage() {
         }
       }
     } else {
-      // Non-streaming mode (JSON thường)
       const data        = await res.json();
       const reply       = data.answer || "Xin lỗi, không có phản hồi.";
       const bookResults = data.sources || [];
@@ -1360,7 +1267,6 @@ async function sendMessage() {
       const totalFound  = data.total_found || bookResults.length;
       const followUps   = data.follow_up_suggestions || [];
       
-      // Save context for related suggestions (prefer subject, fallback to title or query)
       if (bookResults.length) {
         const s = bookResults[0];
         const ctx = (s.subject || s.title || "").trim();
@@ -1370,7 +1276,6 @@ async function sendMessage() {
       
       updateStreamBubble(botId, reply, false);
       
-      // Hiển thị tóm tắt nếu có
       if (summary) {
         const bubble = document.getElementById(botId);
         if (bubble) {
@@ -1402,7 +1307,6 @@ async function sendMessage() {
     }
     
     let errHtml = `<div style="display:flex;align-items:flex-start;gap:6px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;color:var(--pastel-red-text);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>`;
-    // Ẩn thông báo "Quá thời gian chờ" — để trống cho gọn
     errHtml += `Yêu cầu chưa hoàn tất, vui lòng thử lại.`;
     if (msg.includes("Failed to fetch")) {
       errHtml += "Không kết nối được backend.<br>Chạy: <code>uvicorn app:app --reload --port 8000</code>";
@@ -1422,7 +1326,6 @@ async function sendMessage() {
   currentAbortController = null;
 }
 
-// ── Stop / Streaming UI Helpers ────────────────────────────
 function setStreamingUI(isStreaming) {
   const sendBtn  = document.getElementById("sendBtn");
   const stopBtn  = document.getElementById("stopBtn");
@@ -1470,10 +1373,8 @@ function updateStreamBubble(id, text, showCursor) {
   let html = markdownToHtml(text);
   if (showCursor) html += '<span class="cursor"></span>';
   bubble.innerHTML = html;
-  // Hiển thị nút Copy khi streaming xong
   const actionsEl = document.getElementById('actions_' + id);
   if (actionsEl && !showCursor) actionsEl.style.display = 'flex';
-  // Chỉ auto-scroll khi đang stream (cursor hiện), không scroll khi đã xong
   if (showCursor) document.getElementById("messages").scrollTop = 99999;
 }
 
@@ -1481,22 +1382,18 @@ function appendSources(afterId, sources, totalFound, followUps) {
   const bubble = document.getElementById(afterId);
   if (!bubble || !sources.length) return;
 
-  const ITEMS_PER_PAGE = 50;  // Hiển thị đủ nhiều tài liệu mỗi trang
+  const ITEMS_PER_PAGE = 50;
   const total = totalFound || sources.length;
   const totalPages = Math.ceil(sources.length / ITEMS_PER_PAGE);
   let currentPage = 1;
   const containerId = 'sources-' + afterId;
 
-  // ── Tạo container chính ──
   let html = '<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">';
   html += `<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">`;
-  // html += `<div style="font-weight:600; color:var(--text-primary); font-size:13px;">Tài liệu tham khảo</div>`;
   html += `<div id="${containerId}-count" style="font-size:11px; color:var(--text-tertiary); font-weight:500;"></div>`;
   html += `</div>`;
 
-  // Grid container for cards
   html += `<div id="${containerId}-grid"></div>`;
-  // Follow-up suggestions (outside cards, works for ALL result types)
   html += `<div id="${containerId}-followups" style="margin-top:10px;"></div>`;
   // Pagination controls
   html += `<div id="${containerId}-pagination" style="display:flex; align-items:center; justify-content:center; gap:8px; padding-top:12px;"></div>`;
@@ -1510,7 +1407,6 @@ function appendSources(afterId, sources, totalFound, followUps) {
     return '';
   }
 
-  // Lọc bỏ metadata "rác" từ tool convert PDF khi hiển thị
   function _isJunkValue(val) {
     if (!val) return true;
     const v = String(val).toLowerCase().trim();
@@ -1542,7 +1438,6 @@ function appendSources(afterId, sources, totalFound, followUps) {
       ? ` data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}" title="Click để xem nội dung"`
       : "";
 
-    // Follow-up chips are rendered outside cards in the followups container
     let followUpHtml = '';
 
     return `<div class="${cardClass}"${attachAttrs}>
@@ -1644,7 +1539,6 @@ function appendSources(afterId, sources, totalFound, followUps) {
     if (page >= 1 && page <= totalPages) renderPage(page);
   };
 
-  // Render follow-up suggestions outside the cards (works for all result types)
   const followupsEl = document.getElementById(containerId + '-followups');
   if (followupsEl && followUps && followUps.length) {
     let chipsHtml = '<div style="padding-top:8px; border-top:1px solid var(--border-light);">';
@@ -1661,14 +1555,9 @@ function appendSources(afterId, sources, totalFound, followUps) {
     followupsEl.innerHTML = chipsHtml;
   }
 
-  // Initial render
   renderPage(1);
 }
 
-/**
- * Gắn sự kiện click cho các nút "Đính kèm PDF" trên book card.
- * Dùng trong render kết quả search — khi user bấm → mở overlay chat với PDF.
- */
 function bindSourcePdfCards(scope) {
   scope.querySelectorAll(".source-attach-btn").forEach((btn) => {
     btn.onclick = (event) => {
@@ -1698,20 +1587,14 @@ function renderFollowUpSuggestions(afterId, suggestions) {
   });
   html += '</div></div>';
   bubble.innerHTML += html;
-  // Không auto-scroll để user tự cuộn
 }
 
 function askFollowUp(btn) {
   const query = btn.dataset.query || btn.textContent.trim();
-  // Special: suggest related documents
   if (query === "__SUGGEST_RELATED__") {
     showRelatedSuggestions();
     return;
   }
-  // Luôn dùng text hiển thị trên chip để search
-  // VD: "Tìm sách theo ngành: Sư phạm Sinh học"
-  //     "Sách cùng chủ đề: Sinh học"
-  //     "Sách cùng tác giả: Nguyễn Như Khanh"
   const displayText = btn.textContent.trim();
   document.getElementById("questionInput").value = displayText;
   document.getElementById("questionInput").style.height = "auto";
@@ -1804,11 +1687,9 @@ async function showRelatedSuggestions() {
       });
     }
 
-    // "Xem thêm" chip
     html += `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border-light);"><div class="follow-up-chips"><button class="follow-up-chip" onclick="showRelatedSuggestions()">Xem thêm tài liệu liên quan</button></div></div>`;
 
     bubble.innerHTML = html;
-    // Không auto-scroll để user tự cuộn
   } catch (e) {
     const msgs = document.getElementById("messages");
     if (msgs.lastChild) msgs.removeChild(msgs.lastChild);

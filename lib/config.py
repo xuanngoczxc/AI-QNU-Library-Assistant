@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── OpenRouter ────────────────────────────────────────────
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "poolside/laguna-xs.2:free")
 OPENROUTER_FALLBACK_MODELS = [
@@ -27,17 +26,13 @@ OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/ap
 OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "QNU Library Assistant")
 OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", "http://localhost:8000")
 
-# ── Admin ─────────────────────────────────────────────────
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123").strip()
 
-# ── LLM circuit breaker thresholds ───────────────────────
 LLM_CIRCUIT_THRESHOLD = int(os.getenv("LLM_CIRCUIT_THRESHOLD", "5"))
 LLM_CIRCUIT_COOLDOWN = int(os.getenv("LLM_CIRCUIT_COOLDOWN", "60"))
 
-# ── Session / history ────────────────────────────────────
 MAX_HISTORY = 3
 
-# ── Vercel ────────────────────────────────────────────────
 VERCEL_READ_ONLY_MESSAGE = (
     "Bản demo trên Vercel chạy ở chế độ read-only: không thể upload hoặc xóa PDF "
     "vì Vercel Functions chỉ có filesystem tạm thời. Hãy deploy lên server riêng "

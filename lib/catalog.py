@@ -15,8 +15,6 @@ from typing import Optional
 from .text_utils import normalize_text
 
 logger = logging.getLogger("qnu.library")
-
-# ── Stop words ────────────────────────────────────────────
 VIETNAMESE_STOP_WORDS = {
     "toi", "minh", "em", "anh", "chi", "co", "chu", "bac", "ong", "ba",
     "ai", "tao", "may", "no", "ho", "chung", "ban", "cau", "cac", "nguoi",
@@ -41,7 +39,6 @@ VIETNAMESE_STOP_WORDS = {
 for compound_term in ("co", "chu", "giao", "hoc", "khi", "may", "quan", "tao"):
     VIETNAMESE_STOP_WORDS.discard(compound_term)
 
-# ── Query intent patterns ─────────────────────────────────
 QUERY_INTENT_PATTERNS = [
     r"\b(?:toi|minh|em|anh|chi|ban)\s+muon\b",
     r"\b(?:cho toi|cho minh|cho em)\b",
@@ -101,7 +98,6 @@ CATALOG_TOPIC_INDEX: dict[str, dict] = {}
 CATALOG_TOPIC_READY = False
 CATALOG_TOPIC_INDEX_VERSION = 2
 
-# ── AI domain patterns ───────────────────────────────────
 AI_QUERY_PATTERNS = [
     r"\btri tue nhan tao\b",
     r"\bartificial intelligence\b",
@@ -122,9 +118,6 @@ AI_DOCUMENT_PHRASES = [
     "hoc may", "deep learning", "ung dung ai", "cong nghe ai",
     "ky thuat ai", "khoa hoc may tinh",
 ]
-
-
-# ── Normalization helpers ─────────────────────────────────
 
 def normalize_topic_text(text: str) -> str:
     normalized = normalize_text(text)
@@ -180,7 +173,6 @@ def contains_normalized_phrase(text: str, phrase: str) -> bool:
         return False
     return bool(re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text))
 
-
 def detect_ai_domain(query: str) -> bool:
     if not query:
         return False
@@ -201,7 +193,6 @@ def expand_domain_terms(query: str) -> list[str]:
         if re.search(rf"\b{re.escape(phrase)}\b", topic):
             terms.extend(expansions)
     return list(dict.fromkeys(terms))
-
 
 def _extract_major_from_query(query: str) -> str | None:
     """Try to extract a major/ngành from a natural-language query.
@@ -225,19 +216,14 @@ def _extract_major_from_query(query: str) -> str | None:
     cleaned = clean_topic_tail(captured)
     if not cleaned:
         return None
-    # Reject if everything is stop-words
     tokens = [t for t in cleaned.split() if t not in VIETNAMESE_STOP_WORDS]
     if not tokens:
         return None
-    # Recover the original (un-normalized) phrase so the LLM sees a
-    # human-readable major. Map each normalized token back to the
-    # original form in the user query when possible.
     norm_to_orig: dict[str, str] = {}
     for src in re.findall(r"[A-Za-zÀ-ỹ]+", query):
         norm_to_orig.setdefault(normalize_topic_text(src), src)
     pieces = [norm_to_orig.get(t, t) for t in cleaned.split()]
     return " ".join(pieces)
-
 
 def extract_primary_topic_text(text: str) -> str:
     q = normalize_topic_text(text)
@@ -252,7 +238,6 @@ def extract_primary_topic_text(text: str) -> str:
         if cleaned:
             return cleaned
     return strip_search_intent_phrases(text)
-
 
 def extract_keywords(text: str) -> str:
     q = extract_primary_topic_text(text)
@@ -355,9 +340,6 @@ def get_query_topic_terms(query: str) -> tuple[str, list[str], list[str]]:
     ]
     return topic, list(dict.fromkeys(tokens)), list(dict.fromkeys(phrases))
 
-
-# ── Catalog phrase index ──────────────────────────────────
-
 def split_catalog_segments(value: str, field_name: str) -> list[str]:
     if not value or value in ("Unknown", "N/A", "nan"):
         return []
@@ -370,7 +352,6 @@ def split_catalog_segments(value: str, field_name: str) -> list[str]:
     else:
         parts = [str(value)]
     return [p.strip() for p in parts if p and p.strip()]
-
 
 def generate_catalog_phrases(value: str, field_name: str) -> set[str]:
     phrases = set()
@@ -391,13 +372,11 @@ def generate_catalog_phrases(value: str, field_name: str) -> set[str]:
                     phrases.add(token)
     return phrases
 
-
 def add_catalog_phrase(phrase: str, field_name: str, doc_idx: int) -> None:
     item = CATALOG_TOPIC_INDEX.setdefault(phrase, {"score": 0.0, "fields": set(), "docs": set()})
     item["score"] += CATALOG_FIELD_WEIGHTS.get(field_name, 1.0)
     item["fields"].add(field_name)
     item["docs"].add(doc_idx)
-
 
 def get_catalog_source_mtime() -> float:
     data_path = Path("Data")
@@ -405,7 +384,6 @@ def get_catalog_source_mtime() -> float:
     if not source_files:
         return 0.0
     return max(p.stat().st_mtime for p in source_files)
-
 
 def load_catalog_topic_cache(cache_file: Path, source_mtime: float) -> bool:
     global CATALOG_TOPIC_READY
@@ -431,7 +409,6 @@ def load_catalog_topic_cache(cache_file: Path, source_mtime: float) -> bool:
         logger.warning("Catalog topic cache load failed: %s", e)
         return False
 
-
 def save_catalog_topic_cache(cache_file: Path, source_mtime: float) -> None:
     try:
         with open(cache_file, "wb") as f:
@@ -441,7 +418,6 @@ def save_catalog_topic_cache(cache_file: Path, source_mtime: float) -> None:
             )
     except Exception as e:
         logger.warning("Catalog topic cache write failed: %s", e)
-
 
 def build_catalog_topic_index(bm25_documents: list[dict] | None = None) -> None:
     global CATALOG_TOPIC_READY
@@ -463,7 +439,6 @@ def build_catalog_topic_index(bm25_documents: list[dict] | None = None) -> None:
     CATALOG_TOPIC_READY = True
     logger.info("Catalog topic index ready: %d phrases", len(CATALOG_TOPIC_INDEX))
     save_catalog_topic_cache(cache_file, source_mtime)
-
 
 def find_catalog_topic_matches(query_text: str, limit: int = 8) -> list[str]:
     build_catalog_topic_index([])  # Will use existing index if ready
@@ -490,9 +465,6 @@ def find_catalog_topic_matches(query_text: str, limit: int = 8) -> list[str]:
 
     ranked = sorted(candidates, key=rank_key, reverse=True)
     return ranked[:limit]
-
-
-# ── Metadata search ───────────────────────────────────────
 
 def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int = 80) -> list[dict]:
     topic, topic_tokens_list, topic_phrases = get_query_topic_terms(query)
@@ -527,9 +499,6 @@ def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int 
             scored.append({"doc": doc, "score": score + 100000.0, "index": idx})
     scored.sort(key=lambda item: item["score"], reverse=True)
     return scored[:top_k]
-
-
-# ── Topic cache search ────────────────────────────────────
 
 TOPIC_CACHE: dict[str, list[int]] = {}
 ALL_DOC_KEYWORDS: dict[int, set[str]] = {}
@@ -573,7 +542,6 @@ def build_topic_cache(bm25_documents: list[dict]) -> None:
 
     subjects_with_docs = sum(1 for kw in TOPIC_CACHE if not kw.startswith("__prefix__"))
     logger.info("Topic cache built: %d keywords, %d unique subjects", len(TOPIC_CACHE), subjects_with_docs)
-
 
 def search_topic_cache(query: str, bm25_documents: list[dict]) -> list[dict] | None:
     q = _normalize_topic_token(query)

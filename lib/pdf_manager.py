@@ -23,20 +23,17 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 
-# ── MarkItDown (Microsoft) — đọc nội dung chất lượng cao ──
 try:
     from markitdown import MarkItDown
     _markitdown = MarkItDown()
 except ImportError:
     _markitdown = None
 
-# ── pypdf (fallback / metadata / outline) ────────────────
 try:
     from pypdf import PdfReader
 except ImportError:
     PdfReader = None
 
-# ── OCR (Giai đoạn 3) — fallback cho PDF scan ────────────
 try:
     import pytesseract
     from pdf2image import convert_from_path
@@ -46,11 +43,9 @@ except ImportError:
     pytesseract = None
     convert_from_path = None
 
-# Tesseract command path trên Windows
 _TESSERACT_CMD = os.getenv("TESSERACT_CMD", "").strip()
 if _TESSERACT_CMD and pytesseract:
     pytesseract.pytesseract.tesseract_cmd = _TESSERACT_CMD
-
 
 class PDFManager:
     """
@@ -63,21 +58,15 @@ class PDFManager:
     """
     
     def __init__(self, pdf_dir: str = "pdfs", cache_file: str = "pdf_cache.json"):
-        self.pdf_dir = Path(pdf_dir)          # Thư mục chứa file PDF
-        self.cache_file = cache_file           # File cache metadata (JSON)
+        self.pdf_dir = Path(pdf_dir)          
+        self.cache_file = cache_file          
         self.pdf_cache = self._load_cache()
         
-        # MarkItDown text cache: lưu kết quả đọc PDF → Markdown
-        # Key: file_path, Value: markdown_text
         self._md_text_cache: dict[str, str] = {}
 
-        # OCR cache: lưu kết quả OCR theo trang
-        # Key: file_path, Value: {page_num: ocr_text}
-        # Dùng threading.Lock vì OCR có thể chạy song song
         self._ocr_cache: dict[str, dict[int, str]] = {}
         self._ocr_cache_lock = threading.Lock()
-        
-        # Đảm bảo thư mục pdfs tồn tại
+   
         self.pdf_dir.mkdir(exist_ok=True)
     
     def invalidate_cache(self):
@@ -95,15 +84,13 @@ class PDFManager:
           4. Cache kết quả TTL 5 giây để tránh load lại mỗi request
         Trả về list dict: [{id, title, author, year, pages, file_path, file_size_mb, ...}]
         """
-        # Xoá MarkItDown cache khi danh sách file thay đổi
         self._md_text_cache.clear()
-        # Cache: dùng lại kết quả nếu chưa có file nào thay đổi
         now = datetime.now().timestamp()
         if hasattr(self, '_list_cache') and self._list_cache is not None:
             cache_time, cached_pdfs = self._list_cache
-            if now - cache_time < 5:  # TTL 5 giây
+            if now - cache_time < 5:
                 return cached_pdfs
-        self._list_cache = None  # Reset cache
+        self._list_cache = None
         
         pdfs = []
         
@@ -158,7 +145,6 @@ class PDFManager:
                 reader = PdfReader(f)
                 chapters = []
                 
-                # Phương pháp 1: Sử dụng outline nếu có, nhưng chỉ lấy entry hợp lệ
                 outline_items = []
                 if reader.outline and len(reader.outline) > 0:
                     outline_items = self._flatten_outline(reader.outline)
@@ -186,11 +172,9 @@ class PDFManager:
                             "end_page": end_page
                         })
 
-                # Nếu outline chỉ có 1 mục hoặc quá nông, fallback sang heuristic để chia rõ hơn
                 if len(chapters) < 2:
                     chapters = self._generate_simple_chapters(pdf_path)
                 
-                # Phương pháp 2: Tạo chapters theo heuristic nếu không có outline
                 if not chapters:
                     chapters = self._generate_simple_chapters(pdf_path)
                 
@@ -285,7 +269,6 @@ class PDFManager:
         Trả về list: [{chapter, title, pages, start_page, end_page}]
         """
         if not PdfReader:
-            # Nếu không có pypdf, trả về 5 chapters chuẩn
             return [
                 {
                     "chapter": i + 1,
@@ -304,7 +287,7 @@ class PDFManager:
                 if total_pages <= 12:
                     pages_per_chapter = max(4, total_pages // 3)
                 else:
-                    pages_per_chapter = max(10, total_pages // 8)  # chia thành nhiều phần hơn
+                    pages_per_chapter = max(10, total_pages // 8)
                 
                 chapters = []
                 for i in range(0, total_pages, pages_per_chapter):
@@ -354,17 +337,13 @@ class PDFManager:
           3. Fallback: MarkItDown full text nếu pypdf thất bại
           4. Fallback cuối: pypdf nếu MarkItDown không khả dụng
         """
-        # Nếu đọc toàn bộ hoặc 1 khoảng lớn → dùng MarkItDown
         is_full_read = (end_page - start_page) >= 3 or end_page >= 9999
         
-        # Thử MarkItDown trước
         md_text = self._load_markitdown_text(pdf_path)
         if md_text:
             if is_full_read:
-                # MarkItDown trả về toàn bộ Markdown
                 return md_text
             else:
-                # Đọc 1-2 trang cụ thể → thử pypdf trước (chính xác theo trang)
                 if PdfReader:
                     try:
                         with open(pdf_path, 'rb') as f:
@@ -380,7 +359,6 @@ class PDFManager:
                                 return text
                     except:
                         pass
-                # Fallback: trả về MarkItDown full text
                 return md_text
         
         # Fallback: pypdf
@@ -537,13 +515,6 @@ class PDFManager:
         except Exception as e:
             print(f"Lỗi lưu cache: {e}")
 
-    # ═══════════════════════════════════════════════════════
-    # Giai đoạn 3 — OCR cho PDF scan/ảnh
-    # ═══════════════════════════════════════════════════════
-    # Khi PDF là bản scan (không có text layer),
-    # dùng Tesseract OCR để nhận diện chữ từ ảnh.
-    # Quy trình: PDF → ảnh (pdf2image) → text (pytesseract)
-
     def is_scanned_pdf(self, pdf_path: str, sample_pages: int = 3) -> bool:
         """
         Heuristic phát hiện PDF scan/ảnh.
@@ -599,7 +570,7 @@ class PDFManager:
             text = pytesseract.image_to_string(images[0], lang=lang) or ""
             text = text.strip()
         except Exception as e:
-            print(f"  ⚠️ OCR error page {page_num + 1} of {Path(pdf_path).name}: {e}")
+            print(f"OCR error page {page_num + 1} of {Path(pdf_path).name}: {e}")
             text = ""
 
         with self._ocr_cache_lock:
@@ -619,12 +590,10 @@ class PDFManager:
           - method: "markitdown" | "pypdf" | "ocr" | "none"
           - scanned: True nếu PDF là bản scan
         """
-        # 1. MarkItDown
         md_text = self._load_markitdown_text(pdf_path) or ""
         if md_text and len(md_text.strip()) >= 50:
             return {"text": md_text, "method": "markitdown", "scanned": False}
 
-        # 2. pypdf
         pypdf_text = ""
         if PdfReader:
             try:
@@ -641,7 +610,6 @@ class PDFManager:
         if pypdf_text.strip() and len(pypdf_text.strip()) >= 50:
             return {"text": pypdf_text, "method": "pypdf", "scanned": False}
 
-        # 3. OCR fallback
         if not _ocr_available:
             return {
                 "text": pypdf_text or "[PDF scan — text rỗng. Cài pytesseract + pdf2image + Tesseract OCR để đọc.]",
@@ -651,7 +619,7 @@ class PDFManager:
 
         scanned = self.is_scanned_pdf(pdf_path)
         if not scanned:
-            scanned = True  # text rỗng → fallback là scan
+            scanned = True
 
         ocr_texts = []
         for p in range(max(0, start_page), min(end_page, self.get_page_count(pdf_path) or end_page)):

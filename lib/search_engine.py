@@ -334,13 +334,9 @@ class DocumentIndexer:
         """
         if not val or not isinstance(val, str):
             return val
-        # Thay thế MARC subfield codes ($a, $2, ...) bằng ", " để phân cách
         cleaned = re.sub(r'\$[a-zA-Z0-9]\s*', ', ', val)
-        # Loại bỏ ", " ở đầu (nếu subfield đầu tiên đứng đầu chuỗi)
         cleaned = re.sub(r'^\s*,\s*', '', cleaned)
-        # Loại bỏ ", " thừa liên tiếp (", , " → ", ")
         cleaned = re.sub(r',\s*,', ',', cleaned)
-        # Remove hanging punctuation at start/end
         cleaned = cleaned.strip().strip(',').strip(';').strip('/').strip(':').strip()
         return cleaned
 
@@ -351,7 +347,6 @@ class DocumentIndexer:
 
         df = pd.read_excel(filepath, dtype=str)
 
-        # Map MARC-like columns to readable fields
         column_map = {
             'Chỉ số phân loai DDC(082$a)': 'ddc',
             'Nhan đề chính(245$a)': 'title',
@@ -382,7 +377,6 @@ class DocumentIndexer:
             if not title and not author:
                 continue
 
-            # Build full title: avoid double punctuation
             if subtitle:
                 subtitle_clean = subtitle.lstrip(': ').lstrip(':').strip()
                 if title.endswith(':') or title.endswith(':'):
@@ -392,7 +386,6 @@ class DocumentIndexer:
             else:
                 full_title = title
 
-            # Collect location information from location columns
             location_parts = []
             location_cols = [c for c in df.columns if 'phòng' in c.lower() or 'mượn' in c.lower() or 'đọc' in c.lower() or 'thiếu' in c.lower() or 'thừa' in c.lower()]
             for col in location_cols:
@@ -401,14 +394,12 @@ class DocumentIndexer:
                     clean_val = str(val).strip().lstrip('|').strip()
                     if clean_val not in ('nan', ''):
                         short_col = col.replace('(526$b)', '').replace('(082$a)', '').strip()
-                        # Remove duplicate room name prefix from value
                         if clean_val.lower().startswith(short_col.lower()):
                             clean_val = clean_val[len(short_col):].lstrip(': ').lstrip('|').strip()
                         location_parts.append(f"{short_col}: {clean_val[:60]}")
 
             location_str = ' ; '.join(location_parts) if location_parts else ''
 
-            # Build searchable text
             text_parts = [full_title, author, publisher, major, abstract, doc_type]
             text = ' '.join(p for p in text_parts if p and p not in ('Unknown', 'N/A'))
             if abstract:
@@ -517,8 +508,15 @@ class DocumentIndexer:
         df = pd.read_excel(filepath, header=0, dtype=str)
 
         tag_cols = {str(c).strip(): c for c in df.columns if str(c).strip().isdigit()}
-        location_cols = [c for c in df.columns
-                         if not str(c).strip().isdigit() and str(c) != 'ItemId']
+        # Chỉ nhận các cột phòng/thư viện thực tế — tránh cột lạ (Ghi chú, Ngày nhập, ...)
+        _LOCATION_KEYWORDS = ("phòng", "phong", "mượn", "muon", "đọc", "doc",
+                              "kho", "số", "so", "giá", "gia", "tủ", "tu")
+        location_cols = [
+            c for c in df.columns
+            if not str(c).strip().isdigit()
+            and str(c) != 'ItemId'
+            and any(kw in str(c).strip().lower() for kw in _LOCATION_KEYWORDS)
+        ]
 
         def _clean_str(v):
             if pd.isna(v):

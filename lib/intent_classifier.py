@@ -21,25 +21,17 @@ Entities detected:
 import re
 from typing import Optional
 
-# ── Vietnamese stop words (for keyword extraction) ───────
 VIETNAMESE_STOP_WORDS = {
-    # Prepositions, conjunctions
     "cua", "va", "hoac", "nhung", "ma", "de", "tu", "toi", "boi",
     "o", "tai", "voi", "trong", "ngoai", "tren", "duoi", "ben", "giua",
     "khi", "luc", "sau", "truoc", "neu", "vi", "nen", "hay", "song",
-    # Pronouns
     "toi", "minh", "em", "anh", "chi", "co", "ban", "no", "ho", "chung",
-    # Question words
     "co", "khong", "sao", "gi", "dau", "bao", "nhieu", "nao", "the nao",
-    # Common verbs (in library context — too generic to be signals)
     "tim", "xem", "hoi", "cho", "gui", "xin", "muon", "can", "dang",
-    # Articles, classifiers
     "mot", "cai", "cuon", "quyen", "tap",
-    # Short noise
     "ok", "okay", "da", "roi", "nhe", "nha", "a", "e", "u",
 }
 
-# ── Vietnamese surnames (for name detection) ─────────────
 VIETNAMESE_SURNAMES = {
     "nguyen", "tran", "le", "pham", "hoang", "huynh", "vo", "dang",
     "bui", "do", "ngo", "duong", "ly", "doan", "dinh", "trinh",
@@ -49,7 +41,6 @@ VIETNAMESE_SURNAMES = {
     "lam", "luu", "phung", "vu", "ma", "ton", "dai",
 }
 
-# ── Action keywords (verbs that indicate intent) ─────────
 ACTION_CATALOG = {
     "tim", "tra cuu", "liet ke", "search", "browse", "xem",
     "co sach nao", "co tai lieu nao", "co cuon nao",
@@ -75,7 +66,6 @@ ACTION_LIVE_INFO = {
     "thoi tiet", "du bao", "tin tuc", "gia vang", "ty gia",
 }
 
-# ── Target/resource keywords ─────────────────────────────
 TARGET_BOOK = {
     "sach", "cuon sach", "giao trinh", "tai lieu", "luan van", "luan an",
     "de tai", "bai bao", "tap chi", "an pham",
@@ -86,14 +76,12 @@ TARGET_CONTENT = {
     "cuon nay", "sach nay", "van ban nay",
 }
 
-# ── Subject/topic indicators ─────────────────────────────
 SUBJECT_KEYWORDS = {
     "nganh", "chu de", "linh vuc", "ky thuat", "phuong phap",
     "kinh te", "van hoc", "su pham", "cong nghe", "sinh hoc",
     "y hoc", "luat", "quan ly", "giao duc",
 }
 
-# ── Tên môn học / lĩnh vực (1-2 từ, dùng để phát hiện catalog_search) ──
 SUBJECT_NAMES = {
     "toan", "ly", "hoa", "sinh", "van", "su", "dia",
     "tin", "anh", "phap", "nga", "trung", "nhat", "han",
@@ -107,10 +95,7 @@ SUBJECT_NAMES = {
     "thu vien", "thong tin hoc",
 }
 
-# ── Publisher indicators ─────────────────────────────────
 PUBLISHER_KEYWORDS = {"nha xuat ban", "nxb", "dai hoc", "khoa hoc"}
-
-
 class QueryEntities:
     """Container cho các entities trích xuất từ query."""
     def __init__(self):
@@ -238,7 +223,6 @@ def extract_entities(query: str) -> QueryEntities:
     if not ent.author_name and not ent.has_author_kw:
         words = ent.words
         if 2 <= len(words) <= 5 and words[0] in VIETNAMESE_SURNAMES:
-            # Check no content/subject words in remaining tokens
             topic_words = {"hoc", "phap", "luat", "su", "hoa", "van", "nghe", "thuat",
                            "cong", "nghiep", "xay", "dung", "nong", "kinh", "tai", "chinh",
                            "giao", "duc", "tam", "ly", "xa", "hoi", "tri", "nhan", "tao",
