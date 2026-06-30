@@ -239,6 +239,10 @@
     .admin-msg{font-size:10px;color:var(--pastel-green);margin-top:4px;min-height:14px;line-height:1.4;}
     .admin-msg.error{color:#e57373;}
     .admin-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;margin-bottom:4px;}
+    /* ── Mobile sidebar hamburger (hidden on desktop) ── */
+    .hamburger{display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;cursor:pointer;flex-shrink:0;color:var(--text-secondary);transition:var(--transition);}
+    .hamburger:hover{background:var(--accent-soft);color:var(--text-primary);}
+    .sidebar-backdrop{display:none;}
 
     /* ── Chat Panel ── */
     .chat-panel{
@@ -793,21 +797,64 @@
 
     @media (max-width:768px){
       body{padding:0;}
-      .shell{border-radius:0;height:100vh;border:none;max-width:100%;}
-      .sidebar{width:48px;padding:12px 5px;}
-      .sidebar .brand-text,.sidebar .section-title,.sidebar .section-card,.sidebar .chips,.sidebar .pdf-list,.sidebar .new-chat-btn span,.sidebar .sidebar-sticky{display:none;}
-      .sidebar .new-chat-btn{padding:8px;font-size:0;gap:0;}
-      .sidebar .new-chat-btn::before{content:'+';font-size:18px;font-weight:700;}
-      .brand-mark{width:32px;height:32px;padding:3px;}
-      .chat-header{padding:12px 16px;}
-      .chat-header-left h2{font-size:17px;}
-      .messages{padding:14px 16px;}
-      .bubble{max-width:88%;font-size:13px;}
-      .composer{padding:10px 14px 14px;}
-      .composer textarea{font-size:13px;}
-      .more-body{padding:12px 14px 16px;}
+      .shell{border-radius:0;height:100dvh;border:none;max-width:100%;position:relative;}
+      .sidebar{
+        position:fixed;top:0;left:0;bottom:0;z-index:500;
+        width:280px;padding:16px 12px;
+        transform:translateX(-100%);
+        transition:transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s;
+        box-shadow:none;
+        border-right:1px solid rgba(255,255,255,0.08);
+      }
+      .sidebar.open{transform:translateX(0);box-shadow:4px 0 30px rgba(0,0,0,0.3);}
+      .sidebar-backdrop{
+        position:fixed;inset:0;z-index:499;
+        background:rgba(0,0,0,0.4);backdrop-filter:blur(3px);
+        display:none;
+      }
+      .sidebar-backdrop.open{display:block;}
+      .brand-mark{width:34px;height:34px;padding:3px;}
+      .brand-text h1{font-size:14px;}
+      .chat-panel{width:100%;}
+      .hamburger{display:flex;}
+      .chat-header{padding:10px 12px;gap:8px;}
+      .chat-header-left h2{font-size:16px;}
+      .messages{padding:12px 12px;}
+      .msg{gap:10px;}
+      .bubble{max-width:88%;font-size:13px;padding:10px 14px;}
+      .msg.user .bubble{max-width:88%;font-size:13px;}
+      .book-card{padding:10px 12px;margin:8px 0;border-left-width:2px;}
+      .book-card .book-title{font-size:13px;}
+      .book-card-header{gap:10px;}
+      .book-card-header-icon{width:24px;height:24px;}
+      .book-card-header-icon svg{width:14px;height:14px;}
+      .book-card-chevron{width:14px;height:14px;}
+      .book-details{padding-left:34px;}
+      .book-details-inner{padding-top:6px;}
+      .book-field{font-size:11.5px;padding:1px 0;}
+      .source-pdf-badge{font-size:9px;padding:1px 6px;}
+      .book-details-actions a,.source-attach-btn{font-size:11px;padding:5px 10px;}
+      .book-abstract{font-size:11px;padding:8px 10px;}
+      .composer{padding:8px 10px 10px;gap:6px;}
+      .composer textarea{font-size:13px;padding:5px 10px;height:32px;}
+      .send-btn{height:32px;padding:5px 12px;font-size:11px;}
+      .mic-btn{height:32px;width:32px;}
+      .stop-btn{height:32px;padding:5px 12px;font-size:11px;}
+      .more-body{padding:10px 12px 14px;}
       .more-grid{grid-template-columns:1fr;}
-      .pdf-overlay-panel{width:calc(100vw - 16px);max-height:calc(100vh - 16px);height:90vh;border-radius:var(--radius-md);}
+      .more-grid .book-card{padding:10px 12px;}
+      .more-grid .book-card-header-icon{width:20px;height:20px;}
+      .more-search{padding:8px 12px;font-size:12px;}
+      .more-toggle{padding:10px 16px;font-size:12px;}
+      .follow-up-chip{font-size:11.5px;padding:6px 12px;}
+      .avatar{width:28px;height:28px;font-size:14px;}
+      .msg-actions{opacity:1;}
+      .pdf-overlay-panel{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0;}
+      .pdf-overlay-header{padding:10px 14px;}
+      .pdf-overlay-messages{padding:12px 14px;}
+      .pdf-overlay-composer{padding:8px 12px 12px;}
+      .admin-input{padding:6px 10px;font-size:11px;}
+      .admin-btn{font-size:10px;padding:6px 10px;}
     }
   </style>
 </head>
@@ -861,8 +908,9 @@
     </symbol>
   </defs>
 </svg>
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 <div class="shell">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-scroll">
     <div class="brand">
       <div class="brand-mark">
@@ -918,6 +966,9 @@
 
   <main class="chat-panel">
     <header class="chat-header">
+      <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()" title="Mở menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
       <div class="chat-header-left">
         <p class="eyebrow">Trường Đại học Quy Nhơn</p>
         <h2>Tra cứu tài liệu</h2>
@@ -2089,6 +2140,15 @@ function setStatus(state, text) {
   dot.className = "status-dot" + (state !== "ok" ? " " + state : "");
   document.getElementById("statusText").textContent = text;
 }
+
+function toggleSidebar() {
+  document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("sidebarBackdrop").classList.toggle("open");
+}
+document.getElementById("sidebarBackdrop").addEventListener("click", function(){
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("sidebarBackdrop").classList.remove("open");
+});
 
 async function newChat() {
   // Hủy request đang chạy nếu có
