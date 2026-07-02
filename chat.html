@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..700,0,0">
   <style>
     :root{
       --bg:#F0F4F8;
@@ -1001,7 +1002,6 @@
           • Tìm sách theo tên, tác giả, chủ đề<br>
           • Tra cứu tài liệu số<br>
           • Gợi ý sách theo ngành học<br>
-          • Đọc nội dung trực tiếp từ file PDF<br><br>
           Bạn cần tìm tài liệu gì?
         </div>
       </div>
@@ -1404,6 +1404,7 @@ async function sendMessage() {
               if (sources.length && !answerHasNoInformation(fullText)) {
               appendSources(botId, sources, totalFound, followUps);
             }
+              if (!sources.length && followUps.length) renderFollowUpChips(botId, followUps);
             } else if (payload.type === "error") {
               throw new Error(payload.message);
             }
@@ -1439,6 +1440,7 @@ async function sendMessage() {
       }
       
       if (bookResults.length && !answerHasNoInformation(reply)) appendSources(botId, bookResults, totalFound, followUps);
+      if (!bookResults.length && followUps.length) renderFollowUpChips(botId, followUps);
     }
 
     setStatus("ok", "Sẵn sàng");
@@ -1529,199 +1531,241 @@ function updateStreamBubble(id, text, showCursor) {
   if (showCursor) document.getElementById("messages").scrollTop = 99999;
 }
 
+/**
+ * Hàm bookCard cho facet results — giống bookCard trong appendSources
+ * nhưng simplified. Cần thiết vì scope khác.
+ */
+function bookCard(b, idx) {
+  let linkUrl = b.link || "";
+  let linkMatch = null;
+  if (!linkUrl && b.description) {
+    linkMatch = b.description.match(/(https?:\/\/[^\s]+)/);
+    if (linkMatch) linkUrl = linkMatch[1];
+  }
+  const canAttachPdf = !!(b.pdf_id || b.file_name);
+  const cardClass = canAttachPdf ? "book-card pdf-source" : "book-card";
+  const uid = "fc-" + Date.now() + "-" + idx;
+
+  let fieldsHtml = '';
+  const addField = (label, val) => {
+    if (!val || ['Unknown','N/A','Không xác định','nan'].includes(String(val).trim())) return;
+    if (Array.isArray(val) && val.length === 0) return;
+    const content = Array.isArray(val)
+      ? val.map(v => `<span class="book-field-tag">${esc(v)}</span>`).join('')
+      : esc(String(val));
+    fieldsHtml += `<div class="book-field"><span class="book-field-label">${label}:</span> ${content}</div>`;
+  };
+
+  if (b.author && b.author !== 'Unknown' && b.author !== 'N/A') addField('Tác giả', b.author);
+  addField('Năm XB', b.year);
+  addField('NXB', b.publisher);
+  addField('Loại tài liệu', b.doc_type);
+  addField('Chuyên ngành', b.major);
+  addField('Từ khóa', b.subject);
+  addField('DDC', b.ddc);
+  addField('Vị trí', b.location);
+
+  let abstractHtml = '';
+  if (b.abstract) {
+    abstractHtml = `<div class="book-abstract">${esc(b.abstract)}</div>`;
+  }
+
+  let actionsHtml = '';
+  if (linkUrl && linkUrl.startsWith('http')) {
+    actionsHtml += `<a href="${attr(linkUrl)}" target="_blank" rel="noopener">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Mở tài liệu</a>`;
+  }
+  if (canAttachPdf) {
+    actionsHtml += `<button type="button" class="source-attach-btn" data-pdf-id="${attr(b.pdf_id || '')}" data-pdf-file="${attr(b.file_name || '')}" data-pdf-title="${attr(b.display_name || b.title || '')}">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Xem nội dung</button>`;
+  }
+  if (actionsHtml) {
+    actionsHtml = `<hr class="book-details-sep"><div class="book-details-actions">${actionsHtml}</div>`;
+  }
+
+  return `<div class="${cardClass}">
+    <div class="book-card-header" onclick="toggleBookDetails('${uid}-w','${uid}-c')">
+      <div class="book-card-header-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </div>
+      <div class="book-card-header-text">
+        <div class="book-card-header-row">
+          <div class="book-title">${esc(b.title || "Tài liệu")}</div>
+          <svg id="${uid}-c" class="book-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </div>
+    </div>
+    <div id="${uid}-w" class="book-details-wrapper">
+      <div class="book-details">
+        <div class="book-details-inner">
+          <div class="book-details-grid">${fieldsHtml}</div>
+          ${abstractHtml}
+          ${actionsHtml}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/** Per-group pagination state: { containerId: { dtName: pageIndex } } */
+var __groupPages = {};
+
 function appendSources(afterId, sources, totalFound, followUps) {
   const bubble = document.getElementById(afterId);
   if (!bubble || !sources.length) return;
-
-  const ITEMS_PER_PAGE = 50;
-  const total = totalFound || sources.length;
-  const totalPages = Math.ceil(sources.length / ITEMS_PER_PAGE);
-  let currentPage = 1;
   const containerId = 'sources-' + afterId;
+  // Lưu dữ liệu vào bubble để pagination dùng lại
+  bubble.__savedContainerId = containerId;
+  bubble.__savedSources = sources;
+  bubble.__savedFollowUps = followUps || [];
+  renderGroupedSources(bubble, containerId);
+}
 
-  let html = '<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">';
-  html += `<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">`;
-  html += `<div id="${containerId}-count" style="font-size:11px; color:var(--text-tertiary); font-weight:500;"></div>`;
-  html += `</div>`;
+/** Thu gọn / mở rộng nhóm doc_type */
+function toggleDocGroup(groupId) {
+  var body = document.getElementById(groupId);
+  if (!body) return;
+  var header = body.previousElementSibling;
+  var chevron = header ? header.querySelector('.doc-group-chevron') : null;
+  var isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(90deg)';
+  if (header) header.style.background = isOpen ? 'var(--bg)' : 'var(--accent-soft)';
+}
 
-  html += `<div id="${containerId}-grid"></div>`;
-  html += `<div id="${containerId}-followups" style="margin-top:10px;"></div>`;
-  // Pagination controls
-  html += `<div id="${containerId}-pagination" style="display:flex; align-items:center; justify-content:center; gap:8px; padding-top:12px;"></div>`;
-  html += '</div>';
-
-  bubble.innerHTML += html;
-
-  function field(label, val) {
-    if (val && val !== 'Unknown' && val !== 'N/A' && val !== 'Không xác định' && val !== 'nan')
-      return `<div class="book-field"><span style="color:var(--text-tertiary);">${label}:</span> ${esc(val)}</div>`;
-    return '';
+/** Chuyển trang cho một nhóm tài liệu */
+function switchGroupPage(containerId, dtName, dir) {
+  if (!__groupPages[containerId]) return;
+  var pages = __groupPages[containerId];
+  var cur = pages[dtName] || 0;
+  var newPage = cur + dir;
+  if (newPage < 0) return;
+  pages[dtName] = newPage;
+  var wrap = document.getElementById(containerId + '-sources-wrap');
+  if (!wrap) return;
+  var bubble = wrap.parentElement;
+  // Có thể có nhiều cấp DOM, nên fallback đến containerId
+  if (!bubble || !bubble.__savedSources) {
+    var afterId = containerId.replace('sources-', '');
+    bubble = document.getElementById(afterId);
   }
+  if (!bubble) return;
+  if (!bubble.__savedSources) return;
+  renderGroupedSources(bubble, containerId);
+}
 
-  function _isJunkValue(val) {
-    if (!val) return true;
-    const v = String(val).toLowerCase().trim();
-    if (!v || v === 'unknown' || v === 'n/a' || v === 'khong xac dinh' || v === 'pdf' || v === 'nan') return true;
-    const junk = ['aspose', 'converter', 'epubtopdf', 'pdftool', 'pdfsharp', 'itext'];
-    return junk.some(k => v.includes(k));
-  }
+/** Render grouped sources theo trang hiện tại trong __groupPages */
+function renderGroupedSources(bubble, containerId) {
+  var sources = bubble.__savedSources;
+  var followUps = bubble.__savedFollowUps || [];
+  if (!sources || !sources.length) return;
 
-  function bookCard(b, idx) {
-    let linkUrl = b.link || "";
-    let linkMatch = null;
-    if (!linkUrl && b.description) {
-      linkMatch = b.description.match(/(https?:\/\/[^\s]+)/);
-      if (linkMatch) linkUrl = linkMatch[1];
-    }
-    const canAttachPdf = Boolean(b.pdf_id || b.file_name || (b.is_pdf && b.source));
-    const cardClass = canAttachPdf ? "book-card pdf-source" : "book-card";
-    const pdfId = b.pdf_id || "";
-    const pdfFileName = b.file_name || b.source || "";
-    const pdfTitle = b.display_name || b.title || "";
-    const attachAttrs = canAttachPdf
-      ? ` data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}"`
-      : "";
-
-    const uid = `${containerId}-${idx}`;
-    const wrapperId = `book-wrap-${uid}`;
-    const detailsId = `book-details-${uid}`;
-    const chevId = `book-chev-${uid}`;
-
-    // Fields
-    let fieldsHtml = '';
-    const addField = (label, val, isArr) => {
-      if (!val || (typeof val === 'string' && ['Unknown','N/A','Không xác định','nan'].includes(val.trim()))) return;
-      if (Array.isArray(val) && val.length === 0) return;
-      const content = Array.isArray(val)
-        ? val.map(v => `<span class="book-field-tag">${esc(v)}</span>`).join('')
-        : esc(val);
-      fieldsHtml += `<div class="book-field"><span class="book-field-label">${label}:</span> ${content}</div>`;
-    };
-
-    addField('Tên song ngữ', b.bilingual_title);
-    if (!_isJunkValue(b.author)) addField('Tác giả', b.author);
-    addField('Năm XB', b.year);
-    addField('Lần XB', b.edition);
-    addField('NXB', b.publisher);
-    addField('Nơi XB', b.place);
-    addField('Loại tài liệu', b.doc_type);
-    addField('Chuyên ngành', b.major);
-    addField('Học phần', b.course);
-    addField('Từ khóa', b.keywords || b.subject);
-    addField('DDC', b.ddc);
-    addField('Vị trí', b.location);
-
-    // Abstract
-    let abstractHtml = '';
-    if (b.abstract) {
-      abstractHtml = `<div class="book-abstract">${esc(b.abstract)}</div>`;
-    }
-
-    // Actions
-    let actionsHtml = '';
-    if (linkUrl && linkUrl.startsWith('http')) {
-      actionsHtml += `<a href="${attr(linkUrl)}" target="_blank" rel="noopener">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        Mở tài liệu
-      </a>`;
-    }
-    if (canAttachPdf) {
-      actionsHtml += `<button type="button" class="source-attach-btn" data-pdf-id="${attr(pdfId)}" data-pdf-file="${attr(pdfFileName)}" data-pdf-title="${attr(pdfTitle)}">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        Xem nội dung
-      </button>`;
-    }
-    if (actionsHtml) {
-      actionsHtml = `<hr class="book-details-sep"><div class="book-details-actions">${actionsHtml}</div>`;
-    }
-
-    const chevronSvg = `<svg id="${chevId}" class="book-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
-
-    return `<div class="${cardClass}"${attachAttrs}>
-      <div class="book-card-header" onclick="toggleBookDetails('${wrapperId}','${chevId}')">
-        <div class="book-card-header-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        </div>
-        <div class="book-card-header-text">
-          <div class="book-card-header-row">
-            <div class="book-title">${esc(b.title||"Tài liệu")}</div>
-            ${chevronSvg}
-          </div>
-          ${canAttachPdf ? `<div class="book-card-badges"><span class="source-pdf-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF</span></div>` : ''}
-        </div>
-      </div>
-      <div id="${wrapperId}" class="book-details-wrapper">
-        <div class="book-details">
-          <div class="book-details-inner">
-            <div class="book-details-grid">${fieldsHtml}</div>
-            ${abstractHtml}
-            ${actionsHtml}
-          </div>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  function renderPage(page) {
-    currentPage = page;
-    const start = (page - 1) * ITEMS_PER_PAGE;
-    const end = Math.min(start + ITEMS_PER_PAGE, sources.length);
-    const pageItems = sources.slice(start, end);
-
-    const gridEl = document.getElementById(containerId + '-grid');
-    const countEl = document.getElementById(containerId + '-count');
-    const pagEl = document.getElementById(containerId + '-pagination');
-
-    if (!gridEl) return;
-
-    // Render cards
-    let cardsHtml = '';
-    pageItems.forEach((b, i) => {
-      cardsHtml += bookCard(b, start + i);
-    });
-    gridEl.innerHTML = cardsHtml;
-
-    // Update count
-    if (countEl) {
-      countEl.textContent = `Trang ${page}/${totalPages} • ${total} tài liệu`;
-    }
-
-    // Render pagination
-    if (pagEl && totalPages > 1) {
-      const fnName = containerId + '_goPage';
-      let pHtml = '';
-      pHtml += `<button onclick="window['${fnName}'](${page - 1})" ${page <= 1 ? 'disabled' : ''} style="padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); font-size:12px; font-family:var(--font-sans); color:var(--text-secondary); cursor:pointer; font-weight:600; transition:var(--transition);" onmouseover="this.style.background='var(--accent-soft)'" onmouseout="this.style.background='var(--surface)'">‹ Trước</button>`;
-      pHtml += `<span style="font-size:12px; color:var(--text-tertiary); font-weight:500; padding:0 4px;">${page} / ${totalPages}</span>`;
-      pHtml += `<button onclick="window['${fnName}'](${page + 1})" ${page >= totalPages ? 'disabled' : ''} style="padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); font-size:12px; font-family:var(--font-sans); color:var(--text-secondary); cursor:pointer; font-weight:600; transition:var(--transition);" onmouseover="this.style.background='var(--accent-soft)'" onmouseout="this.style.background='var(--surface)'">Sau ›</button>`;
-      pagEl.innerHTML = pHtml;
-    } else if (pagEl) {
-      pagEl.innerHTML = '';
-    }
-
-    bindSourcePdfCards(gridEl);
-  }
-
-  window[containerId + '_goPage'] = function(page) {
-    if (page >= 1 && page <= totalPages) renderPage(page);
+  // Nhóm sách theo loại tài liệu (không phân biệt hoa/thường)
+  var groups = {};
+  var _dtKeyMap = {}; // key (lowercase) -> canonical name
+  var GROUP_LABELS = {
+    'Sách': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">menu_book</span> Loại tài liệu: Sách',
+    'Giáo trình': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">book</span> Loại tài liệu: Giáo trình',
+    'Giáo trình chính': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">book</span> Loại tài liệu: Giáo trình chính',
+    'Tài liệu tham khảo': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">library_books</span> Loại tài liệu: Tài liệu tham khảo',
+    'Tài liệu chính': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">clipboard_text</span> Loại tài liệu: Tài liệu chính',
+    'PDF': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">description</span> Loại tài liệu: PDF',
+    'Luận văn': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">school</span> Loại tài liệu: Luận văn',
+    'Đề tài': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">science</span> Loại tài liệu: Đề tài',
+    'Báo/Tạp chí': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">article</span> Loại tài liệu: Báo/Tạp chí',
+    'Khác': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">folder</span> Loại tài liệu: Khác'
   };
+  // Map các biến thể viết hoa/thường về canonical name
+  var _NORM = { 'tài liệu tham khảo': 'Tài liệu tham khảo' };
+  for (var i = 0; i < sources.length; i++) {
+    var raw = (sources[i].doc_type || '').trim();
+    if (!raw || raw === 'N/A' || raw === 'Unknown' || raw === 'nan') raw = 'Khác';
+    var low = raw.toLowerCase();
+    var dt = _NORM[low] || raw;
+    if (!groups[dt]) { groups[dt] = []; _dtKeyMap[dt] = dt; }
+    groups[dt].push(sources[i]);
+  }
 
-  const followupsEl = document.getElementById(containerId + '-followups');
+  var groupKeys = Object.keys(groups).sort(function(a, b) { return groups[b].length - groups[a].length; });
+
+  if (!__groupPages[containerId]) __groupPages[containerId] = {};
+  var pages = __groupPages[containerId];
+  for (var gi = 0; gi < groupKeys.length; gi++) {
+    if (pages[groupKeys[gi]] === undefined) pages[groupKeys[gi]] = 0;
+  }
+
+  const ITEMS_PER_PAGE = 20;
+
+  var html = '';
+
+  for (var gk = 0; gk < groupKeys.length; gk++) {
+    var dtName = groupKeys[gk];
+    var dtItems = groups[dtName];
+    var groupLabel = GROUP_LABELS[dtName] || '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">folder</span> Loại tài liệu: ' + dtName;
+    var curPage = pages[dtName] || 0;
+    var totalPages = Math.ceil(dtItems.length / ITEMS_PER_PAGE);
+    if (curPage >= totalPages) { pages[dtName] = 0; curPage = 0; }
+    var startIdx = curPage * ITEMS_PER_PAGE;
+    var endIdx = Math.min(startIdx + ITEMS_PER_PAGE, dtItems.length);
+    var isFirst = gk === 0;
+    var _groupId = containerId + '-grp-' + gk;
+
+    html += '<div class="doc-group-section" style="margin-bottom:8px;border:1px solid var(--border-light);border-radius:8px;overflow:hidden;">';
+    html += '<div class="doc-group-header" onclick="toggleDocGroup(\'' + _groupId + '\')" style="display:flex;align-items:center;gap:6px;padding:8px 12px;cursor:pointer;user-select:none;background:' + (isFirst ? 'var(--accent-soft)' : 'var(--bg)') + ';transition:background 0.15s;" onmouseover="this.style.background=\'var(--border-light)\'" onmouseout="this.style.background=\'' + (isFirst ? 'var(--accent-soft)' : 'var(--bg)') + '\'">';
+    html += '<span class="material-symbols-outlined doc-group-chevron" style="font-size:18px;color:var(--text-tertiary);transition:transform 0.2s;' + (isFirst ? 'transform:rotate(90deg);' : '') + '">chevron_right</span>';
+    html += '<span style="font-size:13px;font-weight:700;color:var(--text-primary);flex:1;">' + groupLabel + '</span>';
+    html += '<span style="font-size:10px;font-weight:600;color:var(--text-tertiary);background:var(--border-light);padding:1px 8px;border-radius:8px;">' + dtItems.length + '</span>';
+    html += '</div>';
+    html += '<div class="doc-group-body" id="' + _groupId + '" style="display:' + (isFirst ? 'block' : 'none') + ';padding:4px 8px 8px;">';
+    html += '<div style="display:flex;flex-direction:column;gap:4px;">';
+    for (var j = startIdx; j < endIdx; j++) {
+      html += bookCard(dtItems[j], gk + '-' + j);
+    }
+    if (totalPages > 1) {
+      var btnPrevDisabled = curPage === 0;
+      var btnNextDisabled = curPage >= totalPages - 1;
+      html += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 0 4px;">';
+      html += '<button type="button" onclick="switchGroupPage(\'' + containerId + "','" + dtName.replace(/'/g, "\\'") + "',-1)\" style='background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;font-family:var(--font-sans);" + (btnPrevDisabled ? 'opacity:0.4;pointer-events:none;' : '') + "'>\u2039 Trang tr\u01b0\u1edbc</button>";
+      html += '<span style="font-size:10px;font-weight:600;color:var(--text-tertiary);">' + (curPage + 1) + '/' + totalPages + '</span>';
+      html += '<button type=\"button\" onclick=\"switchGroupPage(\'' + containerId + "','" + dtName.replace(/'/g, "\\'") + "',1)\" style='background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;font-family:var(--font-sans);" + (btnNextDisabled ? 'opacity:0.4;pointer-events:none;' : '') + "'>Trang sau \u203a</button>";
+      html += '</div>';
+    }
+    html += '</div></div></div>';
+  }
+
+  html += '<div id="' + containerId + '-followups" style="margin-top:10px;"></div>';
+
+  // Update existing wrap or create new one
+  var wrap = document.getElementById(containerId + '-sources-wrap');
+  if (wrap) {
+    wrap.innerHTML = html;
+  } else {
+    var newWrap = document.createElement('div');
+    newWrap.id = containerId + '-sources-wrap';
+    newWrap.style.cssText = 'margin-top:14px;border-top:1px solid var(--border);padding-top:12px;';
+    newWrap.innerHTML = html;
+    bubble.appendChild(newWrap);
+  }
+
+  setTimeout(function() {
+    if (typeof bindSourcePdfCards === 'function') bindSourcePdfCards(bubble);
+  }, 50);
+
+  var followupsEl = document.getElementById(containerId + '-followups');
   if (followupsEl && followUps && followUps.length) {
-    let chipsHtml = '<div style="padding-top:8px; border-top:1px solid var(--border-light);">';
-    chipsHtml += '<div class="follow-up-label">Bạn muốn biết thêm gì?</div>';
+    var chipsHtml = '<div style="padding-top:8px;border-top:1px solid var(--border-light);">';
+    chipsHtml += '<div class="follow-up-label"><span class="material-symbols-outlined" style="font-size:15px;vertical-align:middle;margin-right:3px;">help</span> Bạn muốn biết thêm gì?</div>';
     chipsHtml += '<div class="follow-up-chips">';
-    followUps.forEach((item) => {
+    followUps.forEach(function(item) {
       if (item.query === "__SUGGEST_RELATED__") {
-        chipsHtml += `<button class="follow-up-chip" onclick="showRelatedSuggestions()">${esc(item.label || item)}</button>`;
+        chipsHtml += '<button class="follow-up-chip" onclick="showRelatedSuggestions()">' + esc(item.label || item) + '</button>';
       } else {
-        chipsHtml += `<button class="follow-up-chip" onclick="askFollowUp(this)" data-query="${attr(item.query || item)}">${esc(item.label || item)}</button>`;
+        chipsHtml += '<button class="follow-up-chip" onclick="askFollowUp(this)" data-query="' + attr(item.query || item) + '">' + esc(item.label || item) + '</button>';
       }
     });
     chipsHtml += '</div></div>';
     followupsEl.innerHTML = chipsHtml;
   }
-
-  renderPage(1);
 }
 
 function toggleBookDetails(wrapperId, chevId) {
@@ -1747,11 +1791,36 @@ function renderFollowUpSuggestions(afterId, suggestions) {
   if (!bubble || !suggestions || !suggestions.length) return;
 
   let html = '<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">';
-  html += '<div class="follow-up-label">💡 Gợi ý tiếp theo:</div>';
+  html += '<div class="follow-up-label"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26z"/></svg> Gợi ý tiếp theo:</div>';
   html += '<div class="follow-up-chips">';
   suggestions.forEach((text) => {
     html += `<button class="follow-up-chip" onclick="askFollowUp(this)">${esc(text)}</button>`;
   });
+  html += '</div></div>';
+  bubble.innerHTML += html;
+}
+
+/** Render follow-up chips từ mảng {label, query} — dùng khi không có kết quả sách */
+function renderFollowUpChips(afterId, items) {
+  const bubble = document.getElementById(afterId);
+  if (!bubble || !items || !items.length) return;
+  var _svgs = [
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="9" y1="7" x2="16" y2="7"/><line x1="9" y1="11" x2="14" y2="11"/></svg>',
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>'
+  ];
+  var _labelSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26z"/></svg>';
+  var html = '<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">';
+  html += '<div class="follow-up-label">' + _labelSvg + 'Bạn muốn làm gì tiếp theo?</div>';
+  html += '<div class="follow-up-chips">';
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    var label = item.label || item;
+    var q = item.query || label;
+    var _icon = _svgs[i % _svgs.length];
+    html += '<button class="follow-up-chip" onclick="askFollowUp(this)" data-query="' + attr(q) + '">' + _icon + ' ' + esc(label) + '</button>';
+  }
   html += '</div></div>';
   bubble.innerHTML += html;
 }
@@ -1762,7 +1831,7 @@ function askFollowUp(btn) {
     showRelatedSuggestions();
     return;
   }
-  const displayText = btn.textContent.trim();
+  const displayText = btn.dataset.query || btn.textContent.trim();
   document.getElementById("questionInput").value = displayText;
   document.getElementById("questionInput").style.height = "auto";
   document.getElementById("questionInput").style.height = Math.min(document.getElementById("questionInput").scrollHeight, 120) + "px";
@@ -1818,7 +1887,7 @@ async function showRelatedSuggestions() {
       groups[reason].push(s);
     });
 
-    let html = '<div style="margin-bottom:8px;font-weight:600;color:var(--text-primary);font-size:13px;">📚 Tài liệu liên quan</div>';
+    let html = '<div style="margin-bottom:8px;font-weight:600;color:var(--text-primary);font-size:13px;"><span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">library_books</span> Tài liệu liên quan</div>';
     for (const [reason, docs] of Object.entries(groups)) {
       html += `<div style="margin-bottom:6px;"><span style="font-weight:700;color:var(--accent);font-size:11px;letter-spacing:0.03em;">${esc(reason)}</span></div>`;
       docs.forEach((d) => {

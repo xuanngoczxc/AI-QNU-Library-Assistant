@@ -14,14 +14,12 @@ from pathlib import Path
 from typing import Optional
 from .text_utils import normalize_text, generate_document_hash, extract_keywords
 
-# ── MarkItDown (Microsoft) — giữ cấu trúc Markdown chất lượng cao ──
 try:
     from markitdown import MarkItDown
     _markitdown = MarkItDown()
 except ImportError:
     _markitdown = None
 
-# ── pypdf (fallback) ─────────────────────────────────────
 try:
     from pypdf import PdfReader
 except ImportError:
@@ -29,7 +27,6 @@ except ImportError:
 
 PDF_FOLDER = "pdfs"
 _PDF_CACHE_FILE = "Data/_pdf_extract_cache.pkl"
-
 
 class Document:
     """
@@ -39,7 +36,6 @@ class Document:
     def __init__(self, page_content: str, metadata: Optional[dict] = None):
         self.page_content = page_content or ""
         self.metadata = metadata or {}
-
 
 def _read_pdf_with_markitdown(pdf_path: str) -> list[Document]:
     """
@@ -62,12 +58,10 @@ def _read_pdf_with_markitdown(pdf_path: str) -> list[Document]:
     if not markdown_text.strip():
         return docs
 
-    # Tách theo page markers: <!-- page N --> hoặc <!-- Page N -->
     pages = re.split(r"<!--\s*[Pp]age\s*\d+\s*-->", markdown_text)
     pages = [p.strip() for p in pages if p.strip()]
 
     if not pages:
-        # Nếu không có page marker, xem như 1 trang duy nhất
         pages = [markdown_text.strip()]
 
     for i, page_content in enumerate(pages):
@@ -78,7 +72,6 @@ def _read_pdf_with_markitdown(pdf_path: str) -> list[Document]:
 
     return docs
 
-
 def _read_pdf_with_pypdf(pdf_path: str) -> list[Document]:
     """
     Đọc PDF bằng pypdf (fallback khi MarkItDown không hoạt động).
@@ -87,7 +80,7 @@ def _read_pdf_with_pypdf(pdf_path: str) -> list[Document]:
     """
     docs: list[Document] = []
     if not PdfReader:
-        print("   ⚠️  pypdf not available — skipping PDF text extraction")
+        print("pypdf not available — skipping PDF text extraction")
         return docs
 
     with open(pdf_path, "rb") as f:
@@ -109,18 +102,14 @@ def extract_pdf_title(pdf_path: str, pages: list[Document]) -> str:
     """
     # ?u tiên: dùng filename (luôn ch?nh x?c nh?t)
     filename = Path(pdf_path).stem
-    # Gi? l?i tên file g?c thay vì thay - b?ng space (-
-    # là d?u phân c?ch tên tác gi? - tên lu?n v?n)
     pdf_title = filename.strip()
     if pdf_title and len(pdf_title) >= 5:
         return pdf_title
 
-    # Fallback: th? l?y t? first page
     try:
         if pages:
             first_page_text = pages[0].page_content.strip()
             first_line = first_page_text.split("\n")[0].strip()
-            # Lo?i b? boilerplate Vi?t Nam ph? bi?n
             boilerplate = [
                 "bo giao duc va dao tao",
                 "bo giao duc",
@@ -138,7 +127,6 @@ def extract_pdf_title(pdf_path: str, pages: list[Document]) -> str:
         pass
 
     return filename.strip()
-
 
 def extract_section_heading(page_text: str) -> str:
     """

@@ -12,6 +12,7 @@ import time
 import json as _json
 import pickle
 import secrets
+import random
 from pathlib import Path
 from typing import Optional
 from collections import OrderedDict
@@ -37,6 +38,7 @@ from lib.models import (
     SpellCheckRequest, TermRequest, DocumentChatRequest,
     SemanticSearchRequest, SemanticSearchResponse,
     FacultySearchRequest, VoiceTranscribeRequest,
+    FacetRequest, FacetFilterRequest, FacetRefineRequest,
 )
 from lib.llm_client import call_llm, check_backend, record_llm_failure
 from lib.llm_prompts import (
@@ -73,6 +75,7 @@ from lib.followup import (
     extract_answer_headings, extract_answer_sections,
     build_contextual_suggestions, build_follow_up_suggestions,
 )
+from lib.facets import extract_facets, filter_by_facet, refine_results
 
 # ── External imports ───────────────────────────────────────
 from lib.search_engine import DocumentIndexer, BM25SearchEngine, HybridSearchEngine
@@ -1159,6 +1162,125 @@ async def search_documents(req: SearchRequest):
 
 
 # ═══════════════════════════════════════════════════════════════
+# ROUTES: Faceted search endpoints
+# ═══════════════════════════════════════════════════════════════
+
+@app.post("/api/facets/extract")
+async def facet_extract(req: FacetRequest):
+    """
+    Nhóm kết quả tìm kiếm theo các tiêu chí (chủ đề, loại, tác giả, năm...).
+    Frontend dùng để hiển thị các nhóm cho người dùng chọn.
+    """
+    try:
+        search_query = req.query or ""
+        if not search_query.strip():
+            return {"facets": {}, "total": 0, "error": "Query is empty"}
+
+        results = retriever.search_by_query(search_query, top_k=req.top_k)
+        facets = extract_facets(results, top_k=10)
+        return {"facets": facets, "total": len(results)}
+    except Exception as e:
+        logger.error("Facet extract error: %s", e)
+        return {"facets": {}, "total": 0, "error": str(e)}
+
+@app.post("/api/facets/filter")
+async def facet_filter(req: FacetFilterRequest):
+    """
+    Lọc kết quả theo một nhóm facet cụ thể (VD: chọn "Sách" trong doc_type).
+    """
+    try:
+        search_query = req.query or ""
+        if not search_query.strip():
+            return {"results": [], "total": 0, "error": "Query is empty"}
+
+        results = retriever.search_by_query(search_query, top_k=req.top_k)
+        filtered = filter_by_facet(results, req.group_name, req.group_value)
+
+        docs = []
+        seen = set()
+        for r in filtered:
+            doc = r["doc"]
+            key = doc["title"].lower()[:80]
+            if key in seen:
+                continue
+            seen.add(key)
+            docs.append({
+                "title": doc.get("title", ""),
+                "author": doc.get("author", "Unknown"),
+                "year": doc.get("year", "N/A"),
+                "subject": doc.get("subject", "N/A"),
+                "major": doc.get("major", ""),
+                "publisher": doc.get("publisher", ""),
+                "doc_type": doc.get("doc_type", "N/A"),
+                "link": doc.get("link", ""),
+                "location": doc.get("location", ""),
+                "abstract": doc.get("abstract", ""),
+                "ddc": doc.get("ddc", ""),
+                "notes": doc.get("notes", ""),
+                "score": round(r.get("score", 0), 2),
+                "source": doc.get("source", ""),
+                "csv_file": doc.get("csv_file", ""),
+            })
+
+        # Trả về cả facets cập nhật để frontend có thể refresh
+        updated_facets = extract_facets(filtered, top_k=10)
+
+        return {"results": docs, "total": len(docs),
+                "group_name": req.group_name, "group_value": req.group_value,
+                "facets": updated_facets}
+    except Exception as e:
+        logger.error("Facet filter error: %s", e)
+        return {"results": [], "total": 0, "error": str(e)}
+
+@app.post("/api/facets/refine")
+async def facet_refine(req: FacetRefineRequest):
+    """
+    Áp dụng nhiều bộ lọc cùng lúc (AND).
+    VD: filters={"author": "Nguyễn Văn A", "year": "2020 - 2025"}
+    """
+    try:
+        search_query = req.query or ""
+        if not search_query.strip():
+            return {"results": [], "total": 0, "error": "Query is empty"}
+
+        results = retriever.search_by_query(search_query, top_k=req.top_k)
+        filtered = refine_results(results, req.filters)
+
+        docs = []
+        seen = set()
+        for r in filtered:
+            doc = r["doc"]
+            key = doc["title"].lower()[:80]
+            if key in seen:
+                continue
+            seen.add(key)
+            docs.append({
+                "title": doc.get("title", ""),
+                "author": doc.get("author", "Unknown"),
+                "year": doc.get("year", "N/A"),
+                "subject": doc.get("subject", "N/A"),
+                "major": doc.get("major", ""),
+                "publisher": doc.get("publisher", ""),
+                "doc_type": doc.get("doc_type", "N/A"),
+                "link": doc.get("link", ""),
+                "location": doc.get("location", ""),
+                "abstract": doc.get("abstract", ""),
+                "ddc": doc.get("ddc", ""),
+                "notes": doc.get("notes", ""),
+                "score": round(r.get("score", 0), 2),
+                "source": doc.get("source", ""),
+                "csv_file": doc.get("csv_file", ""),
+            })
+
+        updated_facets = extract_facets(filtered, top_k=10)
+
+        return {"results": docs, "total": len(docs),
+                "facets": updated_facets, "filters": req.filters}
+    except Exception as e:
+        logger.error("Facet refine error: %s", e)
+        return {"results": [], "total": 0, "error": str(e)}
+
+# ═══════════════════════════════════════════════════════════════
 # ROUTE: /chat (main Q&A endpoint)
 # ═══════════════════════════════════════════════════════════════
 
@@ -1294,23 +1416,56 @@ async def chat(req: ChatRequest):
         if intent == "clarify":
             query_normalized = normalize_text(req.query).strip()
             if "the loai" in query_normalized:
-                answer = ("Mình muốn giúp bạn tốt hơn! 🤗\n\n"
+                answer = ("Mình chưa rõ ý bạn lắm!\n\n"
                          "Bạn đang muốn: **TÌM SÁCH** về thể loại này, hay hỏi về **NỘI DUNG** thể loại văn học?\n\n"
                          "Vui lòng chọn:")
+                suggestions = [
+                    {"label": "Tìm sách thể loại này", "query": "tim sach the loai " + query_normalized.replace("the loai","")},
+                    {"label": "Nội dung thể loại văn học", "query": "noi dung the loai van hoc"},
+                    {"label": "Sách nổi bật trong thể loại", "query": "sach noi bat the loai " + query_normalized.replace("the loai","")},
+                ]
             elif "tac gia" in query_normalized:
-                answer = ("Mình muốn giúp bạn tốt hơn! 🤗\n\n"
+                answer = ("Mình chưa rõ ý bạn lắm!\n\n"
                          "Bạn đang muốn: **TÌM SÁCH** của tác giả này, hay hỏi về **THÔNG TIN** tác giả?\n\n"
                          "Vui lòng chọn:")
+                suggestions = [
+                    {"label": "Tìm sách của tác giả này", "query": "tim sach tac gia " + query_normalized.replace("tac gia","")},
+                    {"label": "Thông tin về tác giả", "query": "thong tin tac gia " + query_normalized.replace("tac gia","")},
+                    {"label": "Tác phẩm nổi bật", "query": "tac pham noi bat cua " + query_normalized.replace("tac gia","")},
+                ]
             elif "nha xuat ban" in query_normalized:
-                answer = ("Mình muốn giúp bạn tốt hơn! 🤗\n\n"
+                answer = ("Mình chưa rõ ý bạn lắm!\n\n"
                          "Bạn đang muốn: **TÌM SÁCH** của nhà xuất bản này, hay hỏi về **THÔNG TIN** nhà xuất bản?\n\n"
                          "Vui lòng chọn:")
+                suggestions = [
+                    {"label": "Tìm sách NXB này", "query": "tim sach nha xuat ban " + query_normalized.replace("nha xuat ban","")},
+                    {"label": "Danh sách NXB", "query": "danh sach nha xuat ban"},
+                    {"label": "Sách mới của NXB", "query": "sach moi nha xuat ban " + query_normalized.replace("nha xuat ban","")},
+                ]
             else:
-                answer = ("Mình muốn giúp bạn tốt hơn! 🤗\n\n"
-                         "Bạn đang muốn **TÌM SÁCH** hay **HỎI VỀ NỘI DUNG** liên quan?\n\n"
-                         "Vui lòng chọn bên dưới nhé:")
+                _clarify_pool = [
+                    {"label": "Tìm sách về trí tuệ nhân tạo", "query": "tìm sách về trí tuệ nhân tạo"},
+                    {"label": "Sách ngành Tâm lý học", "query": "tìm sách ngành tâm lý học"},
+                    {"label": "Tìm sách của Nguyễn Nhật Ánh", "query": "tìm sách của Nguyễn Nhật Ánh"},
+                    {"label": "Sách ngành Công nghệ thông tin", "query": "tìm sách ngành Công nghệ thông tin"},
+                    {"label": "Sách về Kinh tế học", "query": "tìm sách về Kinh tế học"},
+                    {"label": "Tìm sách của Stuart J. Russell", "query": "tìm sách của Stuart J. Russell"},
+                    {"label": "Sách ngành Giáo dục", "query": "tìm sách ngành Giáo dục"},
+                    {"label": "Sách về Xây dựng", "query": "tìm sách về Xây dựng"},
+                    {"label": "Tìm sách của Lê Xuân Vinh", "query": "tìm sách của Lê Xuân Vinh"},
+                    {"label": "Sách ngành Toán ứng dụng", "query": "tìm sách ngành Toán ứng dụng"},
+                    {"label": "Sách về Sinh học", "query": "tìm sách về Sinh học"},
+                    {"label": "Tìm sách ngành Quản lý kinh tế", "query": "tìm sách ngành Quản lý kinh tế"},
+                ]
+                suggestions = random.sample(_clarify_pool, min(4, len(_clarify_pool)))
+                answer = ("Mình chưa hiểu rõ câu hỏi của bạn.\n\n"
+                         "Mình là trợ lý Thư viện, bạn có thể hỏi mình về:\n"
+                         "• **Tìm sách** theo tên, tác giả, chủ đề\n"
+                         "• **Tra cứu tài liệu** theo ngành học\n"
+                         "• **Gợi ý sách** phù hợp với nhu cầu\n\n"
+                         "Thử chọn một gợi ý bên dưới nhé:")
             return ChatResponse(answer=answer, sources=[], total_sources=0, total_found=0, summary="", current_document=None,
-                follow_up_suggestions=[{"label": "Tìm sách", "query": "tim sach ve " + query_normalized}, {"label": "Hỏi về nội dung", "query": "noi dung ve " + query_normalized}])
+                follow_up_suggestions=suggestions)
 
         request_content = detect_content_request(req.query)
         is_list_request = detect_list_request(req.query)
@@ -1681,6 +1836,21 @@ def serve_chat_ui():
 @app.get("/static/SHL-logo.png", response_class=FileResponse, include_in_schema=False)
 def serve_logo():
     return FileResponse("SHL-logo.png", media_type="image/png")
+
+# ── Serve embed/widget files ──────────────────────────────
+@app.get("/embed/{filename}", include_in_schema=False)
+def serve_embed(filename: str):
+    """Serve files from embed/ directory (qnu-chat-widget.js, demo.html, etc.)"""
+    import os as _os
+    safe_path = _os.path.normpath(_os.path.join("embed", filename))
+    if not safe_path.startswith("embed"):
+        raise HTTPException(403, "Forbidden")
+    full = _os.path.join(_os.path.dirname(__file__), safe_path)
+    if not _os.path.exists(full):
+        raise HTTPException(404, "File not found")
+    ext = _os.path.splitext(filename)[1].lower()
+    media_map = {".js": "application/javascript", ".html": "text/html", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".svg": "image/svg+xml"}
+    return FileResponse(full, media_type=media_map.get(ext, "application/octet-stream"))
 
 @app.get("/status")
 def status():

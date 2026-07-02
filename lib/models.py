@@ -57,6 +57,21 @@ class DocumentChatRequest(BaseModel):
     search_type: str = "full_pdf"
     session_id: str = "default"
 
+class FacetRequest(BaseModel):
+    query: str
+    top_k: int = 50
+
+class FacetFilterRequest(BaseModel):
+    query: str
+    group_name: str
+    group_value: str
+    top_k: int = 50
+
+class FacetRefineRequest(BaseModel):
+    query: str
+    filters: dict[str, Optional[str]] = {}
+    top_k: int = 50
+
 
 class SemanticSearchRequest(BaseModel):
     query: str
