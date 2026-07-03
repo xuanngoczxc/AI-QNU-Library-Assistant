@@ -16,6 +16,8 @@ def detect_author_query(query: str) -> bool:
     if not query:
         return False
     q = normalize_text(query)
+
+    # ── Pattern 1: Explicit "tác giả" markers ──
     author_markers = [
         r"\btac gia\b", r"\btac gia\s+(?:la|co ten|ten)\b",
         r"\bcua\s+tac gia\b", r"\bsach\s+cua\s+tac gia\b",
@@ -23,11 +25,15 @@ def detect_author_query(query: str) -> bool:
     ]
     if any(re.search(p, q) for p in author_markers):
         return True
+
     VIETNAMESE_SURNAMES = {
         "nguyen", "tran", "le", "pham", "hoang", "huynh", "vo", "dang",
         "bui", "do", "ngo", "duong", "ly", "doan", "dinh", "trinh",
         "nhat", "quach", "mau", "lai", "son", "cu", "tieu",
-        "cao", "mac", "ha", "kieu", "tang", "dong", "bac", "kha",
+        "cao", "mac", "ha", "ho", "kieu", "tang", "dong", "bac", "kha",
+        "thach", "dieu", "chau", "nghiem", "diep", "thai", "to",
+        "lam", "luu", "phung", "vu", "ma", "ton", "dai",
+        "phan", "truong", "vuong", "chu", "ta", "luong",
     }
     topic_words = {
         "te", "vi", "mo", "hoc", "phap", "luat", "su", "hoa",
@@ -38,10 +44,59 @@ def detect_author_query(query: str) -> bool:
         "thong", "bao", "chi", "truyen", "sinh", "y", "duoc",
         "ky", "thuat", "nganh", "chu", "de", "linh", "vuc",
     }
+
     words = q.split()
-    if 2 <= len(words) <= 4 and words[0] in VIETNAMESE_SURNAMES:
+
+    # ── Pattern 2: "sách của <họ tên>", "tài liệu của <họ tên>" ──
+    cua_patterns = [
+        r"\bsach\s+cua\s+(.+)",
+        r"\btai lieu\s+cua\s+(.+)",
+        r"\bgiao trinh\s+cua\s+(.+)",
+        r"\bbai\s+cua\s+(.+)",
+    ]
+    for pattern in cua_patterns:
+        m = re.search(pattern, q)
+        if m:
+            name_part = m.group(1).strip()
+            name_tokens = name_part.split()
+            if len(name_tokens) >= 2 and name_tokens[0] in VIETNAMESE_SURNAMES:
+                return True
+
+    # ── Pattern 3: "của <họ> ..." ở bất kỳ vị trí nào trong câu ──
+    for i, w in enumerate(words):
+        if w == "cua" and i + 1 < len(words):
+            remaining = words[i+1:]
+            if len(remaining) >= 2 and remaining[0] in VIETNAMESE_SURNAMES:
+                if not any(t in topic_words for t in remaining[1:]):
+                    return True
+            elif len(remaining) == 1 and remaining[0] in VIETNAMESE_SURNAMES:
+                return True
+
+    # ── Pattern 4: Câu ngắn bắt đầu bằng họ (relaxed từ 2-6 từ) ──
+    if 2 <= len(words) <= 6 and words[0] in VIETNAMESE_SURNAMES:
         if not any(w in topic_words for w in words[1:]):
             return True
+
+    # ── Pattern 5: Phát hiện tác giả ở cuối câu dạng "tìm sách <họ> ..." ──
+    # Một họ Việt Nam xuất hiện ở cuối, các từ trước là hành động/mục tiêu
+    if len(words) >= 3:
+        for idx, w in enumerate(words):
+            if w in VIETNAMESE_SURNAMES and idx >= 1:
+                # Từ ngay trước họ phải là action/catalog word hoặc tên đệm
+                preceding = words[:idx]
+                name_part = words[idx:]
+                # Điều kiện: từ trước họ là "sach", "tai lieu", "giao trinh", hoặc từ đệm
+                # và các từ sau họ tạo thành tên hợp lý (2-4 tokens, không có topic words)
+                if len(name_part) >= 2 and len(name_part) <= 5:
+                    if not any(t in topic_words for t in name_part[1:]):
+                        # Từ liền trước họ là action/target word → có thể là "tìm sách <họ>"
+                        is_author_tail = False
+                        # Kiểm tra nếu phần còn lại có vẻ là tên người
+                        if len(name_part) >= 2:
+                            is_author_tail = True
+                        if is_author_tail:
+                            return True
+
     return False
 
 
@@ -65,7 +120,10 @@ def extract_author_name(query: str) -> str:
         "nguyen", "tran", "le", "pham", "hoang", "huynh", "vo", "dang",
         "bui", "do", "ngo", "duong", "ly", "doan", "dinh", "trinh",
         "nhat", "quach", "mau", "lai", "son", "cu", "tieu",
-        "cao", "mac", "ha", "kieu", "tang", "dong", "bac", "kha",
+        "cao", "mac", "ha", "ho", "kieu", "tang", "dong", "bac", "kha",
+        "thach", "dieu", "chau", "nghiem", "diep", "thai", "to",
+        "lam", "luu", "phung", "vu", "ma", "ton", "dai",
+        "phan", "truong", "vuong", "chu", "ta", "luong",
     }
     topic_words = {
         "te", "vi", "mo", "hoc", "phap", "luat", "su", "hoa",
@@ -101,13 +159,35 @@ def extract_author_name(query: str) -> str:
             name = name.strip().rstrip(",. ?")
             name_tokens = name.split()
             if len(name_tokens) >= 2 and name_tokens[0] in VIETNAMESE_SURNAMES:
-                if not any(w in topic_words for w in name_tokens[1:]):
-                    return name
+                # KHÔNG kiểm tra topic_words ở tên đệm => "Văn", "Thị", "Xuân" là tên hợp lệ
+                return name
+
+    # ── Pattern 5: "sách <họ> ...", "tìm sách <họ> ..." (không có "của") ──
+    # Xoá các từ chủ ngữ (toi/minh/em...) và action/target ở đầu để lộ tên tác giả
+    q_stripped = re.sub(
+        r"^(?:toi|minh|em|anh|chi|ban|tao|may|no|ho|chung|cac ban|may)\s+",
+        "", q
+    ).strip()
+    q_stripped = re.sub(
+        r"^(?:tim|tra|co|muon|xem|liet ke|hay|vui long|xin)\s+(?:sach|tai lieu|giao trinh|bai bao|bai|cuon|quyen)?\s*",
+        "", q_stripped
+    ).strip()
+    # Nếu còn dư "sach", "tai lieu", "giao trinh" ở đầu sau lần strip
+    q_stripped = re.sub(
+        r"^(?:sach|tai lieu|giao trinh|bai bao|bai|cuon|quyen)\s+",
+        "", q_stripped
+    ).strip()
+    # Nếu còn dư "cua" ở đầu
+    q_stripped = re.sub(r"^cua\s+", "", q_stripped).strip()
+    if q_stripped and q_stripped != q:
+        name_tokens = q_stripped.split()
+        if 2 <= len(name_tokens) <= 5 and name_tokens[0] in VIETNAMESE_SURNAMES:
+            return q_stripped
+
     words = q.split()
-    if 2 <= len(words) <= 4 and words[0] in VIETNAMESE_SURNAMES:
-        if not any(w in topic_words for w in words[1:]):
-            return q
-    if 2 <= len(words) <= 5:
+    if 2 <= len(words) <= 6 and words[0] in VIETNAMESE_SURNAMES:
+        return q
+    if 2 <= len(words) <= 6:
         if ',' in q:
             parts = [p.strip() for p in q.split(',') if p.strip()]
             if 1 <= len(parts) <= 3:
@@ -143,6 +223,8 @@ def normalize_author_name(name: str) -> str:
     if not name:
         return ""
     normalized = normalize_text(name)
+    # Xoá dấu phẩy (MARC format "Last, First" → "Last First")
+    normalized = re.sub(r'[,\.;:]+', ' ', normalized)
     normalized = re.sub(r"\s+", " ", normalized).strip()
     normalized = re.sub(r"\s*\([^)]*\)\s*", " ", normalized)
     return re.sub(r"\s+", " ", normalized).strip()
@@ -159,32 +241,48 @@ def author_name_matches(doc_author: str, query_author: str) -> bool:
     doc_tokens = doc_norm.split()
     if not query_tokens or not doc_tokens:
         return False
-    if doc_norm == query_norm or query_norm in doc_norm:
+
+    # ── 1. Exact match ──
+    if doc_norm == query_norm:
         return True
-    first_matches = doc_tokens[0] == query_tokens[0]
-    last_matches = doc_tokens[-1] == query_tokens[-1]
-    if first_matches and last_matches:
-        doc_set = set(doc_tokens)
-        overlap = sum(1 for t in query_tokens if t in doc_set)
-        if overlap == len(query_tokens) and overlap >= 3:
+
+    # ── 2. So sánh tập hợp token (không phụ thuộc thứ tự) ──
+    #    Xử lý đúng cho cả MARC "Lâm, Hồ Văn" ↔ query "Hồ Văn Lâm"
+    doc_set = set(doc_tokens)
+    query_set = set(query_tokens)
+    if not doc_set or not query_set:
+        return False
+
+    # ── 2a. Query có 2 token: yêu cầu EXACT set match ──
+    #    Xử lý cả "luong hien" ↔ "hien luong" (MARC reversed 2-token)
+    if len(query_tokens) == 2:
+        if query_set == doc_set:
             return True
 
-    def _to_initials_surname(n):
-        n = re.sub(r'[,\.]+', ' ', n).lower()
-        n = re.sub(r'\s+', ' ', n).strip()
-        toks = n.split()
-        if len(toks) >= 2:
-            surname = toks[-1]
-            initials = ''.join(t[0] for t in toks[:-1] if t)
-            return initials + surname
-        return n.replace(' ', '')
-
-    doc_key = _to_initials_surname(doc_norm)
-    query_key = _to_initials_surname(query_norm)
-    if doc_key and query_key and len(doc_key) >= 3 and len(query_key) >= 3:
-        if doc_key == query_key or query_key in doc_key or doc_key in query_key:
-            if abs(len(doc_key) - len(query_key)) <= 4:
+    # ── 2b. Subset check (query_set phải là subset của doc_set) ──
+    #    Không chấp nhận chiều ngược lại: doc_set.issubset(query_set) cho phép
+    #    doc có ít token hơn query → false positive ("Nguyễn Hữu Nguyên" vs "Nguyễn Hữu Trọn")
+    if query_set.issubset(doc_set):
+        # Với 2-token query và doc >2 tokens: yêu cầu query tokens khớp
+        # ĐẦU và CUỐI của doc_tokens (surname + given name position).
+        # Tránh false positive: "Lương Hiền" vs "Trương Hiền Lượng"
+        #   doc_tokens=["truong","hien","luong"] → doc[0]="truong", doc[-1]="luong"
+        #   query_tokens={"luong","hien"} → chỉ "luong" khớp doc[-1], thiếu "truong" → reject
+        if len(query_tokens) == 2 and len(doc_tokens) > 2:
+            # Với 2-token query và doc >2 tokens: yêu cầu 2 query token khớp
+            # token ĐẦU (surname) và token CUỐI (given name) của doc.
+            # Giới hạn tối đa 1 từ đệm (middle name), không cho 2+ từ đệm:
+            #   "Lương Văn Hiền" (3t) → pass
+            #   "Lương Thị Thu Hiền" (4t, 2 middle) → fail
+            doc_first = doc_tokens[0]
+            doc_last = doc_tokens[-1]
+            if (query_tokens[0] == doc_first and query_tokens[1] == doc_last
+                    and len(doc_tokens) - len(query_tokens) <= 1):
                 return True
+            return False
+        return True
+
+    # ── 3. Single token fallback (tối thiểu 3 ký tự) ──
     if len(query_tokens) == 1 and len(query_tokens[0]) >= 3:
         if query_tokens[0] in doc_norm:
             return True
@@ -263,7 +361,22 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
         author_results = []
         non_author_results = []
         for result in search_results:
-            if author_name_matches(result.get("doc", {}).get("author", ""), author_name):
+            doc = result.get("doc", {})
+            # Khi prefer_strict=True: chỉ kiểm tra trường author chính
+            # Khi prefer_strict=False: kiểm tra cả co_authors, authors
+            primary_author = doc.get("author", "")
+            if prefer_strict:
+                matches = author_name_matches(primary_author, author_name)
+            else:
+                all_author_fields = [primary_author]
+                co_authors = doc.get("co_authors") or []
+                if isinstance(co_authors, list):
+                    all_author_fields.extend(co_authors)
+                authors_list = doc.get("authors") or []
+                if isinstance(authors_list, list):
+                    all_author_fields.extend(authors_list)
+                matches = any(author_name_matches(a, author_name) for a in all_author_fields if a)
+            if matches:
                 author_results.append({**result, "score": result.get("score", 0.0) + 500.0})
             else:
                 non_author_results.append(result)

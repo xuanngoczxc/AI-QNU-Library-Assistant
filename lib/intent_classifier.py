@@ -36,9 +36,10 @@ VIETNAMESE_SURNAMES = {
     "nguyen", "tran", "le", "pham", "hoang", "huynh", "vo", "dang",
     "bui", "do", "ngo", "duong", "ly", "doan", "dinh", "trinh",
     "nhat", "quach", "mau", "lai", "son", "cu", "tieu",
-    "cao", "mac", "ha", "kieu", "tang", "dong", "bac", "kha",
+    "cao", "mac", "ha", "ho", "kieu", "tang", "dong", "bac", "kha",
     "thach", "dieu", "chau", "nghiem", "diep", "thai", "to",
     "lam", "luu", "phung", "vu", "ma", "ton", "dai",
+    "phan", "truong", "vuong", "chu", "ta", "luong",
 }
 
 ACTION_CATALOG = {
@@ -213,6 +214,8 @@ def extract_entities(query: str) -> QueryEntities:
         m = re.search(r"(?:tac gia|cua\s*tac\s*gia|sach\s*cua|tai\s*lieu\s*cua|giao\s*trinh\s*cua)\s+(.+?)(?:\s+(?:khong|ko|ne|nha|a|nhi|di|va|hoac)\s*$|$)", text)
         if m:
             name = m.group(1).strip()
+            # Remove "tác giả" nếu còn sót
+            name = re.sub(r'^tac\s+gia\s+', '', name).strip()
             name_tokens = name.split()
             # Filter out stop words from name
             name_tokens = [t for t in name_tokens if t not in VIETNAMESE_STOP_WORDS and len(t) >= 2]
@@ -231,6 +234,29 @@ def extract_entities(query: str) -> QueryEntities:
             if not any(t in topic_words for t in words[1:]):
                 ent.has_author_kw = True
                 ent.author_name = " ".join(words)
+
+    # Heuristic: "sách <họ>..." hoặc "tìm sách <họ>..." (không có "của")
+    if not ent.author_name and not ent.has_author_kw:
+        words = ent.words
+        if len(words) >= 3:
+            for idx, w in enumerate(words):
+                if w in VIETNAMESE_SURNAMES and idx >= 1:
+                    # Các từ trước họ: phải chứa "sach", "tai lieu" hoặc action word
+                    preceding = words[:idx]
+                    has_book_action = any(p in {"tim", "tra", "co", "muon", "xem", "liet ke"} for p in preceding)
+                    has_book_target = any(p in {"sach", "tai lieu", "giao trinh", "bai", "cuon", "quyen"} for p in preceding)
+                    if has_book_action or has_book_target:
+                        name_part = words[idx:]
+                        if 2 <= len(name_part) <= 5:
+                            topic_words = {"hoc", "phap", "luat", "su", "hoa", "van", "nghe", "thuat",
+                                           "cong", "nghiep", "xay", "dung", "nong", "kinh", "tai", "chinh",
+                                           "giao", "duc", "tam", "ly", "xa", "hoi", "tri", "nhan", "tao",
+                                           "may", "tinh", "phan", "mem", "dien", "tu", "thong", "bao",
+                                           "sinh", "y", "duoc", "ky", "thuat", "nganh", "chu", "de", "linh", "vuc"}
+                            if not any(t in topic_words for t in name_part[1:]):
+                                ent.has_author_kw = True
+                                ent.author_name = " ".join(name_part)
+                                break
 
     # ── 4. Detect publisher ──
     if re.search(r"(?:nha xuat ban|nxb)", text):

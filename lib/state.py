@@ -4,6 +4,7 @@ Import this module to read/write app-wide state.
 """
 
 import time
+from collections import Counter, deque
 from .config import LLM_CIRCUIT_THRESHOLD, LLM_CIRCUIT_COOLDOWN, MAX_HISTORY
 
 # ── Uptime ────────────────────────────────────────────────
@@ -29,3 +30,13 @@ session_history: dict[str, list[dict]] = {}
 
 # ── PDF session history (key = "session_id:pdf_id") ──────
 pdf_session_history: dict[str, list[dict]] = {}
+
+# ── Lightweight in-memory analytics ───────────────────────
+query_analytics = {
+    "total": 0,
+    "top_queries": Counter(),
+    "no_result_queries": Counter(),
+    "labels": {},
+    "recent": deque(maxlen=100),
+    "last_query_at": None,
+}

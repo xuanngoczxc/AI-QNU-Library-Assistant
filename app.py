@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import time
+import asyncio
 import json as _json
 import pickle
 import secrets
@@ -20,7 +21,7 @@ from collections import OrderedDict
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
 # ── Lib imports ────────────────────────────────────────────
 from lib.config import (
@@ -30,7 +31,7 @@ from lib.config import (
 )
 from lib.state import (
     APP_START_TIME, ADMIN_TOKENS, llm_stats, llm_circuit,
-    session_history, pdf_session_history,
+    session_history, pdf_session_history, query_analytics,
 )
 from lib.logging_setup import logger
 from lib.models import (
@@ -76,6 +77,7 @@ from lib.followup import (
     build_contextual_suggestions, build_follow_up_suggestions,
 )
 from lib.facets import extract_facets, filter_by_facet, refine_results
+import lib.catalog as catalog_state
 
 # ── External imports ───────────────────────────────────────
 from lib.search_engine import DocumentIndexer, BM25SearchEngine, HybridSearchEngine
@@ -934,6 +936,88 @@ def _load_faculties_tree() -> dict:
     _FACULTIES_CACHE = {"faculties": data, "total_faculties": len(data)}
     _FACULTIES_CACHE_TS = now
     return _FACULTIES_CACHE
+
+
+def _analytics_key(query: str) -> str:
+    key = normalize_text(query or "").strip()
+    key = re.sub(r"\s+", " ", key)
+    return key[:160] or "unknown"
+
+
+def _record_query_analytics(query: str, result_count: int = 0) -> None:
+    key = _analytics_key(query)
+    label = (query or "").strip()[:180] or key
+    no_result = result_count <= 0
+    query_analytics["total"] += 1
+    query_analytics["top_queries"][key] += 1
+    query_analytics["labels"][key] = label
+    if no_result:
+        query_analytics["no_result_queries"][key] += 1
+    query_analytics["recent"].appendleft({
+        "query": label,
+        "result_count": int(result_count),
+        "no_result": no_result,
+        "ts": time.time(),
+    })
+    query_analytics["last_query_at"] = time.time()
+
+
+def _format_ts(ts: float | None) -> str:
+    if not ts:
+        return ""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+
+
+def _latest_data_update_ts() -> float:
+    latest = 0.0
+    for root, pattern in [(Path("Data"), "*"), (Path("pdfs"), "*.pdf")]:
+        if not root.exists():
+            continue
+        for item in root.glob(pattern):
+            if item.is_file() and not item.name.endswith((".pkl", ".cache")):
+                latest = max(latest, item.stat().st_mtime)
+    return latest
+
+
+def _counter_items(counter, limit: int = 8) -> list[dict]:
+    labels = query_analytics.get("labels", {})
+    return [
+        {"query": labels.get(key, key), "count": count}
+        for key, count in counter.most_common(limit)
+    ]
+
+
+def _dashboard_payload() -> dict:
+    total_docs = len(documents)
+    pdf_count = 0
+    try:
+        pdf_count = len(pdf_manager.list_all_pdfs())
+    except Exception:
+        pdf_count = 0
+    latest_ts = _latest_data_update_ts()
+    return {
+        "status": "ok",
+        "documents": {
+            "total": total_docs,
+            "catalog_rows": total_docs,
+            "pdf_files": pdf_count,
+        },
+        "updated": {
+            "last_data_update": _format_ts(latest_ts),
+            "last_query_at": _format_ts(query_analytics.get("last_query_at")),
+        },
+        "analytics": {
+            "total_queries": query_analytics["total"],
+            "top_queries": _counter_items(query_analytics["top_queries"], 8),
+            "no_result_queries": _counter_items(query_analytics["no_result_queries"], 8),
+            "recent": list(query_analytics["recent"])[:10],
+        },
+        "indexes": {
+            "bm25_ready": bm25_engine is not None and bool(documents),
+            "topic_cache_size": len(catalog_state.TOPIC_CACHE),
+        },
+        "cache": _search_cache.stats(),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1796,6 +1880,7 @@ async def chat(req: ChatRequest):
         has_pdf_sources = any(s.get("is_pdf") for s in sources)
         follow_ups = build_follow_up_suggestions(query=req.query, sources=sources, answer=answer, catalog_mode=catalog_mode, has_pdf_sources=has_pdf_sources, session_id=req.session_id)
 
+        _record_query_analytics(req.query, total_found)
         return ChatResponse(answer=answer, sources=sources, total_sources=len(sources), total_found=total_found, summary=summary, current_document=current_doc, follow_up_suggestions=follow_ups)
 
     except Exception as e:
@@ -1803,6 +1888,51 @@ async def chat(req: ChatRequest):
         if "connect" in err.lower() or "refused" in err.lower():
             raise HTTPException(503, "OpenRouter API không khả dụng.")
         raise HTTPException(500, err)
+
+
+def _stream_chunks(text: str, size: int = 96):
+    words = (text or "").split(" ")
+    chunk = ""
+    for word in words:
+        candidate = (chunk + " " + word).strip()
+        if len(candidate) >= size and chunk:
+            yield chunk
+            chunk = word
+        else:
+            chunk = candidate
+    if chunk:
+        yield chunk
+
+
+def _sse_event(payload: dict) -> str:
+    return "data: " + _json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n\n"
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest):
+    async def events():
+        try:
+            analytics_before = query_analytics["total"]
+            response = await chat(req)
+            payload = response.model_dump() if hasattr(response, "model_dump") else response.dict()
+            if query_analytics["total"] == analytics_before:
+                _record_query_analytics(req.query, payload.get("total_found", 0))
+            answer = payload.get("answer", "")
+            for chunk in _stream_chunks(answer):
+                yield _sse_event({"type": "chunk", "text": chunk + " "})
+                await asyncio.sleep(0.015)
+            yield _sse_event({"type": "sources", "sources": payload.get("sources", [])})
+            yield _sse_event({"type": "total_found", "total_found": payload.get("total_found", 0)})
+            if payload.get("summary"):
+                yield _sse_event({"type": "summary", "summary": payload.get("summary", "")})
+            yield _sse_event({"type": "follow_ups", "follow_up_suggestions": payload.get("follow_up_suggestions", [])})
+            yield _sse_event({"type": "done"})
+        except HTTPException as e:
+            yield _sse_event({"type": "error", "message": e.detail})
+        except Exception as e:
+            yield _sse_event({"type": "error", "message": str(e)})
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1889,9 +2019,8 @@ def stats():
             type_counter[t] = type_counter.get(t, 0) + 1
         cache_info = _search_cache.stats()
         llm_info = {"calls": llm_stats["calls"], "failures": llm_stats["failures"], "retries": llm_stats["retries"], "last_error": llm_stats["last_error"], "circuit_state": llm_circuit["state"], "consecutive_failures": llm_circuit["failures"]}
-        topic_cache_size = len(TOPIC_CACHE)
-        sem_engine = get_semantic_engine()
-        sem_available = sem_engine is not None and getattr(sem_engine, 'embeddings', None) is not None
+        topic_cache_size = len(catalog_state.TOPIC_CACHE)
+        sem_available = _semantic_engine is not None and getattr(_semantic_engine, 'embeddings', None) is not None
         return {"status": "ok", "documents": {"total": total, "csv_rows": csv_rows, "pdf_pages": pdf_pages, "empty_major": empty_major, "empty_major_pct": round(empty_major / total * 100, 1) if total else 0}, "top_majors": [{"name": n, "count": c} for n, c in top_majors], "by_source": source_counter, "by_type": type_counter, "indexes": {"bm25_ready": bm25_engine is not None and bool(documents), "semantic_available": sem_available, "topic_cache_size": topic_cache_size}, "cache": cache_info, "llm": llm_info, "sessions": {"chat": len(session_history), "pdf": len(pdf_session_history)}, "model": OPENROUTER_MODEL}
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "error": str(e)})
@@ -2043,6 +2172,12 @@ async def admin_login(data: dict):
 async def admin_logout(data: dict):
     ADMIN_TOKENS.discard(data.get("token", ""))
     return {"status": "ok"}
+
+@app.post("/api/admin/dashboard")
+async def admin_dashboard(data: dict = Body(...)):
+    if data.get("token", "") not in ADMIN_TOKENS:
+        raise HTTPException(401, "Token không hợp lệ")
+    return _dashboard_payload()
 
 @app.post("/api/admin/upload")
 async def admin_upload(token: str = Form(...), file: UploadFile = File(...)):
