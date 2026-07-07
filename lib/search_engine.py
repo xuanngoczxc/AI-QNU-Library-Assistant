@@ -396,7 +396,7 @@ class DocumentIndexer:
                         short_col = col.replace('(526$b)', '').replace('(082$a)', '').strip()
                         if clean_val.lower().startswith(short_col.lower()):
                             clean_val = clean_val[len(short_col):].lstrip(': ').lstrip('|').strip()
-                        location_parts.append(f"{short_col}: {clean_val[:60]}")
+                        location_parts.append(f"{short_col}: {clean_val[:500]}")
 
             location_str = ' ; '.join(location_parts) if location_parts else ''
 

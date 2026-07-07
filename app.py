@@ -19,11 +19,10 @@ from typing import Optional
 from collections import OrderedDict
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
-# ── Lib imports ────────────────────────────────────────────
 from lib.config import (
     OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_FALLBACK_MODELS,
     OPENROUTER_BASE_URL, OPENROUTER_APP_TITLE, OPENROUTER_HTTP_REFERER,
@@ -31,7 +30,7 @@ from lib.config import (
 )
 from lib.state import (
     APP_START_TIME, ADMIN_TOKENS, llm_stats, llm_circuit,
-    session_history, pdf_session_history, query_analytics,
+    session_history, query_analytics,
 )
 from lib.logging_setup import logger
 from lib.models import (
@@ -48,12 +47,12 @@ from lib.llm_prompts import (
     detect_result_question, build_chapter_prompt, build_method_prompt,
     build_structure_prompt,
 )
-from lib.pdf_helpers import (
-    has_extractable_pdf_text, is_general_pdf_content_request,
-    build_empty_pdf_answer, detect_reference_request,
-    is_reference_heading_line, answer_says_no_information,
-    build_related_pdf_answer, build_reference_answer, parse_reference_items,
-)
+# from lib.pdf_helpers import (
+#     has_extractable_pdf_text, is_general_pdf_content_request,
+#     build_empty_pdf_answer, detect_reference_request,
+#     is_reference_heading_line, answer_says_no_information,
+#     build_related_pdf_answer, build_reference_answer, parse_reference_items,
+# )
 from lib.catalog import (
     normalize_topic_text, topic_tokens, build_catalog_topic_index,
     find_catalog_topic_matches, metadata_search_by_query,
@@ -79,22 +78,20 @@ from lib.followup import (
 from lib.facets import extract_facets, filter_by_facet, refine_results
 import lib.catalog as catalog_state
 
-# ── External imports ───────────────────────────────────────
 from lib.search_engine import DocumentIndexer, BM25SearchEngine, HybridSearchEngine
 from lib.text_utils import (
     normalize_text, suggest_synonyms, spell_correct, suggest_terms_for_query,
 )
 from lib.intent_classifier import classify_intent, detect_greeting, extract_entities
-from lib.load_pdf import load_all_pdfs
-from lib.pdf_manager import PDFManager
+from lib.usage_logger import get_usage_logger
+# from lib.load_pdf import load_all_pdfs
+# from lib.pdf_manager import PDFManager
 
 load_dotenv()
 
-# ── Check backend ──────────────────────────────────────────
 if not is_vercel_runtime():
     check_backend()
 
-# ── Initialize FastAPI app ─────────────────────────────────
 app = FastAPI(title="Th\u01b0 vi\u1ec7n QNU RAG API", version="2.0.0")
 
 
@@ -112,20 +109,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Load search index ──────────────────────────────────────
 logger.info("Load BM25 Full-Text Search Index...")
 documents = DocumentIndexer.load_from_data("Data")
 
-pdf_docs = []
-use_pdf = False
-logger.info("PDF index DISABLED — only CSV/XLSX documents loaded.")
+# pdf_docs = []
+# use_pdf = False
+# logger.info("PDF index DISABLED — only CSV/XLSX documents loaded.")
 bm25_engine = BM25SearchEngine(documents)
 retriever = HybridSearchEngine(bm25_engine)
 
 logger.info("Search index ready: %d documents", len(documents))
 logger.info("Memory: ~50MB (no ML model loaded)")
 
-# ── Semantic engine (lazy load) ────────────────────────────
 _semantic_engine = None
 
 
@@ -143,8 +138,6 @@ def get_semantic_engine():
         logger.warning("Semantic engine unavailable: %s", e)
         return None
 
-
-# ── Topic Cache wrappers ───────────────────────────────────
 def _build_topic_cache():
     build_topic_cache(retriever.bm25.documents)
 
@@ -155,11 +148,8 @@ def _search_topic_cache_fn(query):
 
 _build_topic_cache()
 
-# ── PDF Manager ────────────────────────────────────────────
-pdf_manager = PDFManager(pdf_dir="pdfs")
-logger.info("PDF Manager initialized")
-
-# ── Search Result Cache (LRU, TTL-based) ─────────────────
+# pdf_manager = PDFManager(pdf_dir="pdfs")
+# logger.info("PDF Manager initialized")
 class SearchCache:
     """LRU cache with TTL for search results to avoid redundant computation."""
     def __init__(self, max_size: int = 256, ttl_seconds: int = 300):
@@ -199,11 +189,9 @@ class SearchCache:
         rate = (self._hits / total * 100) if total else 0
         return f"cache={len(self._cache)} hits={self._hits} misses={self._misses} rate={rate:.0f}%"
 
-
 _search_cache = SearchCache(max_size=256, ttl_seconds=300)
 
-# ── File Change Detection ──────────────────────────────────
-_startup_pdf_count = sum(1 for _ in Path("pdfs").glob("*.pdf")) if Path("pdfs").exists() else 0
+# PDF change detection disabled
 _startup_data_mtime = 0.0
 for _f in Path("Data").glob("*"):
     if _f.is_file() and _f.name != "_documents_cache.pkl":
@@ -212,18 +200,15 @@ for _f in Path("Data").glob("*"):
 _last_check_time = 0.0
 _check_interval = 10
 
-
 def check_files_changed():
-    global _last_check_time, _startup_pdf_count, _startup_data_mtime
+    """PDF change detection disabled; only check data mtime."""
+    global _last_check_time, _startup_data_mtime
     now = time.time()
     if now - _last_check_time < _check_interval:
         return {"pdf": False, "data": False}
     _last_check_time = now
     result = {"pdf": False, "data": False}
-    current_pdf_count = sum(1 for _ in Path("pdfs").glob("*.pdf")) if Path("pdfs").exists() else 0
-    if current_pdf_count != _startup_pdf_count:
-        _startup_pdf_count = current_pdf_count
-        result["pdf"] = True
+    # PDF check disabled
     current_data_mtime = 0.0
     if Path("Data").exists():
         for _f in Path("Data").glob("*"):
@@ -234,104 +219,19 @@ def check_files_changed():
         result["data"] = True
     return result
 
-
-# ── Reindex PDFs ───────────────────────────────────────────
+# PDF reindex disabled
 def reindex_pdfs(retriever):
-    from lib.load_pdf import load_all_pdfs as _load_all_pdfs
-    loaded = _load_all_pdfs()
-    if not loaded:
-        logger.info("No PDFs to reindex")
-        return 0
-    existing_sources = {d.get('source') for d in retriever.bm25.documents if d.get('csv_file', '').startswith('pdf:')}
-    new_count = 0
-    seen_hashes = {d.get('hash') for d in retriever.bm25.documents if d.get('hash')}
-    for doc in loaded:
-        meta = doc.metadata or {}
-        h = meta.get('hash')
-        if h and h in seen_hashes:
-            continue
-        seen_hashes.add(h)
-        source_name = meta.get('source', 'pdf')
-        if source_name in existing_sources:
-            continue
-        existing_sources.add(source_name)
-        pdf_author = meta.get('author', 'Unknown')
-        if not pdf_author or pdf_author == 'Unknown' or 'aspose' in pdf_author.lower() or 'epubtopdfconverter' in pdf_author.lower() or 'pdf converter' in pdf_author.lower():
-            file_stem = Path(source_name).stem if source_name else ""
-            m = re.match(r"^([A-Z][A-Z\s\.]+?)\s*[-–]\s*", file_stem)
-            if m:
-                pdf_author = m.group(1).strip()
-        pdf_subject = meta.get('keywords', '')
-        if isinstance(pdf_subject, list):
-            pdf_subject = ' '.join(str(k) for k in pdf_subject if k)
-        if not pdf_subject or len(pdf_subject) < 5 or pdf_subject.lower() == 'pdf':
-            pdf_subject = ''
-        pdf_item = {
-            'title': meta.get('title', meta.get('source', 'PDF')).strip(),
-            'author': pdf_author,
-            'year': meta.get('year', 'N/A'),
-            'subject': pdf_subject,
-            'link': '',
-            'source': source_name,
-            'page': meta.get('page'),
-            'text': doc.page_content or '',
-            'csv_file': 'pdf:' + source_name,
-            'hash': h
-        }
-        retriever.bm25.documents.append(pdf_item)
-        new_count += 1
-    if new_count > 0:
-        retriever.bm25._build_index()
-        _build_topic_cache()
-        _search_cache.invalidate()
-        logger.info("Reindexed %d new PDF pages into BM25 + topic cache rebuilt", new_count)
-    else:
-        logger.info("No new PDF pages to reindex")
-    return new_count
+    return 0
 
 
+# PDF remove disabled
 def remove_pdf_from_index(file_name: str) -> int:
-    if not file_name or not hasattr(retriever, "bm25"):
-        return 0
-    before = len(retriever.bm25.documents)
-    retriever.bm25.documents = [
-        doc for doc in retriever.bm25.documents
-        if not (
-            doc.get("source") == file_name
-            or doc.get("csv_file") == f"pdf:{file_name}"
-        )
-    ]
-    removed = before - len(retriever.bm25.documents)
-    if removed:
-        retriever.bm25._build_index()
-        _build_topic_cache()
-        _search_cache.invalidate()
-    return removed
+    return 0
 
-
+# PDF source lookup disabled
 def find_pdf_info_for_source(source: str = "", title: str = "") -> Optional[dict]:
-    source_norm = (source or "").strip().lower()
-    title_norm = (title or "").strip().lower()
-    if not source_norm and not title_norm:
-        return None
-    try:
-        for pdf in pdf_manager.list_all_pdfs():
-            candidates = [
-                pdf.get("file_name", ""), pdf.get("file_stem", ""),
-                pdf.get("title", ""), pdf.get("display_name", ""),
-                pdf.get("original_title", ""),
-            ]
-            normalized_candidates = {str(c).strip().lower() for c in candidates if c}
-            if source_norm and source_norm in normalized_candidates:
-                return pdf
-            if title_norm and title_norm in normalized_candidates:
-                return pdf
-    except Exception as e:
-        logger.warning("Error matching PDF source: %s", e)
     return None
 
-
-# ── Format helpers ─────────────────────────────────────────
 def format_docs_with_metadata(search_results):
     """Format BM25 search results with metadata."""
     formatted = []
@@ -374,7 +274,7 @@ def format_docs_with_metadata(search_results):
                 "doc_type": doc_type, "format": doc_format, "major": major,
                 "publisher": publisher,
                 "abstract": abstract[:300] if abstract else '',
-                "location": location[:200] if location else '',
+                "location": location[:2000] if location else '',
                 "notes": notes, "ddc": ddc,
             },
             "score": score
@@ -382,7 +282,6 @@ def format_docs_with_metadata(search_results):
 
     combined_text = "\n\n---\n\n".join([f["text"] for f in formatted])
     return combined_text, formatted
-
 
 def format_docs(search_results):
     """Simple format: combine text from search results."""
@@ -399,216 +298,6 @@ def format_docs(search_results):
         if ab: parts.append(f"Tóm tắt: {ab[:300]}")
         texts.append(" | ".join(parts))
     return "\n\n".join(texts)
-
-
-# ═══════════════════════════════════════════════════════════════
-# PDF extraction functions (depend on pdf_manager)
-# ═══════════════════════════════════════════════════════════════
-
-def is_chapter_heading_line(line: str, chapter_num: int) -> bool:
-    normalized = normalize_text(line or "")
-    return bool(re.match(rf"^chuong\s+{chapter_num}\b", normalized))
-
-
-def chapter_heading_has_body(pdf_info: dict, page_idx: int, lines_after_heading: list[str], chapter_num: int) -> bool:
-    preview_lines = list(lines_after_heading)
-    try:
-        total_pages = int(pdf_info.get("pages") or 0)
-    except Exception:
-        total_pages = 0
-    if page_idx + 1 < total_pages:
-        next_text = pdf_manager.get_chapter_text(pdf_info["file_path"], page_idx + 1, page_idx + 2)
-        if has_extractable_pdf_text(next_text):
-            preview_lines.extend(next_text.replace("\xa0", " ").splitlines()[:25])
-    preview = "\n".join(preview_lines)
-    return bool(re.search(rf"(?m)^\s*{chapter_num}\s*\.\s*1\b", preview))
-
-
-def extract_chapter_section_from_pdf(
-    pdf_info: dict, chapter_num: int, max_chars: int = 12000
-) -> tuple[str, Optional[int], Optional[int]]:
-    try:
-        total_pages = int(pdf_info.get("pages") or 0)
-    except Exception:
-        total_pages = 0
-    if total_pages <= 0 or chapter_num <= 0:
-        return "", None, None
-    start_page = None
-    sections = []
-    next_chapter = chapter_num + 1
-    for page_idx in range(total_pages):
-        page_text = pdf_manager.get_chapter_text(pdf_info["file_path"], page_idx, page_idx + 1)
-        if not has_extractable_pdf_text(page_text):
-            continue
-        lines = page_text.replace("\xa0", " ").splitlines()
-        if start_page is None:
-            heading_idx = next((idx for idx, line in enumerate(lines) if is_chapter_heading_line(line, chapter_num)), None)
-            if heading_idx is None:
-                continue
-            if re.search(r"\.{5,}", "\n".join(lines[heading_idx:heading_idx + 8])):
-                continue
-            if not chapter_heading_has_body(pdf_info, page_idx, lines[heading_idx:], chapter_num):
-                continue
-            start_page = page_idx + 1
-            lines = lines[heading_idx:]
-        else:
-            stop_idx = next((idx for idx, line in enumerate(lines) if is_chapter_heading_line(line, next_chapter)), None)
-            if stop_idx is not None:
-                if stop_idx > 0:
-                    sections.append(f"[Trang PDF {page_idx + 1}]\n" + "\n".join(lines[:stop_idx]).strip())
-                return "\n\n".join(sections)[:max_chars], start_page, page_idx + 1
-        if lines:
-            sections.append(f"[Trang PDF {page_idx + 1}]\n" + "\n".join(lines).strip())
-        if len("\n\n".join(sections)) >= max_chars:
-            return "\n\n".join(sections)[:max_chars], start_page, page_idx + 1
-    if sections:
-        return "\n\n".join(sections)[:max_chars], start_page, total_pages
-    return "", None, None
-
-
-def extract_reference_section_from_pdf(pdf_info: dict, max_chars: int = 40000) -> tuple[str, Optional[int]]:
-    try:
-        total_pages = int(pdf_info.get("pages") or 0)
-    except Exception:
-        total_pages = 0
-    if total_pages <= 0:
-        return "", None
-    for page_idx in range(total_pages):
-        page_text = pdf_manager.get_chapter_text(pdf_info["file_path"], page_idx, page_idx + 1)
-        if not has_extractable_pdf_text(page_text):
-            continue
-        lines = page_text.replace("\xa0", " ").splitlines()
-        heading_idx = None
-        for idx, line in enumerate(lines):
-            if is_reference_heading_line(line):
-                heading_idx = idx
-                break
-        if heading_idx is None:
-            continue
-        preview_lines = lines[heading_idx:]
-        if page_idx + 1 < total_pages:
-            next_text = pdf_manager.get_chapter_text(pdf_info["file_path"], page_idx + 1, page_idx + 2)
-            if has_extractable_pdf_text(next_text):
-                preview_lines.extend(next_text.replace("\xa0", " ").splitlines()[:20])
-        preview = "\n".join(preview_lines)
-        if not re.search(r"(?m)^\s*(?:\[\s*1\s*\]|1[\.\)])", preview):
-            continue
-        sections = [f"[Trang PDF {page_idx + 1}]\n" + "\n".join(lines[heading_idx:]).strip()]
-        for next_idx in range(page_idx + 1, total_pages):
-            if len("\n\n".join(sections)) >= max_chars:
-                break
-            next_text = pdf_manager.get_chapter_text(pdf_info["file_path"], next_idx, next_idx + 1)
-            if has_extractable_pdf_text(next_text):
-                sections.append(f"[Trang PDF {next_idx + 1}]\n" + next_text.replace("\xa0", " ").strip())
-        return "\n\n".join(sections)[:max_chars], page_idx + 1
-    return "", None
-
-
-# ═══════════════════════════════════════════════════════════════
-# build_pdf_context_for_query (needs pdf_manager + retriever)
-# ═══════════════════════════════════════════════════════════════
-
-def build_pdf_context_for_query(pdf_info: dict, query: str, chapter: Optional[int] = None) -> tuple[str, list[dict], Optional[int]]:
-    pdf_source = pdf_info.get('file_name', '')
-    pdf_title = pdf_info.get('title') or pdf_info.get('display_name') or pdf_source or "PDF"
-    chapter_num = chapter or detect_chapter_reference(query)
-
-    if chapter_num:
-        chapter_text, start_page, end_page = extract_chapter_section_from_pdf(pdf_info, chapter_num)
-        if chapter_text:
-            header = (
-                f"Tài liệu được chọn: {pdf_title}\n"
-                f"Tên file: {pdf_source}\n"
-                f"Mục: Chương {chapter_num}"
-                + (f" | Trang PDF: {start_page}-{end_page}" if start_page and end_page else "")
-                + "\n"
-            )
-            return f"{header}\n{chapter_text}", [], start_page
-
-    if detect_reference_request(query):
-        reference_text, start_page = extract_reference_section_from_pdf(pdf_info)
-        if reference_text:
-            header = (
-                f"Tài liệu được chọn: {pdf_title}\n"
-                f"Tên file: {pdf_source}\n"
-                f"Mục: Tài liệu tham khảo"
-                + (f" | Trang PDF bắt đầu: {start_page}" if start_page else "")
-                + "\n"
-            )
-            return f"{header}\n{reference_text}", [], start_page
-
-    if is_general_pdf_content_request(query):
-        q_norm = normalize_text(query)
-        is_structure_query = any(
-            kw in q_norm for kw in (
-                "bo cuc", "cau truc", "muc luc", "danh muc", "layout",
-                "structure", "table of contents", "noi dung file",
-                "noi dung tai lieu", "noi dung pdf", "gioi thieu",
-            )
-        )
-        if is_structure_query:
-            toc_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 8)
-            if has_extractable_pdf_text(toc_text):
-                header = (
-                    f"Tài liệu được chọn: {pdf_title}\n"
-                    f"Tên file: {pdf_source}\n"
-                    f"Số trang: {pdf_info.get('pages', 'N/A')}\n"
-                    f"Mục trích xuất: 8 trang đầu (mục lục / bố cục)\n"
-                )
-                return f"{header}\nNội dung trích xuất:\n{toc_text[:8000]}", [], None
-
-        full_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 999999)
-        if has_extractable_pdf_text(full_text):
-            header = (
-                f"Tài liệu được chọn: {pdf_title}\n"
-                f"Tên file: {pdf_source}\n"
-                f"Số trang: {pdf_info.get('pages', 'N/A')}\n"
-            )
-            total_len = len(full_text)
-            if total_len <= 12000:
-                sampled = full_text
-            else:
-                chunk = 4000
-                head = full_text[:chunk]
-                mid_start = max(0, (total_len - chunk) // 2)
-                mid = full_text[mid_start:mid_start + chunk]
-                tail = full_text[-chunk:]
-                sampled = f"{head}\n\n[...Phần giữa trang {total_len // 2000}...]\n\n{mid}\n\n[...Phần cuối trang {total_len // 2000}...]\n\n{tail}"
-            return f"{header}\nNội dung trích xuất:\n{sampled}", [], None
-
-    selected_results = []
-    for result in retriever.search_by_query(query, top_k=20):
-        doc = result.get('doc', {})
-        if doc.get('source') == pdf_source and has_extractable_pdf_text(doc.get('text', '')):
-            selected_results.append(result)
-
-    if selected_results:
-        texts = []
-        for r in selected_results[:6]:
-            doc = r['doc']
-            title = doc.get('title', '')
-            text = doc.get('text', '')
-            page = doc.get('page', '')
-            header = f"[{title}" + (f" - Trang {page}]" if page else "]")
-            texts.append(f"{header}\n{text[:3000]}")
-        context = "\n\n---\n\n".join(texts)
-        return context, [], None
-
-    full_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 999999)
-    if not has_extractable_pdf_text(full_text):
-        return "", [], None
-
-    header = (
-        f"Tài liệu được chọn: {pdf_title}\n"
-        f"Tên file: {pdf_source}\n"
-        f"Số trang: {pdf_info.get('pages', 'N/A')}\n"
-    )
-    return f"{header}\nNội dung trích xuất:\n{full_text[:20000]}", [], None
-
-
-# ═══════════════════════════════════════════════════════════════
-# Detection functions & query helpers
-# ═══════════════════════════════════════════════════════════════
 
 def detect_summary_request(query: str) -> bool:
     keywords = ["tóm tắt", "tom tat", "summary", "tóm", "tom", "résumé", "概括", "summarize"]
@@ -835,7 +524,6 @@ def is_follow_up(query: str) -> bool:
     keywords = extract_primary_topic_text(query)
     return len(keywords.split()) == 0
 
-
 def resolve_search_query(query: str, history: list, catalog_mode: bool = False) -> str:
     if catalog_mode:
         keywords = extract_keywords(query) if hasattr(extract_keywords, '__call__') else extract_content_search_query(query)
@@ -866,11 +554,6 @@ def extract_keywords(text: str) -> str:
     """Wrapper for catalog extract_keywords."""
     from lib.catalog import extract_keywords as _cat_extract_keywords
     return _cat_extract_keywords(text)
-
-
-# ═══════════════════════════════════════════════════════════════
-# Hybrid search (BM25 + semantic)
-# ═══════════════════════════════════════════════════════════════
 
 def hybrid_search_with_semantic_fallback(
     query: str,
@@ -908,10 +591,6 @@ def hybrid_search_with_semantic_fallback(
     combined.sort(key=lambda x: x["score"], reverse=True)
     return combined[:final_top_k], "hybrid"
 
-
-# ═══════════════════════════════════════════════════════════════
-# Faculties tree cache
-# ═══════════════════════════════════════════════════════════════
 _FACULTIES_CACHE: dict | None = None
 _FACULTIES_CACHE_TS: float = 0.0
 _FACULTIES_CACHE_TTL = 60.0
@@ -970,10 +649,10 @@ def _format_ts(ts: float | None) -> str:
 
 def _latest_data_update_ts() -> float:
     latest = 0.0
-    for root, pattern in [(Path("Data"), "*"), (Path("pdfs"), "*.pdf")]:
-        if not root.exists():
-            continue
-        for item in root.glob(pattern):
+    # PDF check disabled; only check Data/
+    root = Path("Data")
+    if root.exists():
+        for item in root.glob("*"):
             if item.is_file() and not item.name.endswith((".pkl", ".cache")):
                 latest = max(latest, item.stat().st_mtime)
     return latest
@@ -990,10 +669,7 @@ def _counter_items(counter, limit: int = 8) -> list[dict]:
 def _dashboard_payload() -> dict:
     total_docs = len(documents)
     pdf_count = 0
-    try:
-        pdf_count = len(pdf_manager.list_all_pdfs())
-    except Exception:
-        pdf_count = 0
+    # PDF count disabled
     latest_ts = _latest_data_update_ts()
     return {
         "status": "ok",
@@ -1018,11 +694,6 @@ def _dashboard_payload() -> dict:
         },
         "cache": _search_cache.stats(),
     }
-
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTE: /suggest-related
-# ═══════════════════════════════════════════════════════════════
 
 @app.post("/suggest-related")
 async def suggest_related(req: SuggestRequest):
@@ -1083,11 +754,6 @@ async def suggest_related(req: SuggestRequest):
     except Exception as e:
         return {"error": str(e), "suggestions": [], "total": 0}
 
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTE: /spell-check
-# ═══════════════════════════════════════════════════════════════
-
 @app.post("/spell-check")
 async def spell_check_endpoint(req: SpellCheckRequest):
     try:
@@ -1104,11 +770,6 @@ async def spell_check_endpoint(req: SpellCheckRequest):
         }
     except Exception as e:
         return {"error": str(e), "original": req.text, "corrected": req.text}
-
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTE: /suggest-terms
-# ═══════════════════════════════════════════════════════════════
 
 @app.post("/suggest-terms")
 async def suggest_terms(req: TermRequest):
@@ -1152,11 +813,6 @@ TRẢ LỜI (dạng danh sách, mỗi mục cách nhau bằng dấu xuống dòn
     except Exception as e:
         return {"error": str(e), "synonyms": [], "en_terms": [], "llm_suggestions": []}
 
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTE: /documents
-# ═══════════════════════════════════════════════════════════════
-
 @app.get("/documents")
 async def list_all_documents(page: int = 1, limit: int = 20):
     try:
@@ -1189,11 +845,6 @@ async def list_all_documents(page: int = 1, limit: int = 20):
         return {"results": docs, "total": len(all_docs), "page": page, "limit": limit}
     except Exception as e:
         return {"error": str(e), "results": [], "total": 0}
-
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTE: /search
-# ═══════════════════════════════════════════════════════════════
 
 @app.post("/search")
 async def search_documents(req: SearchRequest):
@@ -1243,11 +894,6 @@ async def search_documents(req: SearchRequest):
         return {"results": docs, "total": len(docs)}
     except Exception as e:
         return {"error": str(e), "results": [], "total": 0}
-
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTES: Faceted search endpoints
-# ═══════════════════════════════════════════════════════════════
 
 @app.post("/api/facets/extract")
 async def facet_extract(req: FacetRequest):
@@ -1364,12 +1010,20 @@ async def facet_refine(req: FacetRefineRequest):
         logger.error("Facet refine error: %s", e)
         return {"results": [], "total": 0, "error": str(e)}
 
-# ═══════════════════════════════════════════════════════════════
-# ROUTE: /chat (main Q&A endpoint)
-# ═══════════════════════════════════════════════════════════════
-
 @app.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, fast_request: Request = None):
+    _chat_start = time.time()
+    # Resolve client IP from header or request
+    _client_ip = (req.client_ip or "").strip()
+    if not _client_ip and fast_request:
+        forwarded = fast_request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            _client_ip = forwarded.split(",")[0].strip()
+        if not _client_ip:
+            _client_ip = getattr(fast_request.client, "host", "") or ""
+    _user_agent = (req.user_agent or "").strip()
+    if not _user_agent and fast_request:
+        _user_agent = fast_request.headers.get("user-agent", "") or ""
     try:
         normalized_query = normalize_text(req.query)
         intent = classify_intent(req.query)
@@ -1477,13 +1131,9 @@ async def chat(req: ChatRequest):
             return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=total_count, summary="", current_document=None, follow_up_suggestions=[])
 
         if intent == "unknown":
-            try:
-                _has_pdfs = len(pdf_manager.list_all_pdfs()) > 0
-            except Exception:
-                _has_pdfs = False
-            if not _has_pdfs:
-                return ChatResponse(
-                    answer="Mình chưa hiểu ý bạn lắm! 🤔\n\n"
+            # PDF check disabled
+            return ChatResponse(
+                answer="Mình chưa hiểu ý bạn lắm! 🤔\n\n"
                            "Mình là trợ lý Thư viện, mình có thể giúp bạn:\n"
                            "• **Tìm sách, tài liệu** trong thư viện\n"
                            "• **Gợi ý tài liệu** theo chủ đề\n"
@@ -1600,11 +1250,7 @@ async def chat(req: ChatRequest):
                 pass
 
         file_changes = check_files_changed()
-        if file_changes["pdf"]:
-            try:
-                reindex_pdfs(retriever)
-            except Exception:
-                pass
+        # PDF reindex disabled
         if file_changes["data"]:
             try:
                 _cache_pkl = Path("Data/_documents_cache.pkl")
@@ -1615,7 +1261,6 @@ async def chat(req: ChatRequest):
                 retriever.bm25._build_index()
                 global _semantic_engine
                 _semantic_engine = None
-                reindex_pdfs(retriever)
                 _build_topic_cache()
                 _search_cache.invalidate()
             except Exception:
@@ -1687,8 +1332,7 @@ async def chat(req: ChatRequest):
                     pass
 
             search_results = rerank_results_for_query(req.query, search_results, prefer_strict=_prefer_strict)
-            if catalog_mode:
-                search_results = catalog_collapse_pdf_pages(search_results, pdf_lookup=find_pdf_info_for_source)
+            # PDF page collapsing disabled
             if use_cache and search_results:
                 _search_cache.set(cache_key, search_results)
 
@@ -1724,42 +1368,9 @@ async def chat(req: ChatRequest):
                 raise HTTPException(404, f"Không tìm thấy tài liệu: {req.document_id}")
 
         context, doc_metadata_list = format_docs_with_metadata(search_results)
-        related_pdf_infos = []
-        seen_related_pdf_ids = set()
-        for meta in doc_metadata_list:
-            pdf_info = find_pdf_info_for_source(meta['metadata'].get('source', ''), meta['metadata'].get('title', ''))
-            if not pdf_info: continue
-            pdf_id = pdf_info.get("id") or pdf_info.get("file_name")
-            if pdf_id in seen_related_pdf_ids: continue
-            seen_related_pdf_ids.add(pdf_id)
-            related_pdf_infos.append(pdf_info)
 
-        # Auto-inject PDF by name
-        try:
-            _injected = False
-            if not catalog_mode:
-                q_lower = normalize_text(req.query)
-                all_pdfs = pdf_manager.list_all_pdfs()
-                q_words = [w for w in q_lower.split() if len(w) > 3]
-                for pdf in all_pdfs:
-                    pdf_id = pdf.get("id") or pdf.get("file_name")
-                    if pdf_id in seen_related_pdf_ids: continue
-                    pdf_name = normalize_text(pdf.get("title", "") + " " + pdf.get("file_stem", "") + " " + pdf.get("file_name", ""))
-                    if not (q_lower and pdf_name and q_words): continue
-                    matched_words = [w for w in q_words if w in pdf_name]
-                    if len(matched_words) < 2: continue
-                    seen_related_pdf_ids.add(pdf_id)
-                    related_pdf_infos.append(pdf)
-                    pdf_text = pdf_manager.get_chapter_text(pdf['file_path'], 0, 999999)
-                    inject_doc = {'title': pdf.get('title', pdf.get('display_name', pdf.get('file_name', 'PDF'))), 'author': pdf.get('author', ''), 'year': pdf.get('year', 'N/A'), 'subject': pdf.get('subject', 'PDF'), 'link': '', 'source': pdf.get('file_name', ''), 'page': None, 'text': pdf_text if has_extractable_pdf_text(pdf_text) else '', 'csv_file': 'pdf:' + pdf.get('file_name', ''), 'hash': '', 'doc_type': 'PDF', 'format': 'Số'}
-                    search_results.insert(0, {'doc': inject_doc, 'score': 99999.0})
-                    _injected = True
-                    if len(related_pdf_infos) >= 3: break
-            if _injected:
-                context, doc_metadata_list = format_docs_with_metadata(search_results)
-                total_found = len(search_results)
-        except Exception:
-            pass
+        # PDF auto-inject and fallback disabled
+        related_pdf_infos = []
 
         request_summary = detect_summary_request(req.query)
         _relevance_gate = False
@@ -1780,35 +1391,12 @@ async def chat(req: ChatRequest):
                 chain_func, _ = build_general_chain()
                 answer = chain_func(context=context, question=req.query)
 
+        # PDF fallback disabled
         pdf_fallback_used = False
-        if not _relevance_gate and related_pdf_infos and answer_says_no_information(answer):
-            _top_score_cat = search_results[0].get('score', 0) if search_results else 0
-            if search_results and _top_score_cat >= 1.0:
-                answer = build_catalog_answer(search_results, req.query, total_found=total_found)
-                if related_pdf_infos:
-                    answer += "\n\n" + build_related_pdf_answer(related_pdf_infos, req.query)
-            elif not catalog_mode and not search_results and len(related_pdf_infos) > 0:
-                try:
-                    pdf_text = pdf_manager.get_chapter_text(related_pdf_infos[0]['file_path'], 0, 999999)
-                    if has_extractable_pdf_text(pdf_text):
-                        new_context = f"Tài liệu được chọn: {related_pdf_infos[0].get('title', 'PDF')}\nNội dung trích xuất:\n{pdf_text[:30000]}"
-                        chain_func, _ = build_general_chain()
-                        new_answer = chain_func(context=new_context, question=req.query)
-                        if not answer_says_no_information(new_answer):
-                            answer = new_answer
-                            context = new_context
-                            pdf_fallback_used = True
-                        else:
-                            answer = build_related_pdf_answer(related_pdf_infos, req.query)
-                    else:
-                        answer = build_related_pdf_answer(related_pdf_infos, req.query)
-                except Exception:
-                    answer = build_related_pdf_answer(related_pdf_infos, req.query)
-            else:
-                answer = build_related_pdf_answer(related_pdf_infos, req.query)
 
         _top_score = search_results[0].get('score', 0) if search_results else 0
-        suppress_sources = not pdf_fallback_used and answer_says_no_information(answer) and (not search_results or (_top_score < 1.0 and not catalog_mode))
+        # answer_says_no_information check disabled (was from pdf_helpers)
+        suppress_sources = not pdf_fallback_used and (not search_results or (_top_score < 1.0 and not catalog_mode))
         if suppress_sources and search_results:
             search_results = []
 
@@ -1828,7 +1416,7 @@ async def chat(req: ChatRequest):
             author = meta['metadata'].get('author', '')
             year = meta['metadata'].get('year', '')
             source_id = (str(title).lower().strip(), str(author).lower().strip(), str(year).lower().strip())
-            pdf_info = find_pdf_info_for_source(meta['metadata'].get('source', ''), title)
+            # PDF info lookup disabled
             if source_id not in seen:
                 seen.add(source_id)
                 source_item = {
@@ -1847,27 +1435,21 @@ async def chat(req: ChatRequest):
                     "bilingual_title": clean_display_value(meta['metadata'].get('bilingual_title', ''), 300),
                     "course": clean_display_value(meta['metadata'].get('course', ''), 140),
                     "keywords": meta['metadata'].get('keywords', []) or [],
-                    "location": clean_display_value(meta['metadata'].get('location', ''), 800),
+                    "location": clean_display_value(meta['metadata'].get('location', ''), 3000),
                     "abstract": clean_display_value(meta['metadata'].get('abstract', ''), 360),
                     "ddc": clean_display_value(meta['metadata'].get('ddc', ''), 80),
                     "notes": clean_display_value(meta['metadata'].get('notes', ''), 180),
                     "description": meta['text'][:200] if meta.get('text') else "",
-                    "is_pdf": bool(pdf_info),
-                    "pdf_id": pdf_info.get('id') if pdf_info else "",
-                    "file_name": pdf_info.get('file_name') if pdf_info else "",
-                    "display_name": pdf_info.get('display_name') if pdf_info else "",
+                    "is_pdf": False,
+                    "pdf_id": "",
+                    "file_name": "",
+                    "display_name": "",
                 }
                 sources.append(source_item)
                 if req.document_id and title.lower() == req.document_id.lower():
                     current_doc = source_item
 
-        if pdf_fallback_used and related_pdf_infos:
-            for pdf in related_pdf_infos:
-                fb_id = (pdf.get("title", "").lower(), pdf.get("author", "").lower(), str(pdf.get("year", "")))
-                if fb_id not in seen:
-                    seen.add(fb_id)
-                    sources.append({"title": clean_display_value(pdf.get("title", "PDF"), 300), "author": clean_display_value(pdf.get("author", ""), 180), "year": clean_display_value(str(pdf.get("year", "")), 40), "subject": clean_display_value(pdf.get("subject", "PDF"), 180), "link": "", "source": clean_display_value(pdf.get("file_name", ""), 260), "doc_type": "PDF", "format": "", "major": "", "publisher": "", "place": "", "edition": "", "bilingual_title": "", "course": "", "keywords": [], "location": "", "abstract": "", "ddc": "", "notes": "", "description": "", "is_pdf": True, "pdf_id": pdf.get("id", ""), "file_name": pdf.get("file_name", ""), "display_name": pdf.get("display_name", "")})
-
+        # PDF fallback in sources disabled
         topic = ""
         if sources:
             topic = sources[0].get("subject", "") or sources[0].get("title", "")
@@ -1877,14 +1459,44 @@ async def chat(req: ChatRequest):
         session_history[req.session_id] = hist[-MAX_HISTORY:]
 
         total_found = len(sources)
-        has_pdf_sources = any(s.get("is_pdf") for s in sources)
-        follow_ups = build_follow_up_suggestions(query=req.query, sources=sources, answer=answer, catalog_mode=catalog_mode, has_pdf_sources=has_pdf_sources, session_id=req.session_id)
+        # has_pdf_sources disabled
+        follow_ups = build_follow_up_suggestions(query=req.query, sources=sources, answer=answer, catalog_mode=catalog_mode, has_pdf_sources=False, session_id=req.session_id)
 
         _record_query_analytics(req.query, total_found)
+
+        # ── Usage logging ──
+        try:
+            get_usage_logger().record(
+                session_id=req.session_id,
+                query=req.query,
+                result_count=total_found,
+                latency_ms=(time.time() - _chat_start) * 1000,
+                follow_up_count=len(follow_ups),
+                client_ip=_client_ip,
+                user_agent=_user_agent,
+                intent=intent,
+            )
+        except Exception:
+            pass
+
         return ChatResponse(answer=answer, sources=sources, total_sources=len(sources), total_found=total_found, summary=summary, current_document=current_doc, follow_up_suggestions=follow_ups)
 
     except Exception as e:
         err = str(e)
+        # Log error usage
+        try:
+            get_usage_logger().record(
+                session_id=req.session_id,
+                query=req.query,
+                result_count=0,
+                latency_ms=(time.time() - _chat_start) * 1000,
+                error=err[:300],
+                client_ip=_client_ip,
+                user_agent=_user_agent,
+                intent="error",
+            )
+        except Exception:
+            pass
         if "connect" in err.lower() or "refused" in err.lower():
             raise HTTPException(503, "OpenRouter API không khả dụng.")
         raise HTTPException(500, err)
@@ -1933,11 +1545,6 @@ async def chat_stream(req: ChatRequest):
             yield _sse_event({"type": "error", "message": str(e)})
 
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
-
-
-# ═══════════════════════════════════════════════════════════════
-# ROUTES: /, /chat (HTML), /status, /health, /stats
-# ═══════════════════════════════════════════════════════════════
 
 @app.get("/")
 def root():
@@ -2021,7 +1628,7 @@ def stats():
         llm_info = {"calls": llm_stats["calls"], "failures": llm_stats["failures"], "retries": llm_stats["retries"], "last_error": llm_stats["last_error"], "circuit_state": llm_circuit["state"], "consecutive_failures": llm_circuit["failures"]}
         topic_cache_size = len(catalog_state.TOPIC_CACHE)
         sem_available = _semantic_engine is not None and getattr(_semantic_engine, 'embeddings', None) is not None
-        return {"status": "ok", "documents": {"total": total, "csv_rows": csv_rows, "pdf_pages": pdf_pages, "empty_major": empty_major, "empty_major_pct": round(empty_major / total * 100, 1) if total else 0}, "top_majors": [{"name": n, "count": c} for n, c in top_majors], "by_source": source_counter, "by_type": type_counter, "indexes": {"bm25_ready": bm25_engine is not None and bool(documents), "semantic_available": sem_available, "topic_cache_size": topic_cache_size}, "cache": cache_info, "llm": llm_info, "sessions": {"chat": len(session_history), "pdf": len(pdf_session_history)}, "model": OPENROUTER_MODEL}
+        return {"status": "ok", "documents": {"total": total, "csv_rows": csv_rows, "pdf_pages": pdf_pages, "empty_major": empty_major, "empty_major_pct": round(empty_major / total * 100, 1) if total else 0}, "top_majors": [{"name": n, "count": c} for n, c in top_majors], "by_source": source_counter, "by_type": type_counter, "indexes": {"bm25_ready": bm25_engine is not None and bool(documents), "semantic_available": sem_available, "topic_cache_size": topic_cache_size}, "cache": cache_info, "llm": llm_info, "sessions": {"chat": len(session_history), "pdf": 0}, "model": OPENROUTER_MODEL}
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "error": str(e)})
 
@@ -2100,65 +1707,8 @@ async def voice_status():
 
 
 # ═══════════════════════════════════════════════════════════════
-# ROUTES: PDF management
+# PDF management DISABLED — all PDF/OCR routes removed
 # ═══════════════════════════════════════════════════════════════
-
-@app.get("/api/pdf/{pdf_id}/content-with-ocr")
-async def get_pdf_content_with_ocr(pdf_id: str, start: int = 0, end: int = 1, lang: str = "vie+eng"):
-    pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p["id"] == pdf_id), None)
-    if not pdf_info: raise HTTPException(404, f"PDF không tồn tại: {pdf_id}")
-    result = pdf_manager.get_chapter_text_with_ocr_fallback(pdf_info["file_path"], start, end, lang=lang)
-    return {"pdf_id": pdf_id, "title": pdf_info.get("title", ""), "start_page": start, "end_page": end, **result}
-
-@app.get("/api/pdf/{pdf_id}/is-scanned")
-async def check_pdf_scanned(pdf_id: str):
-    pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p["id"] == pdf_id), None)
-    if not pdf_info: raise HTTPException(404, f"PDF không tồn tại: {pdf_id}")
-    return {"pdf_id": pdf_id, "is_scanned": pdf_manager.is_scanned_pdf(pdf_info["file_path"])}
-
-@app.get("/api/pdfs")
-async def list_pdfs():
-    try:
-        pdfs = pdf_manager.list_all_pdfs()
-        return {"pdfs": pdfs, "total_pdfs": len(pdfs), "status": "ok"}
-    except Exception as e:
-        return {"error": str(e), "pdfs": [], "total_pdfs": 0}
-
-@app.get("/api/pdfs/{pdf_id}/structure")
-async def get_pdf_structure(pdf_id: str):
-    try:
-        pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p['id'] == pdf_id), None)
-        if not pdf_info: raise HTTPException(404, f"PDF không tìm thấy: {pdf_id}")
-        chapters = pdf_manager.extract_chapters(pdf_info['file_path'])
-        return {"pdf_id": pdf_id, "title": pdf_info['title'], "author": pdf_info['author'], "chapters": chapters, "total_chapters": len(chapters)}
-    except HTTPException: raise
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-@app.get("/api/pdfs/{pdf_id}/content")
-async def get_pdf_content(pdf_id: str):
-    try:
-        pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p['id'] == pdf_id), None)
-        if not pdf_info: raise HTTPException(404, f"PDF không tìm thấy: {pdf_id}")
-        full_text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 999999)
-        if not full_text or len(full_text.strip()) < 50:
-            full_text = "PDF này không chứa nội dung text có thể trích xuất"
-        return {"pdf_id": pdf_id, "title": pdf_info['title'], "total_pages": pdf_info.get('pages', 0), "content": full_text, "content_length": len(full_text)}
-    except HTTPException: raise
-    except Exception as e:
-        raise HTTPException(500, str(e))
-
-@app.get("/api/pdfs/{pdf_id}/summary")
-async def get_pdf_summary(pdf_id: str):
-    try:
-        pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p['id'] == pdf_id), None)
-        if not pdf_info: raise HTTPException(404, f"PDF không tìm thấy: {pdf_id}")
-        text = pdf_manager.get_chapter_text(pdf_info['file_path'], 0, 5)
-        summary_text = text[:1000] if text and len(text.strip()) >= 50 else "PDF này không chứa nội dung text có thể trích xuất"
-        return {"pdf_id": pdf_id, "title": pdf_info['title'], "author": pdf_info['author'], "year": pdf_info['year'], "summary": {"objectives": "Xem nội dung PDF để biết mục tiêu", "methods": "Xem nội dung PDF để biết phương pháp", "results": "Xem nội dung PDF để biết kết quả", "keywords": ["pdf", "tài liệu"], "preview": summary_text[:500]}}
-    except HTTPException: raise
-    except Exception as e:
-        raise HTTPException(500, str(e))
 
 @app.post("/api/admin/login")
 async def admin_login(data: dict):
@@ -2183,20 +1733,8 @@ async def admin_dashboard(data: dict = Body(...)):
 async def admin_upload(token: str = Form(...), file: UploadFile = File(...)):
     if is_vercel_runtime(): raise HTTPException(405, VERCEL_READ_ONLY_MESSAGE)
     if token not in ADMIN_TOKENS: raise HTTPException(401, "Token không hợp lệ")
-    if not file.filename.lower().endswith(".pdf"): raise HTTPException(400, "Chỉ chấp nhận file PDF")
-    contents = await file.read()
-    if len(contents) > 50 * 1024 * 1024: raise HTTPException(400, "File vượt quá 50MB")
-    pdf_dir = Path("pdfs"); pdf_dir.mkdir(exist_ok=True)
-    dest = pdf_dir / file.filename
-    if dest.exists(): raise HTTPException(400, f"File '{file.filename}' đã tồn tại")
-    with open(dest, "wb") as f: f.write(contents)
-    for p in [Path("pdf_cache.json"), Path("Data/_pdf_extract_cache.pkl")]:
-        if p.exists(): p.unlink()
-    _search_cache.invalidate()
-    pdf_manager.invalidate_cache()
-    try: reindex_pdfs(retriever)
-    except Exception: pass
-    return {"status": "ok", "file_name": file.filename, "file_size_mb": round(len(contents) / (1024 * 1024), 2), "message": f"Đã upload {file.filename} thành công!"}
+    # PDF upload disabled — only Excel uploads supported via /api/admin/upload-data
+    raise HTTPException(400, "Upload PDF đã bị tắt. Chỉ hỗ trợ upload dữ liệu Excel qua /api/admin/upload-data")
 
 @app.post("/api/admin/upload-data")
 async def admin_upload_data(token: str = Form(...), file: UploadFile = File(...)):
@@ -2268,67 +1806,12 @@ async def admin_upload_data(token: str = Form(...), file: UploadFile = File(...)
         "message": f"Đã cập nhật dữ liệu từ {file_name_saved} thành công!",
     }
 
+# PDF delete disabled
 @app.delete("/api/admin/pdfs/{pdf_id}")
 async def admin_delete_pdf(pdf_id: str, data: dict = Body(...)):
-    if is_vercel_runtime(): raise HTTPException(405, VERCEL_READ_ONLY_MESSAGE)
-    if data.get("token", "") not in ADMIN_TOKENS: raise HTTPException(401, "Token không hợp lệ")
-    pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p["id"] == pdf_id), None)
-    if not pdf_info: raise HTTPException(404, f"PDF không tìm thấy: {pdf_id}")
-    target = Path(pdf_info["file_path"]).resolve()
-    if target.suffix.lower() != ".pdf" or target.parent != Path("pdfs").resolve(): raise HTTPException(400, "Đường dẫn PDF không hợp lệ")
-    file_name = pdf_info["file_name"]
-    try: target.unlink()
-    except FileNotFoundError: raise HTTPException(404, f"File không tồn tại: {file_name}")
-    except Exception as e: raise HTTPException(500, f"Không thể xóa file: {e}")
-    for p in [Path("pdf_cache.json"), Path("Data/_pdf_extract_cache.pkl")]:
-        if p.exists():
-            if p.name == "_pdf_extract_cache.pkl":
-                try:
-                    with open(p, "rb") as f: _pcache = pickle.load(f)
-                    if file_name in _pcache:
-                        del _pcache[file_name]
-                        with open(p, "wb") as f: pickle.dump(_pcache, f, protocol=pickle.HIGHEST_PROTOCOL)
-                except Exception: pass
-            else: p.unlink()
-    pdf_manager.invalidate_cache()
-    _search_cache.invalidate()
-    removed = remove_pdf_from_index(file_name)
-    return {"status": "ok", "pdf_id": pdf_id, "file_name": file_name, "removed_index_docs": removed, "message": f"Đã xóa {file_name}"}
+    raise HTTPException(404, "PDF management đã bị tắt.")
 
+# PDF chat disabled
 @app.post("/chat/with-document")
 async def chat_with_document(req: DocumentChatRequest):
-    try:
-        pdf_info = next((p for p in pdf_manager.list_all_pdfs() if p['id'] == req.pdf_id), None)
-        if not pdf_info:
-            raise HTTPException(404, f"PDF không tìm thấy: {req.pdf_id}")
-
-        history_key = f"{req.session_id}:{req.pdf_id}"
-        pdf_hist = pdf_session_history.get(history_key, [])
-        effective_query = req.query
-        if is_follow_up(req.query) and pdf_hist:
-            previous_query = pdf_hist[-1].get("effective_query") or pdf_hist[-1].get("query") or ""
-            effective_query = f"{previous_query} {req.query}".strip()
-
-        if detect_reference_request(effective_query):
-            reference_text, start_page = extract_reference_section_from_pdf(pdf_info)
-            if reference_text:
-                answer = build_reference_answer(pdf_info, reference_text, start_page)
-                pdf_hist.append({"query": req.query, "effective_query": effective_query, "topic": "reference"})
-                pdf_session_history[history_key] = pdf_hist[-MAX_HISTORY:]
-                return {"answer": answer, "pdf_id": req.pdf_id, "pdf_title": pdf_info['title'], "chapter": None, "relevant_pages": [start_page] if start_page else [], "source": {"type": "pdf", "pdf_id": req.pdf_id, "pdf_title": pdf_info['title'], "search_type": "references", "text_extractable": True}, "follow_up_suggestions": [{"label": "Tóm tắt nội dung", "query": "Tóm tắt nội dung chính"}, {"label": "Hỏi chương khác", "query": "Hỏi nội dung về một chương cụ thể"}]}
-
-        context, _, _ = build_pdf_context_for_query(pdf_info, effective_query, None)
-        if not context.strip():
-            pdf_title = pdf_info.get('title') or pdf_info.get('display_name') or pdf_info.get('file_name') or req.pdf_id
-            return {"answer": build_empty_pdf_answer(pdf_title), "pdf_id": req.pdf_id, "pdf_title": pdf_title, "chapter": None, "relevant_pages": [], "source": {"type": "pdf", "pdf_id": req.pdf_id, "pdf_title": pdf_title, "search_type": "full_pdf", "text_extractable": False}}
-
-        chain_func, _ = build_general_chain()
-        answer = chain_func(context=context, question=effective_query)
-        pdf_hist.append({"query": req.query, "effective_query": effective_query, "topic": "general"})
-        pdf_session_history[history_key] = pdf_hist[-MAX_HISTORY:]
-        final_sugs = build_contextual_suggestions(answer=answer, query=req.query, doc_title=pdf_info.get('title', ''))
-        return {"answer": answer, "pdf_id": req.pdf_id, "pdf_title": pdf_info['title'], "chapter": None, "relevant_pages": [1], "source": {"type": "pdf", "pdf_id": req.pdf_id, "pdf_title": pdf_info['title'], "search_type": "full_pdf"}, "follow_up_suggestions": final_sugs}
-    except HTTPException: raise
-    except Exception as e:
-        logger.warning("Error in PDF chat: %s", e)
-        raise HTTPException(500, str(e))
+    raise HTTPException(404, "Chat với PDF đã bị tắt.")
