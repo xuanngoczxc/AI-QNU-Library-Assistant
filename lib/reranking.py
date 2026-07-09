@@ -74,7 +74,9 @@ def detect_author_query(query: str) -> bool:
 
     # ── Pattern 4: Câu ngắn bắt đầu bằng họ (relaxed từ 2-6 từ) ──
     if 2 <= len(words) <= 6 and words[0] in VIETNAMESE_SURNAMES:
-        if not any(w in topic_words for w in words[1:]):
+        # Kiểm tra từ cuối cùng (tên chính) không phải từ chủ đề
+        # Bỏ qua tên đệm (vd "văn", "thị", "xuân") vì là thành phần tên người
+        if words[-1] not in topic_words:
             return True
 
     # ── Pattern 5: Phát hiện tác giả ở cuối câu dạng "tìm sách <họ> ..." ──

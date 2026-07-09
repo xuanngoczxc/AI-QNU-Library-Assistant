@@ -74,6 +74,7 @@ from lib.reranking import (
 from lib.followup import (
     extract_answer_headings, extract_answer_sections,
     build_contextual_suggestions, build_follow_up_suggestions,
+    random_no_result_suggestions,
 )
 from lib.facets import extract_facets, filter_by_facet, refine_results
 import lib.catalog as catalog_state
@@ -384,6 +385,29 @@ def _is_yesno_token(token: str) -> bool:
     return _strip_vi_diacritics(token).strip().lower() in _YESNO_WORD_SET
 
 
+def _restore_topic_diacritics(normalized_topic: str, original_query: str) -> str:
+    """Khôi phục dấu tiếng Việt cho topic từ câu hỏi gốc.
+    
+    VD: normalized_topic="van hoc", original_query="có tài liệu về văn học không"
+    → trả về "Văn học"
+    """
+    if not normalized_topic or not original_query:
+        return normalized_topic
+    norm_query = normalize_text(original_query)
+    idx = norm_query.find(normalized_topic)
+    if idx < 0:
+        return normalized_topic
+    # Đếm số từ trong prefix để map vị trí
+    norm_prefix = norm_query[:idx].strip()
+    prefix_words = len(norm_prefix.split()) if norm_prefix else 0
+    norm_words = normalized_topic.split()
+    orig_words = original_query.lower().split()
+    if prefix_words + len(norm_words) <= len(orig_words):
+        result = ' '.join(orig_words[prefix_words:prefix_words + len(norm_words)])
+        return result[0].upper() + result[1:] if result else normalized_topic
+    return normalized_topic
+
+
 def extract_existence_topic(query: str) -> str:
     if not query:
         return ""
@@ -668,26 +692,29 @@ def _counter_items(counter, limit: int = 8) -> list[dict]:
 
 def _dashboard_payload() -> dict:
     total_docs = len(documents)
-    pdf_count = 0
-    # PDF count disabled
     latest_ts = _latest_data_update_ts()
+
+    # Danh sách file XLSX trong thư mục Data/
+    data_dir = Path("Data")
+    files = []
+    for f in sorted(data_dir.glob("*.xlsx")):
+        if f.name.startswith("~$"):
+            continue
+        files.append({
+            "name": f.name,
+            "size": f.stat().st_size,
+            "mtime": _format_ts(f.stat().st_mtime),
+        })
+
     return {
         "status": "ok",
         "documents": {
             "total": total_docs,
-            "catalog_rows": total_docs,
-            "pdf_files": pdf_count,
         },
         "updated": {
             "last_data_update": _format_ts(latest_ts),
-            "last_query_at": _format_ts(query_analytics.get("last_query_at")),
         },
-        "analytics": {
-            "total_queries": query_analytics["total"],
-            "top_queries": _counter_items(query_analytics["top_queries"], 8),
-            "no_result_queries": _counter_items(query_analytics["no_result_queries"], 8),
-            "recent": list(query_analytics["recent"])[:10],
-        },
+        "files": files,
         "indexes": {
             "bm25_ready": bm25_engine is not None and bool(documents),
             "topic_cache_size": len(catalog_state.TOPIC_CACHE),
@@ -1075,7 +1102,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         if intent == "chitchat":
             return ChatResponse(
-                answer="Xin chào! Mình là trợ lý Thư viện Trường Đại học Quy Nhơn. Mình có thể giúp gì cho bạn về tra cứu sách, tài liệu số, hoặc nội dung các tài liệu trong thư viện ạ? 📚",
+                answer="Xin chào! Tôi là trợ lý tra cứu của **Thư viện QNU**.\n\nBạn có thể hỏi tôi về:\n• Tìm sách theo tên, tác giả, chủ đề\n• Tra cứu tài liệu số\n• Gợi ý sách theo ngành học\n\nBạn cần tìm tài liệu gì?",
                 sources=[], total_sources=0, total_found=0, summary="", current_document=None, follow_up_suggestions=[],
             )
         if intent == "live_info":
@@ -1133,7 +1160,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         if intent == "unknown":
             # PDF check disabled
             return ChatResponse(
-                answer="Mình chưa hiểu ý bạn lắm! 🤔\n\n"
+                answer=
                            "Mình là trợ lý Thư viện, mình có thể giúp bạn:\n"
                            "• **Tìm sách, tài liệu** trong thư viện\n"
                            "• **Gợi ý tài liệu** theo chủ đề\n"
@@ -1207,31 +1234,35 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         if detect_greeting(req.query):
             greeting_answer = (
-                "Xin chào bạn!\n\nMình là trợ lý Thư viện Đại học Quy Nhơn. Mình có thể giúp bạn:\n\n"
-                "- **Tìm sách, tài liệu** theo tên, tác giả hoặc chủ đề\n"
-                "- **Gợi ý tài liệu** liên quan đến lĩnh vực bạn quan tâm\n"
-                "- **Tóm tắt nội dung** tài liệu có sẵn trong kho\n\n"
-                "Bạn đang muốn tìm tài liệu gì? Hãy thử:\n"
-                "- *\"Tìm sách về trí tuệ nhân tạo\"*\n"
-                "- *\"Có tài liệu về văn học Việt Nam không?\"*\n"
-                "- *\"Sách của tác giả Nguyễn Văn A\"*"
+                "Xin chào! Tôi là trợ lý tra cứu của **Thư viện QNU**.\n\n"
+                "Bạn có thể hỏi tôi về:\n"
+                "• Tìm sách theo tên, tác giả, chủ đề\n"
+                "• Tra cứu tài liệu số\n"
+                "• Gợi ý sách theo ngành học\n\n"
+                "Bạn cần tìm tài liệu gì?"
             )
             return ChatResponse(answer=greeting_answer, sources=[], total_sources=0, summary="", current_document=None, follow_up_suggestions=[])
 
         if detect_existence_request(req.query):
             topic = extract_existence_topic(req.query)
             topic_label = topic or "chủ đề này"
+            # Lấy topic có dấu tiếng Việt từ original query
             if topic:
-                count = retriever.count_matching(topic)
+                topic_label = _restore_topic_diacritics(topic, req.query)
+            if topic:
+                count = retriever.count_title_match(topic)
                 if count <= 0:
                     answer_text = f"Hiện tại mình chưa tìm thấy tài liệu nào về **{topic_label}** trong thư viện. Bạn có thể thử hỏi chủ đề khác hoặc diễn đạt khác đi một chút nhé."
                     return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, summary="", current_document=None,
-                        follow_up_suggestions=[{"label": "Gợi ý chủ đề khác", "query": "Gợi ý tài liệu phổ biến"}, {"label": "Tìm chủ đề tương tự", "query": f"tài liệu liên quan đến {topic_label}"}])
+                        follow_up_suggestions=random_no_result_suggestions(3))
                 hist.append({"query": req.query, "search_query": topic, "topic": topic_label, "source_count": count, "shown_titles": []})
                 session_history[req.session_id] = hist[-MAX_HISTORY:]
                 answer_text = f"Có, thư viện hiện có tài liệu về **{topic_label}**. Bạn có muốn mình liệt kê chi tiết ra không?"
                 return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=count, summary="", current_document=None,
-                    follow_up_suggestions=[{"label": "Có, liệt kê chi tiết ra giúp mình", "query": f"{list_topic_marker}{topic}"}, {"label": "Không, cảm ơn bạn", "query": "Cảm ơn bạn"}])
+                    follow_up_suggestions=[
+                        {"label": "Liệt kê chi tiết", "query": f"{list_topic_marker}{topic}"},
+                        {"label": "Không, cảm ơn bạn", "query": "Cảm ơn bạn"},
+                    ])
 
         if list_topic_query:
             req_query_for_search = f"tìm sách về {list_topic_query}"
@@ -1270,7 +1301,10 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         if req.major:
             major_clean = (req.major or "").strip()
-            if major_clean and major_clean.lower() not in search_query.lower():
+            # So sánh normalize (không dấu) để tránh append trùng
+            _major_norm = normalize_text(major_clean)
+            _search_norm = normalize_text(search_query)
+            if major_clean and _major_norm and _major_norm not in _search_norm:
                 search_query = f"{search_query} {major_clean}".strip()
 
         _prefer_strict = detect_author_query(req.query) or detect_publisher_query(req.query)
@@ -1283,7 +1317,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         else:
             retrieval_k = 500 if catalog_mode else 30
             cache_results = []
-            if catalog_mode:
+            if catalog_mode and not is_list_request:
                 cache_results = _search_topic_cache_fn(search_query)
             bm25_results = retriever.search_by_query(search_query, top_k=retrieval_k)
             if catalog_mode and bm25_results and not _prefer_strict:
@@ -1291,7 +1325,12 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             catalog_query_token_count = len(topic_tokens(strip_search_intent_phrases(req.query)))
             if catalog_mode and (is_list_request or catalog_query_token_count <= 7):
                 metadata_results = metadata_search_by_query(req.query, bm25_documents=retriever.bm25.documents, top_k=retrieval_k)
-                bm25_results = catalog_merge_results(metadata_results, bm25_results)
+                if is_list_request:
+                    # List request: chỉ dùng metadata (độ chính xác cao),
+                    # không merge BM25 vì full-text search gây nhiễu tài liệu không liên quan.
+                    bm25_results = metadata_results
+                else:
+                    bm25_results = catalog_merge_results(metadata_results, bm25_results)
             if cache_results:
                 seen = set()
                 merged = []
@@ -1336,7 +1375,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             if use_cache and search_results:
                 _search_cache.set(cache_key, search_results)
 
-        if req.major and not req.document_id:
+        if req.major and not req.document_id and not is_list_request:
             major_norm = normalize_text(req.major).strip()
             if major_norm:
                 _tree = _load_faculties_tree()
@@ -1593,6 +1632,17 @@ def serve_embed(filename: str):
 def status():
     return {"status": "ok", "llm_backend": "OpenRouter", "model": OPENROUTER_MODEL, "openrouter_url": OPENROUTER_BASE_URL, "read_only": is_vercel_runtime()}
 
+@app.get("/admin", response_class=FileResponse)
+def serve_admin_dashboard():
+    html_file = "admin-dashboard.html"
+    if not os.path.exists(html_file):
+        return {"error": "admin-dashboard.html not found"}
+    return FileResponse(html_file, media_type="text/html", headers={
+        "Cache-Control": "no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
+
 @app.get("/health")
 def health():
     try:
@@ -1679,6 +1729,35 @@ async def search_by_faculty(req: FacultySearchRequest):
         topic_hits = [hit for hit in topic_hits if _doc_matches_faculty(normalize_text(str(hit.get("doc", hit).get("major", ""))))]
     return SemanticSearchResponse(query=nganh, mode="faculty", results=topic_hits[:req.top_k], total=min(len(topic_hits), req.top_k), semantic_available=False)
 
+# ═══════════════════════════════════════════════════════════════
+# Usage / Analytics endpoints
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/usage/analytics")
+def usage_analytics(date_from: str = "", date_to: str = ""):
+    """Public analytics page. Returns aggregated stats from usage logs.
+    Optional query params: date_from, date_to (YYYY-MM-DD)."""
+    try:
+        return get_usage_logger().compute_analytics(date_from=date_from, date_to=date_to)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/usage/recent")
+def usage_recent(n: int = 20):
+    """Return recent usage entries."""
+    try:
+        return {"entries": get_usage_logger().get_recent(n)}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/usage/stats")
+def usage_stats():
+    """Quick usage stats (from in-memory counters)."""
+    try:
+        return get_usage_logger().get_stats()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/api/voice/transcribe")
 async def transcribe_voice(audio: UploadFile = File(...), language: str = Form("vi")):
     try:
@@ -1758,22 +1837,45 @@ async def admin_upload_data(token: str = Form(...), file: UploadFile = File(...)
         existing_file = f
         break
 
-    file_name_saved = file.filename
-    saved_path = data_dir / file_name_saved
+    # Kiểm tra hash với TẤT CẢ file xlsx hiện có (bỏ qua file cache)
+    # Nếu nội dung trùng 1 trong các file cũ → skip
+    from datetime import datetime
+    import time as _time
+    any_match = False
+    for old_f in data_dir.glob("*.xlsx"):
+        if old_f.name.startswith("~$"):  # skip Excel temp files
+            continue
+        try:
+            old_hash = hashlib.md5(old_f.read_bytes()).hexdigest()
+            if new_hash == old_hash:
+                any_match = True
+                break
+        except Exception:
+            continue
+    if any_match:
+        return {
+            "status": "skipped",
+            "message": "Dữ liệu không thay đổi, bỏ qua reload.",
+            "file_name": "(unchanged)",
+        }
 
-    # Nếu file đã tồn tại & cùng hash → skip
-    if existing_file and existing_file.exists():
-        old_hash = hashlib.md5(existing_file.read_bytes()).hexdigest()
-        if new_hash == old_hash:
-            return {
-                "status": "skipped",
-                "message": "Dữ liệu không thay đổi, bỏ qua reload.",
-                "file_name": file_name_saved,
-            }
-
-    # Ghi file mới
+    # Lưu file mới với tên riêng (KHÔNG xóa file cũ)
+    # load_from_data() sẽ load tất cả .xlsx và merge + dedup tự động
+    ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    upload_name = f"upload-{ts}.xlsx"
+    saved_path = data_dir / upload_name
     with open(saved_path, "wb") as f:
         f.write(contents)
+    logger.info("Saved uploaded file: %s (%.1f MB)", upload_name, len(contents) / 1024 / 1024)
+
+    # ── Cleanup: chỉ xóa các file upload-*.xlsx CŨ (lần upload trước) ──
+    # File gốc qnu-allITEM-*.xlsx KHÔNG BAO GIỜ bị xóa
+    # load_from_data() sẽ load tất cả + dedup tự động
+    for old_f in list(data_dir.glob("upload-*.xlsx")):
+        if old_f.name == upload_name:
+            continue
+        old_f.unlink()
+        logger.info("Removed old upload file: %s", old_f.name)
 
     # Xoá cache cũ
     _cache_pkl = data_dir / "_documents_cache.pkl"
@@ -1801,15 +1903,65 @@ async def admin_upload_data(token: str = Form(...), file: UploadFile = File(...)
 
     return {
         "status": "ok",
-        "file_name": file_name_saved,
+        "file_name": upload_name,
         "file_size_mb": round(len(contents) / (1024 * 1024), 2),
-        "message": f"Đã cập nhật dữ liệu từ {file_name_saved} thành công!",
+        "message": f"Đã cập nhật dữ liệu từ {upload_name} thành công!",
     }
 
 # PDF delete disabled
 @app.delete("/api/admin/pdfs/{pdf_id}")
 async def admin_delete_pdf(pdf_id: str, data: dict = Body(...)):
     raise HTTPException(404, "PDF management đã bị tắt.")
+
+# ── Xóa file dữ liệu ────────────────────────────────────────
+@app.post("/api/admin/delete-file")
+async def admin_delete_file(data: dict = Body(...)):
+    """Xóa file Excel trong thư mục Data/ và reload lại dữ liệu."""
+    if is_vercel_runtime(): raise HTTPException(405, VERCEL_READ_ONLY_MESSAGE)
+    if data.get("token", "") not in ADMIN_TOKENS:
+        raise HTTPException(401, "Token không hợp lệ")
+    file_name = data.get("file_name", "")
+    if not file_name:
+        raise HTTPException(400, "Thiếu tên file")
+
+    data_dir = Path("Data")
+    target = data_dir / file_name
+
+    # An toàn: chỉ cho xóa file .xlsx, không cho xóa file khác
+    if target.suffix.lower() not in (".xlsx", ".xls"):
+        raise HTTPException(400, "Chỉ hỗ trợ xóa file Excel")
+    # Không cho xóa file đang dùng nếu chỉ còn 1 file
+    xlsx_files = list(data_dir.glob("*.xlsx"))
+    if len(xlsx_files) <= 1:
+        raise HTTPException(400, "Không thể xóa file cuối cùng. Cần ít nhất 1 file dữ liệu.")
+    if not target.exists():
+        raise HTTPException(404, f"File {file_name} không tồn tại")
+
+    target.unlink()
+    logger.info("Deleted data file: %s", file_name)
+
+    # Xoá cache cũ
+    _cache_pkl = data_dir / "_documents_cache.pkl"
+    if _cache_pkl.exists():
+        _cache_pkl.unlink()
+
+    # Reload dữ liệu
+    try:
+        new_documents = DocumentIndexer.load_from_data("Data")
+        retriever.bm25.documents = new_documents
+        retriever.bm25._build_index()
+        global _semantic_engine
+        _semantic_engine = None
+        _build_topic_cache()
+        _search_cache.invalidate()
+    except Exception as e:
+        logger.error("Reload dữ liệu thất bại: %s", e)
+        raise HTTPException(500, f"Reload dữ liệu thất bại: {str(e)}")
+
+    return {
+        "status": "ok",
+        "message": f"Đã xóa {file_name} và reload dữ liệu thành công!",
+    }
 
 # PDF chat disabled
 @app.post("/chat/with-document")

@@ -236,41 +236,14 @@
 
     /* ── Admin Section ── */
     .admin-section{padding:0;}
-    .admin-login-row{display:flex;gap:4px;}
+    .admin-login-row{display:flex;gap:4px;margin-top:8px;}
     .admin-input{flex:1;padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:#fff;font-size:12px;outline:none;transition:var(--transition);font-family:var(--font-sans);}
     .admin-input::placeholder{color:rgba(255,255,255,0.35);}
     .admin-input:focus{border-color:var(--accent-warm);background:rgba(255,255,255,0.09);}
-    .admin-btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.08);color:#fff;font-size:11px;font-weight:600;cursor:pointer;transition:var(--transition);white-space:nowrap;font-family:var(--font-sans);letter-spacing:-0.01em;}
+    .admin-btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:7px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.08);color:#fff;font-size:11px;font-weight:600;cursor:pointer;transition:var(--transition);white-space:nowrap;font-family:var(--font-sans);}
     .admin-btn:hover{background:rgba(255,255,255,0.14);border-color:rgba(255,255,255,0.2);}
-    .admin-btn:active{transform:scale(0.97);}
     .admin-btn.primary{background:var(--accent-warm);border-color:var(--accent-warm);color:#fff;}
     .admin-btn.primary:hover{background:#7a5f44;border-color:#7a5f44;}
-    .admin-btn.small{padding:4px 8px;font-size:10px;background:transparent;border:none;color:rgba(255,255,255,0.35);}
-    .admin-btn.small:hover{color:rgba(255,255,255,0.7);background:transparent;}
-    .admin-upload-area{display:none;margin-top:6px;padding:8px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px dashed rgba(255,255,255,0.1);}
-    .admin-upload-btn{width:100%;padding:8px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);font-size:11px;font-weight:600;cursor:pointer;transition:var(--transition);font-family:var(--font-sans);}
-    .admin-upload-btn:hover{background:rgba(255,255,255,0.1);color:#fff;}
-    .admin-upload-btn:active{transform:scale(0.98);}
-    .admin-msg{font-size:10px;color:var(--pastel-green);margin-top:4px;min-height:14px;line-height:1.4;}
-    .admin-msg.error{color:#e57373;}
-    .admin-badge{display:inline-flex;align-items:center;gap:3px;font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;margin-bottom:4px;}
-    .admin-dashboard{
-      display:none;margin-top:8px;padding-top:8px;
-      border-top:1px solid rgba(255,255,255,0.08);
-    }
-    .admin-dashboard.show{display:block;}
-    .admin-dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:7px;}
-    .admin-stat{
-      padding:6px 7px;border-radius:6px;background:rgba(255,255,255,0.05);
-      border:1px solid rgba(255,255,255,0.06);min-width:0;
-    }
-    .admin-stat span{display:block;font-size:9px;color:rgba(255,255,255,0.38);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
-    .admin-stat strong{display:block;margin-top:2px;color:#fff;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .admin-mini-title{font-size:10px;color:rgba(255,255,255,0.45);font-weight:700;margin:7px 0 4px;text-transform:uppercase;letter-spacing:0.05em;}
-    .admin-mini-list{display:flex;flex-direction:column;gap:3px;}
-    .admin-mini-row{display:flex;justify-content:space-between;gap:6px;font-size:10.5px;color:rgba(255,255,255,0.72);min-width:0;}
-    .admin-mini-row span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .admin-mini-row span:last-child{flex-shrink:0;color:rgba(255,255,255,0.42);font-weight:700;}
     /* ── Sidebar toggle ── */
     .hamburger{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;cursor:pointer;flex-shrink:0;color:var(--text-secondary);transition:var(--transition);}
     .hamburger:hover{background:var(--accent-soft);color:var(--text-primary);}
@@ -381,8 +354,8 @@
       border:1px solid var(--border);
       border-left:3px solid var(--accent-muted);
       border-radius:var(--radius-md);
-      padding:14px 18px;
-      margin:10px 0;
+      padding:10px 14px;
+      margin:5px 0;
       font-size:13px;
       transition:var(--transition);
       box-shadow:var(--shadow-card);
@@ -917,8 +890,6 @@
       .pdf-overlay-header{padding:10px 14px;}
       .pdf-overlay-messages{padding:12px 14px;}
       .pdf-overlay-composer{padding:8px 12px 12px;}
-      .admin-input{padding:6px 10px;font-size:11px;}
-      .admin-btn{font-size:10px;padding:6px 10px;}
     }
   </style>
 </head>
@@ -1011,40 +982,14 @@
     </div>
     </div>
     <div class="sidebar-sticky" id="adminPdfArea">
-      <!-- Admin Section -->
+      <!-- Admin Section — chỉ giữ login, bỏ stats/file -->
       <div class="admin-section" style="padding:0;">
         <div class="admin-login-row" id="adminLoginRow" style="display:flex;">
           <input type="password" id="adminPwd" class="admin-input" placeholder="Mật khẩu quản trị" autocomplete="new-password">
           <button class="admin-btn primary" onclick="adminLogin()">Đăng nhập</button>
         </div>
-        <div id="adminUploadArea" style="display:none;">
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <div style="display:flex;gap:4px;align-items:center;">
-              <button class="admin-btn" onclick="document.getElementById('xlsxInput').click()" style="flex:1;justify-content:center;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Cập nhật dữ liệu Excel
-              </button>
-              <button class="admin-btn small" onclick="adminLogout()" title="Đăng xuất">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              </button>
-            </div>
-          </div>
-          <div class="admin-dashboard" id="adminDashboard">
-            <div class="admin-dashboard-grid">
-              <div class="admin-stat"><span>Tài liệu</span><strong id="adminDocTotal">--</strong></div>
-              <div class="admin-stat"><span>PDF</span><strong id="adminPdfTotal">--</strong></div>
-              <div class="admin-stat"><span>Truy vấn</span><strong id="adminQueryTotal">--</strong></div>
-              <div class="admin-stat"><span>Cập nhật</span><strong id="adminLastUpdate">--</strong></div>
-            </div>
-            <div class="admin-mini-title">Top query</div>
-            <div class="admin-mini-list" id="adminTopQueries"><div class="admin-mini-row"><span>Chưa có dữ liệu</span><span>0</span></div></div>
-            <div class="admin-mini-title">Không có kết quả</div>
-            <div class="admin-mini-list" id="adminNoResultQueries"><div class="admin-mini-row"><span>Chưa có dữ liệu</span><span>0</span></div></div>
-          </div>
-        </div>
-        <div id="uploadMsg" class="admin-msg"></div>
-        <input type="file" id="xlsxInput" accept=".xlsx,.xls" style="display:none" onchange="uploadData(this)">
       </div>
+      <div id="uploadMsg" style="display:none;"></div>
     </div>
   </aside>
 
@@ -1079,7 +1024,7 @@
       </div>
     </section>
     <form class="composer" onsubmit="return false;">
-      <button type="button" class="mic-btn" id="micBtn" title="Nhấn để nói (Whisper)">
+      <button type="button" class="mic-btn" id="micBtn" title="Nhấn để nói">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       </button>
       <div class="mic-hint" id="micHint">Đang nghe... Nhấn lại để dừng</div>
@@ -1172,7 +1117,6 @@ window.addEventListener("load", async () => {
     const res  = await fetch(BACKEND + "/");
     const data = await res.json();
     backendReadOnly = Boolean(data.read_only);
-    configureReadOnlyMode();
     setStatus("ok", "Sẵn sàng");
     document.getElementById("bookCount").textContent =
       data.csv_records ? data.csv_records.toLocaleString() + " sách" : "Sẵn sàng";
@@ -2740,90 +2684,21 @@ _qInput.addEventListener("keydown", function(e){
   }
   if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendMessage(); }
 });
-// PDF Overlay keyboard handlers
-document.getElementById("adminPwd").addEventListener("input", function(){
-  const el = document.getElementById("uploadMsg");
-  if (el) el.textContent = "";
-});
-// Nhấn Enter trong ô mật khẩu → submit luôn
-document.getElementById("adminPwd").addEventListener("keydown", function(e){
-  if (e.key === "Enter") { e.preventDefault(); adminLogin(); }
-});
-
+// ── Admin login ──
 let adminToken = localStorage.getItem("qnu_admin_token") || "";
 
-// Khôi phục session admin nếu đã có token
-(function restoreAdminSession() {
-  if (!adminToken) return;
-  const loginRow = document.getElementById("adminLoginRow");
-  const uploadArea = document.getElementById("adminUploadArea");
-  if (loginRow) loginRow.style.display = "none";
-  if (uploadArea) uploadArea.style.display = "block";
-  loadAdminDashboard();
-})();
-
-function configureReadOnlyMode() {
-  if (!backendReadOnly) return;
-  adminToken = "";
-  localStorage.removeItem("qnu_admin_token");
-  const area = document.getElementById("adminPdfArea");
-  if (!area) return;
-  area.innerHTML = `
-    <div class="admin-badge">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      Demo read-only
-    </div>
-    <div class="admin-msg" style="color:rgba(255,255,255,0.55);line-height:1.4;">
-      Upload và xóa PDF bị tắt trên Vercel Free.
-    </div>
-  `;
-}
-
-function shortDateTime(value) {
-  if (!value) return "--";
-  const parts = String(value).split(" ");
-  return parts.length > 1 ? parts[1].slice(0, 5) : String(value);
-}
-
-function renderMiniList(rootId, items) {
-  const root = document.getElementById(rootId);
-  if (!root) return;
-  if (!items || !items.length) {
-    root.innerHTML = '<div class="admin-mini-row"><span>Chưa có dữ liệu</span><span>0</span></div>';
-    return;
-  }
-  root.innerHTML = items.slice(0, 5).map((item) =>
-    '<div class="admin-mini-row"><span title="' + attr(item.query || "") + '">' + esc(item.query || "") + '</span><span>' + esc(item.count || 0) + '</span></div>'
-  ).join("");
-}
-
-async function loadAdminDashboard() {
-  if (!adminToken || backendReadOnly) return;
-  const dash = document.getElementById("adminDashboard");
-  if (dash) dash.classList.add("show");
-  try {
-    const res = await fetch(BACKEND + "/api/admin/dashboard", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: adminToken })
+document.addEventListener("DOMContentLoaded", function() {
+  // Enter key triggers login
+  const pwdField = document.getElementById("adminPwd");
+  if (pwdField) {
+    pwdField.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") { e.preventDefault(); adminLogin(); }
     });
-    if (!res.ok) throw new Error("dashboard");
-    const data = await res.json();
-    const docs = data.documents || {};
-    const analytics = data.analytics || {};
-    document.getElementById("adminDocTotal").textContent = (docs.total || 0).toLocaleString("vi-VN");
-    document.getElementById("adminPdfTotal").textContent = (docs.pdf_files || 0).toLocaleString("vi-VN");
-    document.getElementById("adminQueryTotal").textContent = (analytics.total_queries || 0).toLocaleString("vi-VN");
-    document.getElementById("adminLastUpdate").textContent = shortDateTime((data.updated || {}).last_data_update);
-    renderMiniList("adminTopQueries", analytics.top_queries || []);
-    renderMiniList("adminNoResultQueries", analytics.no_result_queries || []);
-  } catch {
-    if (dash) dash.classList.remove("show");
   }
-}
+});
 
 async function adminLogin() {
-  const pwd = document.getElementById("adminPwd").value.trim();
+  const pwd = document.getElementById("adminPwd")?.value.trim();
   if (!pwd) return;
   try {
     const res = await fetch(BACKEND + "/api/admin/login", {
@@ -2832,78 +2707,27 @@ async function adminLogin() {
       body: JSON.stringify({ password: pwd })
     });
     if (!res.ok) {
-      showUploadMsg("Sai mật khẩu!", true);
-      document.getElementById("adminPwd").value = "";
-      document.getElementById("adminPwd").focus();
+      showToast("Sai mật khẩu!");
+      const f = document.getElementById("adminPwd");
+      if (f) { f.value = ""; f.focus(); }
       return;
     }
     const data = await res.json();
-    adminToken = data.token;
-    localStorage.setItem("qnu_admin_token", adminToken);
-    document.getElementById("adminLoginRow").style.display = "none";
-    document.getElementById("adminUploadArea").style.display = "block";
-    showUploadMsg("Đã đăng nhập", false);
-    loadAdminDashboard();
+    localStorage.setItem("qnu_admin_token", data.token);
+    window.open("/admin", "_blank");
   } catch(e) {
-    showUploadMsg("Lỗi: " + e.message, true);
+    showToast("Lỗi: " + e.message);
   }
 }
 
-function adminLogout() {
-  adminToken = "";
-  localStorage.removeItem("qnu_admin_token");
-  document.getElementById("adminLoginRow").style.display = "flex";
-  document.getElementById("adminPwd").value = "";
-  document.getElementById("adminUploadArea").style.display = "none";
-  const msgEl = document.getElementById("uploadMsg");
-  if (msgEl) { msgEl.textContent = ""; }
-  const dash = document.getElementById("adminDashboard");
-  if (dash) dash.classList.remove("show");
-  showUploadMsg("", false);
-}
-
-function showUploadMsg(text, isError) {
+function showToast(msg) {
   const el = document.getElementById("uploadMsg");
   if (!el) return;
-  el.textContent = text;
-  el.className = "admin-msg" + (isError ? " error" : "");
+  el.textContent = msg;
+  el.style.display = "block";
+  el.style.color = "#e57373";
+  setTimeout(() => { el.style.display = "none"; }, 3000);
 }
-
-async function uploadData(input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (!file.name.toLowerCase().endsWith(".xlsx") && !file.name.toLowerCase().endsWith(".xls")) {
-    showUploadMsg("Chỉ chấp nhận file Excel (.xlsx / .xls)!", true);
-    return;
-  }
-  showUploadMsg("Đang xử lý dữ liệu...", false);
-
-  const formData = new FormData();
-  formData.append("token", adminToken);
-  formData.append("file", file);
-
-  try {
-    const res = await fetch(BACKEND + "/api/admin/upload-data", {
-      method: "POST",
-      body: formData
-    });
-    const data = await res.json();
-    if (!res.ok) { throw new Error(data.detail || "Upload thất bại"); }
-
-    if (data.status === "skipped") {
-      showUploadMsg("✓ Dữ liệu không đổi, không cần reload", false);
-    } else {
-      showUploadMsg("✓ " + (data.message || "Cập nhật thành công!"), false);
-      // Refresh lại book count
-      if (typeof loadPdfList === 'function') loadPdfList();
-    }
-    loadAdminDashboard();
-    input.value = "";
-  } catch(e) {
-    showUploadMsg("Lỗi: " + e.message, true);
-    input.value = "";
-  }
-}
-</script>
+</script> 
 </body>
 </html>

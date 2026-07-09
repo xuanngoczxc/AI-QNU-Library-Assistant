@@ -272,6 +272,12 @@ def extract_content_search_query(text: str) -> str:
         r"\b(?:hay|vui long)\b",
         r"\b(?:cho toi|cho minh|cho em)\b",
         r"\b(?:khong|ko|k)\b",
+        r"\b(?:sach|tai lieu|giao trinh|bai bao|bai)\s+cua\b",
+        r"\bcua\s+tac gia\b",
+        r"\btim kiem\b",
+        r"\b(?:tim|tra cuu|liet ke)\b",
+        r"\blien quan den\b",
+        r"\blien quan\b",
     ]:
         q = re.sub(pattern, " ", q)
     q = re.sub(r"\s+", " ", q).strip()
@@ -294,7 +300,6 @@ def score_ai_document(doc: dict) -> float:
             score += 5.0
     return score
 
-
 def get_doc_topic_fields(doc: dict) -> dict[str, str]:
     cached = doc.get("_topic_search_fields")
     if cached:
@@ -307,10 +312,12 @@ def get_doc_topic_fields(doc: dict) -> dict[str, str]:
         ("doc_type", doc.get("doc_type", "")),
         ("text_preview", (doc.get("text") or "")[:500]),
     ]
+    # Include extra_fields (unmapped columns from generic XLSX loader)
+    for k, v in doc.get("extra_fields", {}).items():
+        fields.append((f"extra_{k}", v))
     normalized_fields = {name: normalize_topic_text(str(v)) for name, v in fields if v}
     doc["_topic_search_fields"] = normalized_fields
     return normalized_fields
-
 
 def get_doc_topic_text(doc: dict) -> str:
     cached = doc.get("_topic_search_text")
@@ -320,7 +327,6 @@ def get_doc_topic_text(doc: dict) -> str:
     text = " ".join(f for f in fields.values() if f)
     doc["_topic_search_text"] = text
     return text
-
 
 def get_query_topic_terms(query: str) -> tuple[str, list[str], list[str]]:
     topic = extract_primary_topic_text(query)
@@ -441,7 +447,7 @@ def build_catalog_topic_index(bm25_documents: list[dict] | None = None) -> None:
     save_catalog_topic_cache(cache_file, source_mtime)
 
 def find_catalog_topic_matches(query_text: str, limit: int = 8) -> list[str]:
-    build_catalog_topic_index([])  # Will use existing index if ready
+    build_catalog_topic_index([])
     normalized_query = normalize_topic_text(query_text)
     tokens = normalized_query.split()
     if not tokens:
@@ -485,24 +491,29 @@ def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int 
             if not phrase:
                 continue
             for field_name, field_text in doc_fields.items():
-                if contains_normalized_phrase(field_text, phrase):
+                if " " in phrase and contains_normalized_phrase(field_text, phrase):
                     exact_phrase_hit = True
                     base = field_weights.get(field_name, 8.0)
                     score += base if phrase == primary_phrase else base * 0.55
+                elif " " not in phrase and contains_normalized_phrase(field_text, phrase):
+                    base = field_weights.get(field_name, 8.0)
+                    score += base * 0.3
         match_count = sum(1 for t in topic_tokens_list if re.search(rf"\b{re.escape(t)}\b", doc_text))
         if match_count:
             coverage = match_count / max(len(topic_tokens_list), 1)
             score += (match_count * 2.0) + (coverage * 6.0)
-            if len(topic_tokens_list) >= 2 and coverage < 0.45 and not exact_phrase_hit:
-                continue
+            if not exact_phrase_hit:
+                if len(topic_tokens_list) <= 3 and coverage < 1.0:
+                    continue
+                if len(topic_tokens_list) >= 4 and coverage < 0.45:
+                    continue
         if score > 0:
             scored.append({"doc": doc, "score": score + 100000.0, "index": idx})
     scored.sort(key=lambda item: item["score"], reverse=True)
     return scored[:top_k]
 
 TOPIC_CACHE: dict[str, list[int]] = {}
-ALL_DOC_KEYWORDS: dict[int, set[str]] = {}
-
+ALL_DOC_KEYWORDS: dict[int, set[str]] = {} 
 
 def build_topic_cache(bm25_documents: list[dict]) -> None:
     global TOPIC_CACHE, ALL_DOC_KEYWORDS
@@ -548,7 +559,11 @@ def search_topic_cache(query: str, bm25_documents: list[dict]) -> list[dict] | N
     if not q:
         return None
     if q in TOPIC_CACHE:
-        return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in TOPIC_CACHE[q][:120]]
+        exact = set(TOPIC_CACHE[q])
+        prefix_key = f"__prefix__{q}"
+        if prefix_key in TOPIC_CACHE:
+            exact.update(TOPIC_CACHE[prefix_key])
+        return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in list(exact)[:120]]
     prefix_key = f"__prefix__{q}"
     if prefix_key in TOPIC_CACHE:
         return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in TOPIC_CACHE[prefix_key][:120]]

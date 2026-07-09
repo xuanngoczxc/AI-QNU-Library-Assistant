@@ -3,7 +3,57 @@ lib/followup.py — Follow-up suggestion builders and answer section extractors.
 """
 
 import re
+import random as _random
 from .text_utils import normalize_text
+
+# ── Suggestion pools for randomized fallback suggestions ──
+_SUGGESTION_POOL_TOPICS = [
+    "trí tuệ nhân tạo", "học máy", "khoa học dữ liệu", "an ninh mạng",
+    "văn học Việt Nam", "văn học nước ngoài", "ngôn ngữ Anh", "ngôn ngữ Trung",
+    "kinh tế học", "quản trị kinh doanh", "kế toán", "tài chính ngân hàng",
+    "tâm lý học", "giáo dục học", "xã hội học", "luật học",
+    "công nghệ thông tin", "kỹ thuật điện", "xây dựng", "công nghệ thực phẩm",
+    "toán học", "vật lý", "hóa học", "sinh học",
+    "lịch sử", "địa lý", "triết học", "chính trị",
+    "quản lý nhà nước", "công tác xã hội", "du lịch", "văn hóa",
+]
+
+_SUGGESTION_POOL_AUTHORS = [
+    "Nguyễn Nhật Ánh", "Hồ Chí Minh", "Nam Cao", "Tô Hoài",
+    "Vũ Trọng Phụng", "Nguyễn Du", "Xuân Diệu", "Huy Cận",
+    "Stuart J. Russell", "Andrew Ng", "Ian Goodfellow",
+    "Lê Văn Hùng", "Trần Đình Hượu",
+    "Nguyễn Văn Hiệu", "Phan Văn Các", "Hoàng Phê",
+    "Trần Văn Giàu", "Nguyễn Khắc Viện", "Cao Xuân Hạo",
+]
+
+_SUGGESTION_POOL_MAJORS = [
+    "Công nghệ thông tin", "Kỹ thuật điện", "Kỹ thuật xây dựng",
+    "Quản trị kinh doanh", "Kế toán", "Tài chính ngân hàng",
+    "Ngôn ngữ Anh", "Ngôn ngữ Trung Quốc", "Luật",
+    "Tâm lý học", "Giáo dục học", "Công tác xã hội",
+    "Toán học", "Vật lý", "Hóa học", "Sinh học",
+    "Văn học", "Lịch sử", "Triết học",
+    "Kỹ thuật ô tô", "Công nghệ thực phẩm", "Quản lý nhà nước",
+    "Sư phạm Toán", "Sư phạm Văn", "Sư phạm Anh",
+]
+
+
+def random_no_result_suggestions(count: int = 3) -> list[dict]:
+    """Generate randomized suggestions from topic/author/major pools."""
+    types_order = _random.sample(["topic", "author", "major"], min(3, count))
+    suggestions = []
+    for t in types_order[:count]:
+        if t == "topic":
+            topic = _random.choice(_SUGGESTION_POOL_TOPICS)
+            suggestions.append({"label": f"Tìm sách về {topic}", "query": f"tìm sách về {topic}"})
+        elif t == "author":
+            author = _random.choice(_SUGGESTION_POOL_AUTHORS)
+            suggestions.append({"label": f"Sách của {author}", "query": f"sách của {author}"})
+        elif t == "major":
+            major = _random.choice(_SUGGESTION_POOL_MAJORS)
+            suggestions.append({"label": f"Sách ngành {major}", "query": f"tìm sách ngành {major}"})
+    return suggestions
 
 
 def extract_answer_headings(answer: str) -> list[str]:
@@ -90,9 +140,8 @@ def build_contextual_suggestions(
         if len(suggestions) < 3 and first_title:
             suggestions.append({"label": "Tìm sách liên quan", "query": f"tìm sách liên quan đến {first_title}"})
         if len(suggestions) < 3:
-            suggestions.append({"label": "Duyệt danh mục sách", "query": "liệt kê sách mới nhất"})
-        if len(suggestions) < 3:
-            suggestions.append({"label": "Gợi ý sách phổ biến", "query": "gợi ý tài liệu phổ biến"})
+            # Fallback: random suggestions thay vì gợi ý chung chung
+            suggestions.extend(random_no_result_suggestions(3 - len(suggestions)))
     else:
         sections = extract_answer_sections(answer)
         for section in sections[:3]:
