@@ -97,20 +97,31 @@ class UsageLogger:
 
     def compute_analytics(self, date_from: str = "", date_to: str = "") -> dict:
         """
-        Full analytics aggregation from the in-memory buffer.
-        No disk read needed — all data stays in memory.
+        Full analytics aggregation from the in-memory buffer
+        supplemented by per-day counters which survive deque eviction.
         Optionally filter by date range (inclusive, format YYYY-MM-DD).
-        Returns a rich dict with time series, top queries, intents, latency, etc.
         """
         entries = list(self._recent)
 
-        # Filter by date range
+        # ── seed per‑day totals from the always‑accurate counters ──
+        day_counts: Counter = Counter()
+        day_noresult: Counter = Counter()
+        for d, c in self._day_queries.items():
+            day_counts[d] += c
+        for d, c in self._day_noresult.items():
+            day_noresult[d] += c
+
+        # ── filter entries by date range ──
         if date_from:
             entries = [e for e in entries if (e.get("ts") or "")[:10] >= date_from]
+            day_counts = Counter({d: c for d, c in day_counts.items() if d >= date_from})
+            day_noresult = Counter({d: c for d, c in day_noresult.items() if d >= date_from})
         if date_to:
             entries = [e for e in entries if (e.get("ts") or "")[:10] <= date_to]
+            day_counts = Counter({d: c for d, c in day_counts.items() if d <= date_to})
+            day_noresult = Counter({d: c for d, c in day_noresult.items() if d <= date_to})
 
-        if not entries:
+        if not entries and not day_counts:
             return {
                 "total": 0,
                 "daily_queries": [],
@@ -123,8 +134,6 @@ class UsageLogger:
                 "daily_no_result": [],
             }
 
-        day_counts: Counter = Counter()
-        day_noresult: Counter = Counter()
         hour_counts: list[int] = [0] * 24
         intent_counts: Counter = Counter()
         query_counts: Counter = Counter()
@@ -135,13 +144,9 @@ class UsageLogger:
 
         for e in entries:
             day = e.get("ts", "")[:10]
-            if day:
-                day_counts[day] += 1
-                monthly_counts[day[:7]] += 1
 
             rc = int(e.get("result_count", 0))
             if rc <= 0:
-                day_noresult[day] += 1
                 q = (e.get("query") or "").strip()
                 if q:
                     noresult_query_counts[q] += 1
@@ -164,6 +169,8 @@ class UsageLogger:
                     lt = time.localtime(ts)
                     hour_counts[lt.tm_hour] += 1
                     weekday_counts[lt.tm_wday] += 1
+                    if day:
+                        monthly_counts[day[:7]] += 1
             except (ValueError, TypeError):
                 pass
 
@@ -206,7 +213,7 @@ class UsageLogger:
         ]
 
         return {
-            "total": len(entries),
+            "total": sum(day_counts.values()),
             "daily_queries": daily_queries,
             "intent_distribution": intent_distribution,
             "top_queries": top_queries,

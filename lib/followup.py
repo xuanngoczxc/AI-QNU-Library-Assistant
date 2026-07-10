@@ -137,8 +137,6 @@ def build_contextual_suggestions(
             suggestions.append({"label": f"Sách cùng chủ đề: {first_subject}", "query": f"tìm sách về {first_subject}"})
         if first_author:
             suggestions.append({"label": f"Sách cùng tác giả: {first_author}", "query": f"sách của tác giả {first_author}"})
-        if len(suggestions) < 3 and first_title:
-            suggestions.append({"label": "Tìm sách liên quan", "query": f"tìm sách liên quan đến {first_title}"})
         if len(suggestions) < 3:
             # Fallback: random suggestions thay vì gợi ý chung chung
             suggestions.extend(random_no_result_suggestions(3 - len(suggestions)))

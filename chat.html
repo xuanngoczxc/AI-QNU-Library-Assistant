@@ -307,11 +307,13 @@
     .msg.user{flex-direction:row-reverse;}
     .avatar{
       width:34px;height:34px;
-      border-radius:var(--radius-sm);
+      border-radius:50%;
       display:flex;align-items:center;justify-content:center;
       font-size:16px;flex-shrink:0;
       box-shadow:var(--shadow-card);
+      overflow:hidden;
     }
+    .avatar img{width:70%;height:70%;object-fit:contain;border-radius:50%;background:var(--pastel-blue);}
     .msg.bot .avatar{background:var(--pastel-blue);}
     .msg.user .avatar{background:var(--accent);color:#fff;}
     .bubble{
@@ -760,10 +762,12 @@
     }
     .pdf-overlay-msg.user{flex-direction:row-reverse;}
     .pdf-overlay-msg .avatar{
-      width:30px;height:30px;border-radius:var(--radius-sm);
+      width:30px;height:30px;border-radius:50%;
       display:flex;align-items:center;justify-content:center;
       font-size:14px;flex-shrink:0;
+      overflow:hidden;
     }
+    .pdf-overlay-msg .avatar img{width:70%;height:70%;object-fit:contain;border-radius:50%;background:var(--pastel-blue);}
     .pdf-overlay-msg.bot .avatar{background:var(--pastel-blue);}
     .pdf-overlay-msg.user .avatar{background:var(--accent);color:#fff;}
     .pdf-overlay-msg .bubble{
@@ -1009,9 +1013,7 @@
     <section class="messages" id="messages">
       <div class="msg bot">
         <div class="avatar">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          </svg>
+          <img src="/static/SHL-logo.png" alt="SHL"/>
         </div>
         <div class="bubble">
           Xin chào! Tôi là trợ lý tra cứu của <strong>Thư viện QNU</strong>.<br><br>
@@ -1440,7 +1442,7 @@ async function sendMessage() {
       // Streaming mode
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = "", fullText = "", sources = [], totalFound = 0, followUps = [], summary = "";
+      let buffer = "", fullText = "", sources = [], totalFound = 0, followUps = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1472,19 +1474,8 @@ async function sendMessage() {
               totalFound = payload.total_found || 0;
             } else if (payload.type === "follow_ups") {
               followUps = payload.follow_up_suggestions || [];
-            } else if (payload.type === "summary") {
-              summary = payload.summary || "";
             } else if (payload.type === "done") {
               updateStreamBubble(botId, fullText, false);
-              if (summary) {
-                const bubble = document.getElementById(botId);
-                if (bubble) {
-                  bubble.innerHTML += `<div style="margin-top:12px; padding:10px 14px; background:var(--accent-soft); border:1px solid var(--border); border-radius:var(--radius-sm);">
-                    <div style="font-weight:600; color:var(--text-primary); margin-bottom:6px; font-size:13px;">Tóm tắt nội dung</div>
-                    <div style="color:var(--text-secondary); line-height:1.6; font-size:13px;">${esc(summary)}</div>
-                  </div>`;
-                }
-              }
               if (sources.length && !answerHasNoInformation(fullText)) {
               appendSources(botId, sources, totalFound, followUps);
             }
@@ -1498,7 +1489,6 @@ async function sendMessage() {
       const data        = await res.json();
       const reply       = data.answer || "Xin lỗi, không có phản hồi.";
       const bookResults = data.sources || [];
-      const summary     = data.summary || "";
       const totalFound  = data.total_found || bookResults.length;
       const followUps   = data.follow_up_suggestions || [];
       
@@ -1510,17 +1500,6 @@ async function sendMessage() {
       if (!lastQueryContext) lastQueryContext = query || "";
       
       updateStreamBubble(botId, reply, false);
-      
-      if (summary) {
-        const bubble = document.getElementById(botId);
-        if (bubble) {
-          const summaryHtml = `<div style="margin-top:12px; padding:10px 14px; background:var(--accent-soft); border:1px solid var(--border); border-radius:var(--radius-sm);">
-            <div style="font-weight:600; color:var(--text-primary); margin-bottom:6px; font-size:13px;">Tóm tắt nội dung</div>
-            <div style="color:var(--text-secondary); line-height:1.6; font-size:13px;">${esc(summary)}</div>
-          </div>`;
-          bubble.innerHTML += summaryHtml;
-        }
-      }
       
       if (bookResults.length && !answerHasNoInformation(reply)) appendSources(botId, bookResults, totalFound, followUps);
       if (!bookResults.length && followUps.length) renderFollowUpChips(botId, followUps);
@@ -1590,7 +1569,7 @@ function createStreamBubble(id) {
   d.className = "msg bot";
   const timeStr = getCurrentTime();
   d.innerHTML = `<div class="avatar">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <img src="/static/SHL-logo.png" alt="SHL"/>
     </div>
     <div><div class="bubble" id="${id}">
       <div class="typing-indicator"><span></span><span></span><span></span></div>
@@ -1961,7 +1940,7 @@ async function showRelatedSuggestions() {
     // Render book cards
     const d = document.createElement("div");
     d.className = "msg bot";
-    d.innerHTML = `<div class="avatar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><div class="bubble" id="relatedResult"></div>`;
+    d.innerHTML = `<div class="avatar"><img src="/static/SHL-logo.png" alt="SHL"/></div><div class="bubble" id="relatedResult"></div>`;
     msgs.appendChild(d);
 
     const bubble = document.getElementById("relatedResult");
@@ -2070,7 +2049,7 @@ function openPdfOverlay(pdf) {
   msgsEl.innerHTML = `
     <div class="pdf-overlay-msg bot">
       <div class="avatar">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <img src="/static/SHL-logo.png" alt="SHL"/>
       </div>
       <div class="bubble">
         Mình đã mở tài liệu <strong>${esc(titleEl.textContent)}</strong>. Bạn muốn hỏi nội dung gì?
@@ -2107,7 +2086,7 @@ async function sendPdfOverlayMessage() {
   // Add bot loading
   const botMsg = document.createElement("div");
   botMsg.className = "pdf-overlay-msg bot";
-  botMsg.innerHTML = `<div class="avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><div class="bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
+  botMsg.innerHTML = `<div class="avatar"><img src="/static/SHL-logo.png" alt="SHL"/></div><div class="bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
   document.getElementById("pdfOverlayMessages").appendChild(botMsg);
   document.getElementById("pdfOverlayMessages").scrollTop = 99999;
 
@@ -2296,7 +2275,7 @@ function appendMsg(role, html) {
   d.className = `msg ${role}`;
   const isBot = role === "bot";
   const svg = isBot
-    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>'
+    ? '<img src="/static/SHL-logo.png" alt="SHL"/>'
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
   const timeStr = getCurrentTime();
   const copyBtn = isBot ? `<div class="msg-actions"><button class="copy-btn" onclick="copyAnswer(this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>` : '';

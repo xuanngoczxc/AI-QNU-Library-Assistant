@@ -42,7 +42,7 @@ from lib.models import (
 )
 from lib.llm_client import call_llm, check_backend, record_llm_failure
 from lib.llm_prompts import (
-    sanitize_answer_text, build_general_chain, build_summary_prompt,
+    sanitize_answer_text, build_general_chain,
     detect_chapter_reference, detect_method_question, detect_structure_query,
     detect_result_question, build_chapter_prompt, build_method_prompt,
     build_structure_prompt,
@@ -1090,8 +1090,8 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                 answer_text = f"Được, mình sẽ không liệt kê **{decline_topic}** nữa. Bạn muốn mình hỗ trợ gì khác không?"
                 hist.append({"role": "assistant", "content": answer_text})
                 session_history[req.session_id] = hist[-MAX_HISTORY:]
-                return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, summary="", current_document=None,
-                    follow_up_suggestions=[{"label": "Gợi ý chủ đề khác", "query": "Gợi ý tài liệu phổ biến"}, {"label": "Tìm sách theo tác giả", "query": "sách của Nguyễn Nhật Ánh"}, {"label": "Xem giới thiệu thư viện", "query": "Giới thiệu thư viện QNU"}])
+                return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, current_document=None,
+                    follow_up_suggestions=[{"label": "Gợi ý chủ đề khác", "query": "Gợi ý tài liệu phổ biến"}, {"label": "Tìm sách theo tác giả", "query": "sách của Nguyễn Nhật Ánh"}])
 
         if list_topic_query:
             req_query_for_search = f"tìm sách về {list_topic_query}"
@@ -1103,7 +1103,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         if intent == "chitchat":
             return ChatResponse(
                 answer="Xin chào! Tôi là trợ lý tra cứu của **Thư viện QNU**.\n\nBạn có thể hỏi tôi về:\n• Tìm sách theo tên, tác giả, chủ đề\n• Tra cứu tài liệu số\n• Gợi ý sách theo ngành học\n\nBạn cần tìm tài liệu gì?",
-                sources=[], total_sources=0, total_found=0, summary="", current_document=None, follow_up_suggestions=[],
+                sources=[], total_sources=0, total_found=0, current_document=None, follow_up_suggestions=[],
             )
         if intent == "live_info":
             return ChatResponse(
@@ -1112,11 +1112,10 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                        "• **Tìm sách** theo tên, tác giả hoặc chủ đề\n"
                        "• **Hỏi về nội dung** tài liệu trong thư viện\n\n"
                        "Ví dụ: *\"Tìm sách về trí tuệ nhân tạo\"*",
-                sources=[], total_sources=0, total_found=0, summary="", current_document=None,
+                sources=[], total_sources=0, total_found=0, current_document=None,
                 follow_up_suggestions=[
                     {"label": "Tìm sách về công nghệ thông tin", "query": "tìm sách về công nghệ thông tin"},
                     {"label": "Tìm sách về văn học", "query": "tìm sách về văn học"},
-                    {"label": "Xem giới thiệu thư viện", "query": "Giới thiệu thư viện QNU"},
                 ],
             )
 
@@ -1155,7 +1154,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                     f"- **năm xuất bản** bạn muốn tìm\n"
                     f"- **chủ đề chi tiết hơn**"
                 )
-            return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=total_count, summary="", current_document=None, follow_up_suggestions=[])
+            return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=total_count, current_document=None, follow_up_suggestions=[])
 
         if intent == "unknown":
             # PDF check disabled
@@ -1164,13 +1163,11 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                            "Mình là trợ lý Thư viện, mình có thể giúp bạn:\n"
                            "• **Tìm sách, tài liệu** trong thư viện\n"
                            "• **Gợi ý tài liệu** theo chủ đề\n"
-                           "• **Tóm tắt nội dung** tài liệu\n\n"
                            "Bạn hãy thử hỏi cụ thể hơn nhé!",
-                    sources=[], total_sources=0, total_found=0, summary="", current_document=None,
+                    sources=[], total_sources=0, total_found=0, current_document=None,
                     follow_up_suggestions=[
                         {"label": "Tìm sách về trí tuệ nhân tạo", "query": "tìm sách về trí tuệ nhân tạo"},
                         {"label": "Có tài liệu về văn học không?", "query": "có tài liệu về văn học không"},
-                        {"label": "Xem giới thiệu thư viện", "query": "Giới thiệu thư viện QNU"},
                     ],
                 )
 
@@ -1225,7 +1222,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                          "• **Tra cứu tài liệu** theo ngành học\n"
                          "• **Gợi ý sách** phù hợp với nhu cầu\n\n"
                          "Thử chọn một gợi ý bên dưới nhé:")
-            return ChatResponse(answer=answer, sources=[], total_sources=0, total_found=0, summary="", current_document=None,
+            return ChatResponse(answer=answer, sources=[], total_sources=0, total_found=0, current_document=None,
                 follow_up_suggestions=suggestions)
 
         request_content = detect_content_request(req.query)
@@ -1241,7 +1238,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                 "• Gợi ý sách theo ngành học\n\n"
                 "Bạn cần tìm tài liệu gì?"
             )
-            return ChatResponse(answer=greeting_answer, sources=[], total_sources=0, summary="", current_document=None, follow_up_suggestions=[])
+            return ChatResponse(answer=greeting_answer, sources=[], total_sources=0, current_document=None, follow_up_suggestions=[])
 
         if detect_existence_request(req.query):
             topic = extract_existence_topic(req.query)
@@ -1253,12 +1250,12 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                 count = retriever.count_title_match(topic)
                 if count <= 0:
                     answer_text = f"Hiện tại mình chưa tìm thấy tài liệu nào về **{topic_label}** trong thư viện. Bạn có thể thử hỏi chủ đề khác hoặc diễn đạt khác đi một chút nhé."
-                    return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, summary="", current_document=None,
+                    return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, current_document=None,
                         follow_up_suggestions=random_no_result_suggestions(3))
                 hist.append({"query": req.query, "search_query": topic, "topic": topic_label, "source_count": count, "shown_titles": []})
                 session_history[req.session_id] = hist[-MAX_HISTORY:]
                 answer_text = f"Có, thư viện hiện có tài liệu về **{topic_label}**. Bạn có muốn mình liệt kê chi tiết ra không?"
-                return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=count, summary="", current_document=None,
+                return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=count, current_document=None,
                     follow_up_suggestions=[
                         {"label": "Liệt kê chi tiết", "query": f"{list_topic_marker}{topic}"},
                         {"label": "Không, cảm ơn bạn", "query": "Cảm ơn bạn"},
@@ -1297,7 +1294,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             except Exception:
                 pass
 
-        search_query = resolve_search_query(req.query, hist, catalog_mode=is_list_request)
+        search_query = resolve_search_query(req.query, hist, catalog_mode=catalog_mode)
 
         if req.major:
             major_clean = (req.major or "").strip()
@@ -1311,11 +1308,11 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         cache_key = f"catalog:{search_query}:{_prefer_strict}:{req.major or ''}" if catalog_mode else None
         use_cache = catalog_mode and not req.document_id and not req.query.startswith("__SUGGEST")
         search_results = _search_cache.get(cache_key) if use_cache else None
+        retrieval_k = 500 if catalog_mode else 30
 
         if search_results is not None:
             logger.info("Search cache HIT (%d docs, key='%s')", len(search_results), search_query)
         else:
-            retrieval_k = 500 if catalog_mode else 30
             cache_results = []
             if catalog_mode and not is_list_request:
                 cache_results = _search_topic_cache_fn(search_query)
@@ -1375,7 +1372,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             if use_cache and search_results:
                 _search_cache.set(cache_key, search_results)
 
-        if req.major and not req.document_id and not is_list_request:
+        if req.major and not req.document_id:
             major_norm = normalize_text(req.major).strip()
             if major_norm:
                 _tree = _load_faculties_tree()
@@ -1411,7 +1408,6 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         # PDF auto-inject and fallback disabled
         related_pdf_infos = []
 
-        request_summary = detect_summary_request(req.query)
         _relevance_gate = False
         if catalog_mode:
             answer = build_catalog_answer(search_results, req.query, total_found=total_found)
@@ -1438,15 +1434,6 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         suppress_sources = not pdf_fallback_used and (not search_results or (_top_score < 1.0 and not catalog_mode))
         if suppress_sources and search_results:
             search_results = []
-
-        summary = ""
-        if request_summary and search_results and not suppress_sources:
-            try:
-                doc_text = format_docs(search_results[:4])
-                summary_chain = build_summary_prompt()
-                summary = sanitize_answer_text(summary_chain(content=doc_text))
-            except Exception:
-                summary = ""
 
         seen, sources = set(), []
         current_doc = None
@@ -1518,7 +1505,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         except Exception:
             pass
 
-        return ChatResponse(answer=answer, sources=sources, total_sources=len(sources), total_found=total_found, summary=summary, current_document=current_doc, follow_up_suggestions=follow_ups)
+        return ChatResponse(answer=answer, sources=sources, total_sources=len(sources), total_found=total_found, current_document=current_doc, follow_up_suggestions=follow_ups)
 
     except Exception as e:
         err = str(e)
@@ -1574,8 +1561,6 @@ async def chat_stream(req: ChatRequest):
                 await asyncio.sleep(0.015)
             yield _sse_event({"type": "sources", "sources": payload.get("sources", [])})
             yield _sse_event({"type": "total_found", "total_found": payload.get("total_found", 0)})
-            if payload.get("summary"):
-                yield _sse_event({"type": "summary", "summary": payload.get("summary", "")})
             yield _sse_event({"type": "follow_ups", "follow_up_suggestions": payload.get("follow_up_suggestions", [])})
             yield _sse_event({"type": "done"})
         except HTTPException as e:
