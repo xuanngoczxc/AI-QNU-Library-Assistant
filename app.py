@@ -408,10 +408,120 @@ def _restore_topic_diacritics(normalized_topic: str, original_query: str) -> str
     return normalized_topic
 
 
+_GENERIC_TOPIC = frozenset([
+    "lien quan", "gi", "nao", "sach", "tai lieu", "giao trinh",
+    "cuon", "quyen", "an pham",
+])
+
+def _is_generic_topic(txt: str) -> bool:
+    """Check if extracted text is just a generic stop-word, not a real topic."""
+    if not txt:
+        return True
+    t = txt.strip()
+    if t in _GENERIC_TOPIC:
+        return True
+    first = t.split()[0]
+    return first in _GENERIC_TOPIC
+
+
+def _strip_preamble_trailing(txt: str) -> str:
+    """Remove trailing yes/no tokens then trailing preamble words (ban, ban co, etc)."""
+    if not txt:
+        return ""
+    for _ in range(3):
+        txt = txt.strip()
+        if not txt:
+            break
+        m = re.search(r"\s+(\S+)$", txt)
+        if m:
+            if _is_yesno_token(m.group(1)):
+                txt = txt[: m.start()].rstrip()
+            else:
+                break
+        else:
+            if _is_yesno_token(txt):
+                txt = ""
+            break
+    for _ in range(3):
+        txt = txt.strip()
+        if not txt:
+            break
+        m = re.search(
+            r"\s+(?:ban(?:\s+co(?:\s+(?:khong|ko|hem|nhi|vay|the|a))?)?|thi|the|vay|a)\s*$",
+            txt, flags=re.IGNORECASE,
+        )
+        if m:
+            txt = txt[: m.start()].strip()
+        else:
+            break
+    return txt
+
+
+def _extract_topic_fragment(txt: str) -> str:
+    """Try to pull a topic out of a text fragment.
+    Handles the "về X", "lĩnh vực X", "chủ đề X", "ngành X" pattern.
+    """
+    if not txt:
+        return ""
+    for _ in range(3):
+        txt = txt.strip()
+        if not txt:
+            break
+        m = re.search(r"\s+(\S+)$", txt)
+        if m:
+            if _is_yesno_token(m.group(1)):
+                txt = txt[: m.start()].rstrip()
+            else:
+                break
+        else:
+            if _is_yesno_token(txt):
+                txt = ""
+            break
+    txt = re.sub(
+        r"^\s*(?:v[eề]|lĩnh\s*vực|chủ\s*đề|ngành)\s+",
+        " ", txt, flags=re.IGNORECASE,
+    ).strip()
+    txt = re.sub(r"\?+\s*$", " ", txt).strip()
+    txt = re.sub(r"\s+", " ", txt).strip()
+    if not txt:
+        return ""
+    m = re.search(
+        r".*\b(?:v[eề]|lĩnh\s*vực|chủ\s*đề|ngành)\s+(.+)$",
+        txt, flags=re.IGNORECASE,
+    )
+    if m:
+        txt = m.group(1).strip()
+        for _ in range(3):
+            txt = txt.strip()
+            if not txt:
+                break
+            m2 = re.search(r"\s+(\S+)$", txt)
+            if m2:
+                if _is_yesno_token(m2.group(1)):
+                    txt = txt[: m2.start()].rstrip()
+                else:
+                    break
+            else:
+                if _is_yesno_token(txt):
+                    txt = ""
+                break
+        txt = re.sub(r"\s+", " ", txt).strip()
+    return txt
+
+
 def extract_existence_topic(query: str) -> str:
+    """Extract the topic/subject from an existence-check query.
+    Strategy:
+    1. Normalise and strip leading preamble tokens (bạn, cho mình hỏi, …).
+    2. Locate "có (sách|tài liệu|…)" **anywhere** — split into before/after.
+    3. Try extracting from the *after* fragment first.
+    4. If the result is generic/garbage, fall back to the *before* fragment
+       (after stripping trailing preamble tokens).
+    """
     if not query:
         return ""
     cleaned = normalize_text(query)
+    # ---- 1. Strip leading preamble ----
     preamble = [
         r"\b(?:vay\s+)?ban\s+(?:co\s+)?the\s*",
         r"\b(?:vay\s+)?ban\s+",
@@ -426,59 +536,33 @@ def extract_existence_topic(query: str) -> str:
     ]
     for p in preamble:
         cleaned = re.sub(r"^" + p, " ", cleaned, flags=re.IGNORECASE).strip()
-    cleaned = re.sub(
-        r"^\s*co\s+(?:tai\s+lieu|sach|cuon|quyen|an\s+pham|giao\s+trinh)\s+"
-        r"(?:cua\s+tac\s+gia\s+)?"
-        r"(?:nao\s+|nào\s+)?(?:ve|về)\s+",
-        " ", cleaned, flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(r"^\s*co\s+cuon\s+nao\s+ve\s+", " ", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(
-        r"^\s*co\s+"
-        r"(?:tai\s+lieu|sach|cuon|quyen|an\s+pham|giao\s+trinh)\s+"
-        r"(?:cua\s+tac\s+gia\s+)?",
-        " ", cleaned, flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(r"\?+\s*$", " ", cleaned)
-    for _ in range(3):
-        cleaned = cleaned.strip()
-        if not cleaned:
-            break
-        m = re.search(r"\s+(\S+)$", cleaned)
-        if m:
-            if _is_yesno_token(m.group(1)):
-                cleaned = cleaned[:m.start()].rstrip()
-            else:
-                break
-        else:
-            if _is_yesno_token(cleaned):
-                cleaned = ""
-            break
-    cleaned = re.sub(
-        r"^\s*(?:v[eề]|lĩnh\s*vực|chủ\s*đề|ngành)\s+",
-        " ", cleaned, flags=re.IGNORECASE,
-    ).strip()
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    if not cleaned:
-        return ""
-    match = re.search(
-        r"\b(?:v[eề]|lĩnh\s*vực|chủ\s*đề|ngành)\s+(.+)$",
+
+    # ---- 2. Split at "có (sách|tài liệu|…)" anywhere in the string ----
+    before = ""
+    after = ""
+    m = re.search(
+        r"\bco\s+(?:tai\s+lieu|sach|cuon|quyen|an\s+pham|giao\s+trinh)\b",
         cleaned, flags=re.IGNORECASE,
     )
-    if match:
-        cleaned = match.group(1).strip()
-        for _ in range(3):
-            cleaned = cleaned.strip()
-            if not cleaned:
-                break
-            m = re.search(r"\s+(\S+)$", cleaned)
-            if m:
-                if _is_yesno_token(m.group(1)):
-                    cleaned = cleaned[:m.start()].rstrip()
-                else:
-                    break
-        cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned
+    if m:
+        before = cleaned[: m.start()].strip()
+        after = cleaned[m.end() :].strip()
+    else:
+        before = cleaned
+
+    # ---- 3. Try extracting from 'after' first ----
+    topic = _extract_topic_fragment(after)
+    if topic and not _is_generic_topic(topic):
+        return topic
+
+    # ---- 4. Fallback to 'before' (clean trailing preamble first) ----
+    if before:
+        before_clean = _strip_preamble_trailing(before)
+        topic2 = _extract_topic_fragment(before_clean)
+        if topic2:
+            return topic2
+
+    return ""
 
 
 def _last_existence_topic(history) -> str:
@@ -1308,7 +1392,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         cache_key = f"catalog:{search_query}:{_prefer_strict}:{req.major or ''}" if catalog_mode else None
         use_cache = catalog_mode and not req.document_id and not req.query.startswith("__SUGGEST")
         search_results = _search_cache.get(cache_key) if use_cache else None
-        retrieval_k = 500 if catalog_mode else 30
+        retrieval_k = len(retriever.bm25.documents) if catalog_mode else 30
 
         if search_results is not None:
             logger.info("Search cache HIT (%d docs, key='%s')", len(search_results), search_query)
