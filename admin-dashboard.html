@@ -217,6 +217,15 @@
     .data-info .file-info{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
     .data-info .file-info .fn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .data-info .file-info .fm{font-size:10px;color:var(--text-tertiary);white-space:nowrap;}
+    .file-delete-btn{
+      display:none;align-items:center;justify-content:center;
+      width:26px;height:26px;flex-shrink:0;
+      border:1px solid var(--border);border-radius:6px;
+      background:var(--surface);color:var(--text-tertiary);
+      cursor:pointer;transition:var(--transition);
+    }
+    .file-delete-btn:hover{background:var(--pastel-red);border-color:var(--red);color:var(--red);}
+    .file-delete-btn.show{display:flex;}
 
     /* ── Charts ── */
     .chart-grid{
@@ -401,6 +410,7 @@
       <div class="data-info-item"><span class="lbl">Cập nhật</span><span class="val" id="diLastUpdate">--</span></div>
       <div class="data-info-div"></div>
       <div class="file-info" id="diFileInfo"><span class="fn">--</span></div>
+      <button class="file-delete-btn" id="diDeleteBtn" onclick="deleteDataFile()" title="Xóa file dữ liệu"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button>
     </div>
 
     <div class="chart-grid">
@@ -673,6 +683,8 @@ async function loadAdminDashboard() {
         const f = files[0];
         const sizeKB = ((f.size || 0) / 1024).toFixed(0);
         elFile.innerHTML = `<span class="fn">${escHtml(f.name)}</span><span class="fm">${sizeKB} KB · ${shortDateTime(f.mtime)}</span>`;
+        const delBtn = document.getElementById('diDeleteBtn');
+        if (delBtn) { delBtn.classList.add('show'); delBtn.dataset.fileName = f.name; lucide.createIcons(); }
       } else {
         elFile.innerHTML = `<span class="fn">Không có file</span>`;
       }
@@ -689,6 +701,23 @@ function shortDateTime(value) {
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function deleteDataFile() {
+  const btn = document.getElementById('diDeleteBtn');
+  if (!btn || !btn.dataset.fileName) return;
+  const fileName = btn.dataset.fileName;
+  if (!confirm(`Xóa file "${fileName}" và reload dữ liệu?`)) return;
+  try {
+    const res = await fetch('/api/admin/delete-file', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({token: adminToken, file_name: fileName})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Xóa thất bại');
+    showUploadMsg('Đã xóa và reload thành công!', false);
+    loadAdminDashboard();
+  } catch(e) { showUploadMsg(e.message, true); }
 }
 
 function adminLogout() {
