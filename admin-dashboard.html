@@ -128,44 +128,79 @@
     }
     .toolbar select:hover{border-color:var(--border-light);color:var(--text);}
     .toolbar select:focus{border-color:var(--accent);}
-    .toolbar .tb-input{
-      padding:6px 10px;background:var(--surface);
+    /* ── Date Range Pickers ── */
+    .toolbar .date-range{
+      display:inline-flex;align-items:stretch;gap:0;
+      background:var(--surface);
       border:1px solid var(--border);border-radius:var(--radius-sm);
-      color:var(--text-secondary);font-size:12px;font-family:var(--font);
-      cursor:pointer;outline:none;transition:var(--transition);min-width:130px;
+      transition:var(--transition);overflow:hidden;
+      min-height:34px;
     }
-    .toolbar .tb-input:hover{border-color:var(--border-light);color:var(--text);}
-    .toolbar .tb-input:focus{border-color:var(--accent);}
+    .toolbar .date-range:hover{border-color:var(--border-light);box-shadow:var(--shadow);}
+    .toolbar .date-range:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,124,255,0.12);}
+    .toolbar .date-range .dr-label{
+      display:flex;align-items:center;justify-content:center;gap:4px;
+      padding:0 10px;min-width:44px;font-size:11px;font-weight:600;
+      color:var(--text-tertiary);background:var(--surface-hover);
+      letter-spacing:0.03em;white-space:nowrap;
+      border-right:1px solid var(--border);
+    }
+    .toolbar .date-range .dr-label:last-of-type{
+      border-right:none;border-left:1px solid var(--border);
+    }
+    .toolbar .date-range .dr-label svg,.toolbar .date-range .dr-sep svg{
+      flex-shrink:0;display:block;
+    }
+    .toolbar .date-range .dr-sep{
+      display:flex;align-items:center;justify-content:center;
+      padding:0 6px;color:var(--text-tertiary);user-select:none;
+      flex-shrink:0;
+    }
+    .toolbar .tb-input{
+      padding:4px 8px;background:var(--surface);border:none;border-radius:0;
+      color:var(--text);font-size:13px;font-family:var(--font);font-weight:500;
+      cursor:pointer;outline:none;transition:var(--transition);flex:1;
+      min-width:0;width:100px;line-height:1.5;box-sizing:content-box;
+    }
+    .toolbar .tb-input:hover{background:var(--surface-hover);}
+    .toolbar .tb-input::-webkit-calendar-picker-indicator{
+      opacity:0.35;cursor:pointer;padding:3px;border-radius:3px;
+      transition:var(--transition);margin:0;
+    }
+    .toolbar .tb-input::-webkit-calendar-picker-indicator:hover{
+      opacity:0.8;background:var(--accent-soft);
+    }
+    .toolbar .tb-input:focus{background:var(--surface);box-shadow:none;}
 
     .last-updated{font-size:11px;color:var(--text-tertiary);margin-top:4px;}
 
-    /* ── KPI Grid ── */
+    /* ── KPI Grid (compact) ── */
     .kpi-grid{
       display:grid;
       grid-template-columns:repeat(4,1fr);
-      gap:12px;margin-bottom:18px;
+      gap:10px;margin-bottom:16px;
     }
     .kpi-card{
       background:var(--surface);
-      border:1px solid var(--border);border-radius:var(--radius);
-      padding:14px 14px 12px;transition:var(--transition);position:relative;overflow:hidden;
+      border:1px solid var(--border);border-radius:var(--radius-sm);
+      padding:10px 14px 9px;transition:var(--transition);
+      display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 10px;
     }
-    .kpi-card:hover{border-color:var(--border-light);transform:translateY(-2px);box-shadow:var(--shadow);}
+    .kpi-card:hover{border-color:var(--border-light);box-shadow:var(--shadow);}
     .kpi-card .label{
       font-size:9px;font-weight:600;color:var(--text-tertiary);
-      text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;
+      text-transform:uppercase;letter-spacing:0.05em;margin-right:auto;width:100%;
     }
-    .kpi-card .value{font-size:26px;font-weight:800;letter-spacing:-0.03em;line-height:1.15;}
-    .kpi-card .sub{font-size:11px;color:var(--text-secondary);margin-top:5px;}
-    .kpi-card .trend{font-size:11px;font-weight:600;margin-top:3px;}
-    .kpi-card .trend.up{color:var(--green);}
-    .kpi-card .trend.down{color:var(--red);}
+    .kpi-card .value{
+      font-size:22px;font-weight:800;letter-spacing:-0.03em;line-height:1.15;
+    }
+    .kpi-card .sub{
+      font-size:11px;color:var(--text-secondary);margin-left:auto;
+    }
     .kpi-accent .value{color:var(--accent);}
     .kpi-green .value{color:var(--green);}
     .kpi-yellow .value{color:var(--yellow);}
-    .kpi-cyan .value{color:var(--cyan);}
     .kpi-red .value{color:var(--red);}
-    .kpi-purple .value{color:var(--purple);}
 
     /* ── Data Info ── */
     .data-info{
@@ -272,6 +307,12 @@
       .main{padding:16px 10px;padding-top:54px;}
       .kpi-grid{grid-template-columns:repeat(2,1fr);gap:8px;}
       .toolbar .btn-label{display:none;}
+      .toolbar{flex-direction:column;align-items:stretch;gap:6px;width:100%;}
+      .toolbar .date-range{width:100%;}
+      .toolbar .date-range .dr-label{padding:0 8px;min-width:0;font-size:10px;}
+      .toolbar .date-range .dr-sep{padding:0 4px;}
+      .toolbar .tb-input{font-size:12px;padding:4px 6px;min-width:0;width:auto;flex:1;}
+      .toolbar .btn-primary{justify-content:center;padding:7px 12px;}
       .data-info{flex-wrap:wrap;gap:4px 14px;padding:8px 12px;}
       .data-info > *{flex:1 1 auto;}
       .data-info-div{display:none;}
@@ -282,14 +323,16 @@
     }
     @media(max-width:480px){
       .kpi-grid{grid-template-columns:repeat(2,1fr);gap:6px;}
-      .kpi-card{padding:12px 10px;}
-      .kpi-card .value{font-size:18px;}
+      .kpi-card{padding:8px 10px 7px;}
+      .kpi-card .value{font-size:17px;}
       .kpi-card .label{font-size:8px;letter-spacing:0.04em;}
       .kpi-card .sub{font-size:10px;}
       .chart-card{padding:12px;min-height:360px;}
       .chart-card .card-title{font-size:12px;}
       .chart-card canvas{max-height:200px;}
-      .main-header h2{font-size:16px;}
+      .toolbar .date-range .dr-label{font-size:9px;padding:0 5px;}
+      .toolbar .tb-input{font-size:11px;padding:3px 4px;}
+      .toolbar .btn-primary{font-size:11px;padding:6px 10px;}
       .data-info{font-size:11px;padding:6px 10px;gap:3px 10px;}
       .data-info-item .lbl{font-size:9px;}
       .data-info-item .val{font-size:13px;}
@@ -334,13 +377,19 @@
     <div class="main-header">
       <div class="main-header-left">
         <h2 style="display:flex;align-items:center;gap:8px;"><i data-lucide="bar-chart-3" style="width:22px;height:22px;color:var(--accent);"></i> Tổng quan</h2>
-        <div class="last-updated" id="lastUpdated" style="margin-top:4px;">Đang tải...</div>
+        <div class="last-updated" id="lastUpdated" style="display:none;">Đang tải...</div>
       </div>
       <div class="toolbar">
-        <input type="date" id="dateFrom" class="tb-input" title="Từ ngày">
-        <span style="color:var(--text-tertiary);font-size:12px;">→</span>
-        <input type="date" id="dateTo" class="tb-input" title="Đến ngày">
-        <button class="btn-primary" onclick="loadAll()" title="Làm mới"><i data-lucide="refresh-cw" style="width:15px;height:15px;"></i></button>
+        <div class="date-range">
+          <span class="dr-label"><i data-lucide="calendar" style="width:13px;height:13px;"></i> Từ</span>
+          <input type="date" id="dateFrom" class="tb-input" title="Từ ngày" onchange="loadAll()">
+          <span class="dr-sep"><i data-lucide="arrow-right" style="width:12px;height:12px;"></i></span>
+          <span class="dr-label" style="border-right:none;border-left:1px solid var(--border);">Đến</span>
+          <input type="date" id="dateTo" class="tb-input" title="Đến ngày" onchange="loadAll()">
+        </div>
+        <button class="btn-primary" onclick="loadAll()" title="Làm mới"><i data-lucide="refresh-cw" style="width:15px;height:15px;"></i>
+          <span class="btn-label" style="margin-left:4px;">Áp dụng</span>
+        </button>
       </div>
     </div>
 
@@ -366,7 +415,7 @@
       </div>
       <div class="chart-card" id="cardIntent">
         <div class="card-header">
-          <div><div class="card-title">Phân bố Intent</div><div class="card-subtitle">Mục đích</div></div>
+          <div><div class="card-title">Mục đích tìm kiếm</div><div class="card-subtitle">Phân loại câu hỏi</div></div>
         </div>
         <canvas id="intentChart"></canvas>
         <div class="intent-legend" id="intentLegend"></div>
@@ -376,7 +425,7 @@
       </div>
       <div class="chart-card" id="cardTop">
         <div class="card-header">
-          <div><div class="card-title">Top truy vấn</div><div class="card-subtitle">Phổ biến</div></div>
+          <div><div class="card-title">Truy vấn phổ biến</div><div class="card-subtitle">Nhiều lượt nhất</div></div>
         </div>
         <div id="topQueries"></div>
         <div class="empty-state" id="topQueryEmpty" style="display:none">
@@ -403,6 +452,19 @@ const COLORS = {
   cyan:'#22d3ee', purple:'#a78bfa', orange:'#fb923c',
 };
 const CHART_COLORS = ['#6c8cff','#34d399','#fbbf24','#f87171','#22d3ee','#a78bfa','#fb923c','#f472b6'];
+
+/* Dịch intent từ backend sang tiếng Việt dễ hiểu */
+const INTENT_LABELS = {
+  catalog_search: 'Tra cứu sách',
+  content_qa: 'Hỏi đáp nội dung',
+  general_chat: 'Hỏi đáp chung',
+  greeting: 'Chào hỏi',
+  unknown: 'Khác',
+};
+
+function friendlyIntent(raw) {
+  return INTENT_LABELS[raw] || raw;
+}
 
 let dailyChartInstance = null;
 let intentChartInstance = null;
@@ -448,7 +510,7 @@ function renderKPI(data) {
     <div class="kpi-card kpi-green">
       <div class="label">Hôm nay</div>
       <div class="value">${todayVal}</div>
-      <div class="sub">${last.date === todayStr && prev.queries > 0 ? `Hqua: ${prev.queries}` : ''}</div>
+      <div class="sub">${last.date === todayStr && prev.queries > 0 ? `Hôm qua: ${prev.queries}` : ''}</div>
     </div>
     <div class="kpi-card ${todayNo > 0 ? 'kpi-yellow' : ''}">
       <div class="label">Chưa có kết quả</div>
@@ -477,9 +539,9 @@ function renderDailyChart(data) {
     data:{
       labels: daily.map(d => { const p = d.date.split('-'); return `${parseInt(p[2])}/${parseInt(p[1])}`; }),
       datasets:[
-        { label:'Truy vấn', data:daily.map(d=>d.queries),
+        { label:'Lượt tìm', data:daily.map(d=>d.queries),
           backgroundColor:'rgba(108,140,255,0.5)', borderColor:'#6c8cff', borderWidth:2, borderRadius:4 },
-        { label:'Không kết quả', data:daily.map(d=>d.no_result||0),
+        { label:'Không có kết quả', data:daily.map(d=>d.no_result||0),
           backgroundColor:'rgba(248,113,113,0.35)', borderColor:'#f87171', borderWidth:1.5, borderRadius:4 },
       ]
     },
@@ -513,7 +575,7 @@ function renderIntentChart(data) {
   const colors = dist.map((_,i) => CHART_COLORS[i % CHART_COLORS.length]);
   intentChartInstance = new Chart(canvas, {
     type:'doughnut',
-    data:{ labels:dist.map(d=>d.intent),
+    data:{ labels:dist.map(d=>friendlyIntent(d.intent)),
       datasets:[{ data:dist.map(d=>d.count), backgroundColor:colors, borderColor:'#ffffff', borderWidth:2, hoverOffset:6 }]
     },
     options:{
@@ -522,14 +584,14 @@ function renderIntentChart(data) {
         legend:{ display:false },
         tooltip:{ backgroundColor:'#ffffff', titleColor:'#1f2937', bodyColor:'#6b7280',
           borderColor:'#e5e7eb', borderWidth:1, padding:8, cornerRadius:6,
-          callbacks:{ label: ctx => `${ctx.label}: ${ctx.parsed} lần (${dist[ctx.dataIndex].pct}%)` } },
+          callbacks:{ label: ctx => `${friendlyIntent(ctx.label)}: ${ctx.parsed} lần (${dist[ctx.dataIndex].pct}%)` } },
       },
     },
   });
   legend.innerHTML = dist.map((d,i) => `
     <div class="intent-row">
       <div class="intent-dot" style="background:${colors[i]}"></div>
-      <span class="intent-name">${d.intent}</span>
+      <span class="intent-name">${friendlyIntent(d.intent)}</span>
       <span class="intent-count">${d.count}</span>
       <span class="intent-pct">${d.pct}%</span>
     </div>`).join('');
@@ -546,7 +608,7 @@ function renderTopQueries(data) {
   if (!has) return;
   el.innerHTML = `<div class="table-wrap"><table>
     <thead><tr><th style="width:34px">#</th><th>Truy vấn</th><th style="width:50px">Lượt</th></tr></thead>
-    <tbody>${top.slice(0,15).map((q,i) => `
+    <tbody>${top.slice(0,10).map((q,i) => `
       <tr><td style="color:var(--text-tertiary)">${i+1}</td>
       <td><div class="query-cell" title="${q.query.replace(/"/g,'&quot;')}">${q.query}</div></td>
       <td><span class="count-badge">${q.count}</span></td></tr>`
@@ -557,7 +619,7 @@ function renderTopQueries(data) {
 function renderRecent() {
   const el = document.getElementById('recentActivity');
   if (_recentLoaded) return;
-  fetch('/api/usage/recent?n=30').then(r=>r.json()).then(d => {
+  fetch('/api/usage/recent?n=10').then(r=>r.json()).then(d => {
     const entries = d.entries || [];
     if (!entries.length) {
       el.innerHTML = `<div class="empty-state" style="min-height:50px;padding:16px;"><h3>Chưa có hoạt động</h3></div>`;
@@ -658,12 +720,35 @@ async function uploadData(input) {
 }
 
 // ── Main ──
+function getDefaultDateRange() {
+  const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const fmt = d => d.toISOString().slice(0,10);
+  return { from: fmt(sevenDaysAgo), to: fmt(today) };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const def = getDefaultDateRange();
+  const fEl = document.getElementById('dateFrom');
+  const tEl = document.getElementById('dateTo');
+  if (!fEl.value) fEl.value = def.from;
+  if (!tEl.value) tEl.value = def.to;
+  setTimeout(loadAll, 100);
+  setInterval(loadAll, 30_000);
+});
+
 async function loadAll() {
   const updated = document.getElementById('lastUpdated');
   updated.textContent = 'Đang tải...';
   try {
     const f = document.getElementById('dateFrom').value;
     const t = document.getElementById('dateTo').value;
+    // Validate dates
+    if (f && t && f > t) {
+      updated.textContent = '⚠ Ngày bắt đầu phải trước ngày kết thúc!';
+      return;
+    }
     let url = '/api/usage/analytics';
     const params = [];
     if (f) params.push('date_from='+f);
@@ -679,7 +764,12 @@ async function loadAll() {
     renderTopQueries(data);
     renderRecent();
     lucide.createIcons();
-    updated.textContent = `Cập nhật lúc ${new Date().toLocaleTimeString('vi-VN')} · ${data.total} truy vấn · ${data.unique_days||0} ngày`;
+    // Show active filter range
+    let rangeStr = '';
+    if (f && t) rangeStr = ` · ${f} → ${t}`;
+    else if (f) rangeStr = ` · Từ ${f}`;
+    else if (t) rangeStr = ` · Đến ${t}`;
+    updated.textContent = `Cập nhật lúc ${new Date().toLocaleTimeString('vi-VN')}${rangeStr} · ${data.total} truy vấn · ${data.unique_days||0} ngày`;
   } catch (e) {
     document.getElementById('kpiGrid').innerHTML = `<div class="kpi-card" style="grid-column:1/-1;text-align:center;padding:24px;">
         <i data-lucide="alert-triangle" style="width:24px;height:24px;color:var(--red);margin-bottom:6px;"></i>
@@ -689,7 +779,7 @@ async function loadAll() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => { loadAll(); setInterval(loadAll, 30_000); });
+
 </script>
 </body>
 </html>

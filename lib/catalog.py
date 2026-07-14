@@ -498,7 +498,21 @@ def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int 
                 elif " " not in phrase and contains_normalized_phrase(field_text, phrase):
                     base = field_weights.get(field_name, 8.0)
                     score += base * 0.3
-        match_count = sum(1 for t in topic_tokens_list if re.search(rf"\b{re.escape(t)}\b", doc_text))
+        # Count how many query tokens appear together in the SAME key field
+        # (only metadata fields — exclude full-text fields to avoid false matches
+        # from diacritic-stripped tokens scattered across unrelated content)
+        _token_match_fields = {"title", "author", "subject", "major", "course", "publisher"}
+        field_match_counts = []
+        for field_name, field_text in doc_fields.items():
+            if field_name not in _token_match_fields:
+                continue
+            field_count = sum(
+                1 for t in topic_tokens_list
+                if re.search(rf"\b{re.escape(t)}\b", field_text)
+            )
+            if field_count:
+                field_match_counts.append(field_count)
+        match_count = max(field_match_counts) if field_match_counts else 0
         if match_count:
             coverage = match_count / max(len(topic_tokens_list), 1)
             score += (match_count * 2.0) + (coverage * 6.0)
@@ -508,7 +522,7 @@ def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int 
                 if len(topic_tokens_list) >= 4 and coverage < 0.45:
                     continue
         if score > 0:
-            scored.append({"doc": doc, "score": score + 100000.0, "index": idx})
+            scored.append({"doc": doc, "score": score + 1000.0, "index": idx})
     scored.sort(key=lambda item: item["score"], reverse=True)
     return scored[:top_k]
 
@@ -586,3 +600,327 @@ def search_topic_cache(query: str, bm25_documents: list[dict]) -> list[dict] | N
         if common:
             return [{"doc": bm25_documents[i], "score": 80.0, "index": i} for i in list(common)]
     return None
+
+# ═══════════════════════════════════════════════════════════════════
+# Enhanced query understanding helpers — standalone, zero side-effects
+# ═══════════════════════════════════════════════════════════════════
+
+MAJOR_ABBREVIATIONS = {
+    "cntt": "công nghệ thông tin",
+    "httt": "hệ thống thông tin",
+    "khmt": "khoa học máy tính",
+    "ktmt": "kỹ thuật máy tính",
+    "mmt": "mạng máy tính",
+    "attt": "an toàn thông tin",
+    "cnpm": "công nghệ phần mềm",
+    "qtkd": "quản trị kinh doanh",
+    "kt": "kế toán",
+    "tcnh": "tài chính ngân hàng",
+}
+
+def detect_study_major_query(query: str) -> str | None:
+    """Trích ngành học từ 'tôi học X', 'em học X' ...
+    Trả về tên ngành có dấu tiếng Việt (vd 'Công nghệ thông tin') hoặc None.
+    KHÔNG ảnh hưởng _extract_major_from_query — dùng pattern 'học' thay vì 'ngành'.
+    """
+    if not query:
+        return None
+    q_norm = normalize_topic_text(query)
+    patterns = [
+        r"(?:toi|em|anh|chi|minh|ban)\s+(?:dang\s+)?hoc\s+(?:nganh\s+)?(.+)$",
+        r"(?:toi|em|anh|chi|minh|ban)\s+hoc\s+(.+)$",
+        r"^hoc\s+(?:nganh\s+)?(.+)$",
+    ]
+    captured = None
+    for p in patterns:
+        m = re.search(p, q_norm)
+        if m:
+            captured = m.group(1).strip()
+            break
+    if not captured:
+        return None
+    for pattern in TOPIC_TRAILING_PATTERNS:
+        captured = re.sub(pattern, " ", captured)
+    captured = re.sub(r"\s+", " ", captured).strip()
+    if not captured:
+        return None
+    # Check abbreviation (e.g. "cntt")
+    abbrev = captured.replace(" ", "").lower()
+    if abbrev in MAJOR_ABBREVIATIONS:
+        return MAJOR_ABBREVIATIONS[abbrev].title()
+    # Map back to original diacritics
+    norm_to_orig: dict[str, str] = {}
+    for src in re.findall(r"[A-Za-zÀ-ỹ]+", query):
+        norm_to_orig.setdefault(normalize_topic_text(src), src)
+    tokens = captured.split()
+    if len(tokens) >= 2 or (len(tokens) == 1 and len(tokens[0]) >= 3):
+        pieces = [norm_to_orig.get(t, t) for t in tokens]
+        return " ".join(pieces)
+    return None
+
+
+_TITLE_CONTAINS_PATTERNS = [
+    r"co\s+chu\s+(\S+)\s+trong\s+ten",
+    r"co\s+(?:sach|tai lieu|giao trinh)\s+(?:nao\s+)?co\s+chu\s+(\S+)",
+]
+
+def detect_title_contains_keyword(query: str) -> str | None:
+    """Phát hiện 'có chữ X trong tên' → trả về keyword (vd 'Python')."""
+    if not query:
+        return None
+    q_norm = normalize_topic_text(query)
+    for p in _TITLE_CONTAINS_PATTERNS:
+        m = re.search(p, q_norm)
+        if m:
+            kw = m.group(1).strip()
+            if len(kw) >= 2:
+                # Khôi phục dấu từ query gốc
+                for src in re.findall(r"[A-Za-zÀ-ỹ]+", query):
+                    if normalize_topic_text(src) == kw:
+                        return src
+                return kw
+    return None
+
+
+_LANGUAGE_NAMES = {
+    "anh": "anh", "english": "anh", "en": "anh",
+    "viet": "việt", "việt": "việt", "viet nam": "việt",
+    "việt nam": "việt", "vietnamese": "việt", "vi": "việt",
+    "phap": "pháp", "pháp": "pháp", "french": "pháp", "fr": "pháp",
+    "trung": "trung", "trung quoc": "trung", "hoa": "trung",
+    "nhat": "nhật", "nhật": "nhật", "japanese": "nhật", "jp": "nhật",
+}
+
+def detect_language_preference(query: str) -> str | None:
+    """Phát hiện 'tiếng Anh', 'English', 'Song ngữ' → trả về mã ('anh', ...)."""
+    if not query:
+        return None
+    q_lower = query.lower().strip()
+    q_norm = normalize_topic_text(query)
+    patterns = [
+        r"tieng\s+(\S+)",
+        r"(?:sach|tai lieu|giao trinh)\s+tieng\s+(\S+)",
+    ]
+    for p in patterns:
+        m = re.search(p, q_norm)
+        if m:
+            lang_word = m.group(1).strip()
+            if lang_word in _LANGUAGE_NAMES:
+                return _LANGUAGE_NAMES[lang_word]
+    if re.search(r'\benglish\b', q_lower):
+        return 'anh'
+    if re.search(r'\bvietnamese\b', q_lower):
+        return 'việt'
+    return None
+
+
+def detect_year_constraint(query: str) -> tuple[int | None, str | None]:
+    """Phát hiện 'từ năm 2023', 'xuất bản sau 2022' ...
+    Trả về (year, direction) với direction: 'after' | 'before' | 'exact'.
+    """
+    if not query:
+        return None, None
+    q_norm = normalize_topic_text(query)
+    q_lower = query.lower()
+    patterns = [
+        (r"(?:tu|từ)\s+(?:nam|năm)?\s*(\d{4})", "after"),
+        (r"(?:sau|sau nam|sau năm)\s+(\d{4})", "after"),
+        (r"(?:truoc|trước|truoc nam|trước năm)\s+(\d{4})", "before"),
+        (r"(?:nam|năm)\s+(\d{4})\s+(?:tro di|trở đi|tro len|trở lên)", "after"),
+        (r"(?:nam|năm)\s+(\d{4})\s+(?:tro ve|trở về|ve truoc|về trước)", "before"),
+        (r"(?:xuat ban|xuất bản)\s+(?:nam|năm)?\s*(\d{4})", "exact"),
+        (r"(?:xuat ban|xuất bản)\s+(?:tu|từ|sau)\s+(\d{4})", "after"),
+    ]
+    for pattern, direction in patterns:
+        m = re.search(pattern, q_norm)
+        if m:
+            try:
+                year = int(m.group(1))
+                if 1900 <= year <= 2030:
+                    return year, direction
+            except ValueError:
+                pass
+    years_in_query = re.findall(r'\b(19\d{2}|20\d{2})\b', q_lower)
+    if len(years_in_query) == 1:
+        year = int(years_in_query[0])
+        if 1900 <= year <= 2030:
+            if any(w in q_norm for w in ["tu", "sau", "tro di", "tro len"]):
+                return year, "after"
+            elif any(w in q_norm for w in ["truoc", "ve truoc", "tro ve"]):
+                return year, "before"
+            else:
+                return year, "exact"
+    return None, None
+
+
+_BEGINNER_PHRASES = frozenset([
+    "moi bat dau", "nguoi moi", "cho nguoi moi",
+    "moi hoc", "bat dau",
+    "co ban", "nhap mon",
+    "beginner", "starting", "fundamental", "introduction",
+    "tu hoc",
+])
+
+def is_beginner_friendly_query(query: str) -> bool:
+    """Phát hiện 'mới bắt đầu', 'người mới', 'cơ bản' ..."""
+    if not query:
+        return False
+    q_norm = normalize_topic_text(query)
+    return any(phrase in q_norm for phrase in _BEGINNER_PHRASES)
+
+
+_EXAM_PHRASES = frozenset([
+    "on tap", "on thi", "thi", "kiem tra",
+    "de cuong", "bai tap", "luyen thi",
+    "exam", "test", "revision", "practice",
+])
+
+def is_exam_prep_query(query: str) -> bool:
+    """Phát hiện 'thi', 'ôn tập', 'kiểm tra' ..."""
+    if not query:
+        return False
+    q_norm = normalize_topic_text(query)
+    return any(phrase in q_norm for phrase in _EXAM_PHRASES)
+
+
+def detect_teaching_subject(query: str) -> str | None:
+    """Phát hiện 'giảng dạy môn X' → trả về X."""
+    if not query:
+        return None
+    q_norm = normalize_topic_text(query)
+    patterns = [
+        r"(?:giang\s+day|day)\s+(?:mon|môn)\s+(.+)$",
+        r"(?:giang\s+day|day)\s+(?:ve|lien quan den)\s+(.+)$",
+    ]
+    for p in patterns:
+        m = re.search(p, q_norm)
+        if m:
+            subject = m.group(1).strip()
+            subject = re.sub(r"\s+", " ", subject).strip()
+            if subject and len(subject) >= 3:
+                return subject
+    return None
+
+
+def detect_course_name(query: str) -> str | None:
+    """Phát hiện 'môn X', 'học phần X' (không phải 'tiếng Anh' = language)."""
+    if not query:
+        return None
+    q_norm = normalize_topic_text(query)
+    patterns = [
+        r"(?:mon|môn)\s+(.+)$",
+        r"(?:hoc phan)\s+(.+)$",
+    ]
+    for p in patterns:
+        m = re.search(p, q_norm)
+        if m:
+            name = m.group(1).strip()
+            name = re.sub(r"\s+", " ", name).strip()
+            if name and len(name) >= 3 and name not in _LANGUAGE_NAMES:
+                return name
+    return None
+
+
+# Common typos for technical terms
+_TYPO_CORRECTIONS = {
+    "pythn": "python", "pithon": "python", "pyhton": "python",
+    "jave": "java", "jav": "java",
+    "javascrip": "javascript", "javasript": "javascript",
+    "reac": "react", "reacj": "react",
+    "nod": "node", "nodjs": "nodejs",
+    "djang": "django", "flas": "flask",
+    "tenxorflow": "tensorflow", "tensorflo": "tensorflow",
+    "panda": "pandas", "numpty": "numpy", "numpt": "numpy",
+    "sklear": "scikit-learn", "sklearn": "scikit-learn",
+    "matplolib": "matplotlib", "matplo": "matplotlib",
+    "machinelearning": "machine learning",
+    "deeplearning": "deep learning",
+}
+
+def apply_fuzzy_corrections(query: str) -> str:
+    """Sửa lỗi chính tả phổ biến. Trả về query đã sửa, hoặc '' nếu không cần."""
+    if not query:
+        return ""
+    q_lower = query.lower().strip()
+    tokens = q_lower.split()
+    changed = False
+    for i, t in enumerate(tokens):
+        t_clean = t.strip(".,!?;:\"'()[]{}")
+        if t_clean in _TYPO_CORRECTIONS:
+            tokens[i] = tokens[i].replace(t_clean, _TYPO_CORRECTIONS[t_clean])
+            changed = True
+    if changed:
+        return " ".join(tokens)
+    return ""
+
+
+def filter_by_language(results: list[dict], lang: str) -> list[dict]:
+    """Lọc kết quả theo ngôn ngữ dựa trên location, title, subject.
+    lang: 'anh' | 'việt' | ...
+    results: có thể là flat hoặc {"doc":{}} wrapper.
+    """
+    if not results or not lang:
+        return results
+    lang = lang.lower().strip()
+    filtered = []
+    for r in results:
+        doc = r.get("doc", r) if isinstance(r, dict) else r
+        if not isinstance(doc, dict):
+            continue
+        title = doc.get('title', '') or ''
+        location = doc.get('location', '') or ''
+        bilingual = doc.get('bilingual_title', '') or ''
+        norm_loc = normalize_text(location)
+        norm_bilingual = normalize_text(bilingual)
+        if lang == 'anh':
+            if 'ngoai van' in norm_loc:
+                filtered.append(r)
+            elif norm_bilingual and 'song ngu' in norm_bilingual:
+                filtered.append(r)
+            elif title:
+                has_vn = bool(re.search(r'[\u00C0-\u024F]', title))
+                if not has_vn and len(title.strip()) > 0:
+                    filtered.append(r)
+        elif lang == 'việt':
+            has_vn = bool(re.search(r'[\u00C0-\u024F]', title))
+            if has_vn:
+                filtered.append(r)
+        else:
+            lang_norm = normalize_text(lang)
+            if lang_norm in norm_loc or lang_norm in norm_bilingual:
+                filtered.append(r)
+    return filtered
+
+
+def filter_by_year(results: list[dict], year: int, direction: str = 'exact') -> list[dict]:
+    """Lọc kết quả theo năm. results: có thể là flat hoặc {"doc":{}} wrapper."""
+    if not results or not year:
+        return results
+    filtered = []
+    for r in results:
+        doc = r.get("doc", r) if isinstance(r, dict) else r
+        doc_year = doc.get('year', 0) if isinstance(doc, dict) else 0
+        if not doc_year or doc_year in ('N/A', 'Unknown', ''):
+            continue
+        try:
+            dy = int(doc_year)
+        except (ValueError, TypeError):
+            continue
+        if direction == 'exact' and dy == year:
+            filtered.append(r)
+        elif direction == 'after' and dy >= year:
+            filtered.append(r)
+        elif direction == 'before' and dy <= year:
+            filtered.append(r)
+    return filtered
+
+
+def detect_generic_request(query: str) -> bool:
+    """Phát hiện 'gợi ý sách hay', 'vài cuốn sách' — generic suggestion."""
+    if not query:
+        return False
+    q_norm = normalize_topic_text(query)
+    return bool(re.search(
+        r"(?:goi y|vai cuon|mot vai|it cuon)\s*(?:sach)?",
+        q_norm
+    ))

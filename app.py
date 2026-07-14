@@ -63,6 +63,12 @@ from lib.catalog import (
     get_doc_topic_fields, get_doc_topic_text, get_query_topic_terms,
     strip_search_intent_phrases, clean_topic_tail, contains_normalized_phrase,
     VIETNAMESE_STOP_WORDS, _normalize_topic_token,
+    detect_study_major_query, detect_title_contains_keyword,
+    detect_language_preference, detect_year_constraint,
+    is_beginner_friendly_query, is_exam_prep_query,
+    detect_teaching_subject, detect_course_name,
+    apply_fuzzy_corrections, filter_by_language, filter_by_year,
+    detect_generic_request,
 )
 from lib.reranking import (
     detect_author_query, detect_publisher_query, extract_author_name,
@@ -404,6 +410,7 @@ def _restore_topic_diacritics(normalized_topic: str, original_query: str) -> str
     orig_words = original_query.lower().split()
     if prefix_words + len(norm_words) <= len(orig_words):
         result = ' '.join(orig_words[prefix_words:prefix_words + len(norm_words)])
+        result = result.strip('"\'')
         return result[0].upper() + result[1:] if result else normalized_topic
     return normalized_topic
 
@@ -834,7 +841,7 @@ async def suggest_related(req: SuggestRequest):
                 continue
             seen_titles.add(title_lower)
             reasons = []
-            if has_author_filter and req.author.lower() in doc.get('author', '').lower():
+            if has_author_filter and normalize_text(req.author) in normalize_text(doc.get('author', '')):
                 reasons.append("Cùng tác giả")
             if has_subject_filter:
                 doc_subject = doc.get('subject', '').lower()
@@ -861,6 +868,97 @@ async def suggest_related(req: SuggestRequest):
                 "reason": "; ".join(reasons),
                 "score": round(r['score'], 2),
             })
+
+        # Nếu BM25 không tìm thấy kết quả nhưng có author/subject filter → fallback quét documents
+        if not filtered and (has_author_filter or has_subject_filter):
+            # Fallback cho author
+            if has_author_filter:
+                author_norm = normalize_text(req.author).strip()
+                for doc in retriever.bm25.documents:
+                    _doc_auth_fields = [
+                        normalize_text(doc.get('author', '') or '').strip(),
+                    ]
+                    _co = doc.get('co_authors', '') or ''
+                    if isinstance(_co, list):
+                        _doc_auth_fields.extend(normalize_text(str(v)).strip() for v in _co)
+                    else:
+                        _doc_auth_fields.append(normalize_text(_co).strip())
+                    _au = doc.get('authors', '') or ''
+                    if isinstance(_au, list):
+                        _doc_auth_fields.extend(normalize_text(str(v)).strip() for v in _au)
+                    else:
+                        _doc_auth_fields.append(normalize_text(_au).strip())
+                    _matched = any(
+                        f and (author_norm in f or f in author_norm)
+                        for f in _doc_auth_fields
+                    )
+                    if not _matched:
+                        continue
+                    title_lower = doc['title'].lower().strip()
+                    if req.title and title_lower == req.title.lower().strip():
+                        continue
+                    if title_lower in exclude_set:
+                        continue
+                    if title_lower in seen_titles:
+                        continue
+                    seen_titles.add(title_lower)
+                    filtered.append({
+                        "title": doc['title'],
+                        "author": doc.get('author', 'Unknown'),
+                        "year": doc.get('year', 'N/A'),
+                        "subject": doc.get('subject', 'N/A'),
+                        "major": doc.get('major', ''),
+                        "publisher": doc.get('publisher', ''),
+                        "doc_type": doc.get('doc_type', ''),
+                        "ddc": doc.get('ddc', ''),
+                        "location": doc.get('location', ''),
+                        "abstract": (doc.get('abstract', '') or '')[:500],
+                        "link": doc.get('link', ''),
+                        "reason": "Cùng tác giả",
+                        "score": 0,
+                    })
+                    if len(filtered) >= req.top_k * 5:
+                        break
+            # Fallback cho subject (chủ đề)
+            if not filtered and has_subject_filter:
+                subject_lower = req.subject.lower().strip()
+                for doc in retriever.bm25.documents:
+                    doc_subject = (doc.get('subject', '') or '').lower().strip()
+                    doc_major = (doc.get('major', '') or '').lower().strip()
+                    doc_title = (doc.get('title', '') or '').lower().strip()
+                    if subject_lower not in doc_subject and subject_lower not in doc_major and subject_lower not in doc_title:
+                        continue
+                    title_lower = doc['title'].lower().strip()
+                    if req.title and title_lower == req.title.lower().strip():
+                        continue
+                    if title_lower in exclude_set:
+                        continue
+                    if title_lower in seen_titles:
+                        continue
+                    seen_titles.add(title_lower)
+                    reasons = []
+                    if subject_lower in doc_subject or subject_lower in doc_major:
+                        reasons.append("Cùng chủ đề")
+                    elif subject_lower in doc_title:
+                        reasons.append("Cùng chủ đề")
+                    filtered.append({
+                        "title": doc['title'],
+                        "author": doc.get('author', 'Unknown'),
+                        "year": doc.get('year', 'N/A'),
+                        "subject": doc.get('subject', 'N/A'),
+                        "major": doc.get('major', ''),
+                        "publisher": doc.get('publisher', ''),
+                        "doc_type": doc.get('doc_type', ''),
+                        "ddc": doc.get('ddc', ''),
+                        "location": doc.get('location', ''),
+                        "abstract": (doc.get('abstract', '') or '')[:500],
+                        "link": doc.get('link', ''),
+                        "reason": "; ".join(reasons),
+                        "score": 0,
+                    })
+                    if len(filtered) >= req.top_k * 5:
+                        break
+
         return {"suggestions": filtered[:req.top_k], "total": len(filtered)}
     except Exception as e:
         return {"error": str(e), "suggestions": [], "total": 0}
@@ -1184,6 +1282,26 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             intent = classify_intent(req_query_for_search)
             logger.info("List-topic redirect → query=%r intent=%s", req.query, intent)
 
+        # ── Fuzzy correction: "Pythn" → "Python" (chạy sớm, trước mọi xử lý) ──
+        _corrected = apply_fuzzy_corrections(req.query)
+        if _corrected and _corrected != normalize_text(req.query):
+            req.query = _corrected
+
+        # ── Enhanced detection (chạy trước intent checks) ──
+        _study_major_now = detect_study_major_query(req.query)
+        _lang_filter_now = detect_language_preference(req.query)
+        _year_filter_now, _year_dir_now = detect_year_constraint(req.query)
+        _title_kw_now = detect_title_contains_keyword(req.query)
+        _generic_now = bool(re.search(
+            r"(?:goi y|vai cuon|mot vai|it cuon)\s*(?:sach)?",
+            normalize_text(req.query)
+        )) and not req.query.startswith(list_topic_marker) and not bool(re.search(r'\b(python|java|javascript|ai|ml|machine|deep|data|web|lap trinh)\b', normalize_text(req.query)))
+        _skip_existence = bool(_study_major_now) or bool(_year_filter_now)
+
+        # Nếu intent "unknown" mà có enhanced signals → treat as catalog
+        if intent == "unknown" and (_study_major_now or _lang_filter_now or _year_filter_now):
+            intent = "catalog"
+
         if intent == "chitchat":
             return ChatResponse(
                 answer="Xin chào! Tôi là trợ lý tra cứu của **Thư viện QNU**.\n\nBạn có thể hỏi tôi về:\n• Tìm sách theo tên, tác giả, chủ đề\n• Tra cứu tài liệu số\n• Gợi ý sách theo ngành học\n\nBạn cần tìm tài liệu gì?",
@@ -1191,7 +1309,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             )
         if intent == "live_info":
             return ChatResponse(
-                answer="Mình là trợ lý Thư viện, mình chỉ hỗ trợ tra cứu sách và tài liệu thôi ạ! 😊\n\n"
+                answer="Mình là trợ lý Thư viện, mình chỉ hỗ trợ tra cứu sách và tài liệu thôi ạ!\n\n"
                        "Bạn có thể thử:\n"
                        "• **Tìm sách** theo tên, tác giả hoặc chủ đề\n"
                        "• **Hỏi về nội dung** tài liệu trong thư viện\n\n"
@@ -1202,6 +1320,27 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                     {"label": "Tìm sách về văn học", "query": "tìm sách về văn học"},
                 ],
             )
+
+        # ── Generic suggestion: chạy trước exhaustion/unknown/clarify ──
+        if _generic_now:
+            import random as _rnd
+            _pool = [r for r in retriever.search_by_query("sach", top_k=200)
+                     if r.get("doc", r).get("title", "") and not r.get("doc", r).get("is_pdf", False)]
+            if _pool:
+                _selected = _rnd.sample(_pool, min(8, len(_pool)))
+                _lines = "\n".join(
+                    f"• **{r.get('doc', r).get('title','')}**" + (f" – {r.get('doc', r).get('author','')}" if r.get('doc', r).get('author') and r['doc']['author'] not in ('Unknown','N/A') else "")
+                    for r in _selected
+                )
+                answer_text = f"Mình gợi ý một số cuốn sách trong thư viện:\n\n{_lines}"
+                return ChatResponse(answer=answer_text, sources=[r.get('doc', r) for r in _selected], total_sources=len(_selected),
+                    total_found=len(_selected), current_document=None,
+                    follow_up_suggestions=_rnd.sample([
+                        {"label": "Tìm sách về trí tuệ nhân tạo", "query": "tìm sách về trí tuệ nhân tạo"},
+                        {"label": "Sách ngành Công nghệ thông tin", "query": "tìm sách ngành Công nghệ thông tin"},
+                        {"label": "Sách về Kinh tế", "query": "tìm sách về Kinh tế"},
+                        {"label": "Tìm sách của Nguyễn Nhật Ánh", "query": "tìm sách của Nguyễn Nhật Ánh"},
+                    ], min(3, 4)))
 
         if detect_exhaustion_query(req.query):
             entry_count = len(hist)
@@ -1324,10 +1463,28 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             )
             return ChatResponse(answer=greeting_answer, sources=[], total_sources=0, current_document=None, follow_up_suggestions=[])
 
-        if detect_existence_request(req.query):
+        _skip_existence = bool(_study_major_now) or bool(_year_filter_now)
+
+        # ── Title-contains-keyword: "có chữ Python trong tên không?" ──
+        if _title_kw_now:
+            _tk_count = retriever.count_title_match(_title_kw_now)
+            hist.append({"query": req.query, "search_query": _title_kw_now, "topic": _title_kw_now, "source_count": _tk_count, "shown_titles": []})
+            session_history[req.session_id] = hist[-MAX_HISTORY:]
+            if _tk_count <= 0:
+                answer_text = f"Hiện tại mình chưa tìm thấy tài liệu nào có chứa từ **{_title_kw_now}** trong thư viện."
+                return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, current_document=None,
+                    follow_up_suggestions=random_no_result_suggestions(3))
+            answer_text = f"Có, thư viện có **{_tk_count} tài liệu** có chứa từ **{_title_kw_now}** trong tên. Bạn có muốn xem danh sách không?"
+            return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=_tk_count, current_document=None,
+                follow_up_suggestions=[
+                    {"label": "Xem danh sách", "query": f"{list_topic_marker}{_title_kw_now}"},
+                    {"label": "Không, cảm ơn", "query": "Cảm ơn bạn"},
+                ])
+
+        # ── Existence check: "có X không?" (trừ khi có enhanced context) ──
+        if not _skip_existence and detect_existence_request(req.query):
             topic = extract_existence_topic(req.query)
             topic_label = topic or "chủ đề này"
-            # Lấy topic có dấu tiếng Việt từ original query
             if topic:
                 topic_label = _restore_topic_diacritics(topic, req.query)
             if topic:
@@ -1354,10 +1511,14 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         if not req.major and not req.document_id:
             try:
-                from lib.catalog import _extract_major_from_query
-                _detected_major = _extract_major_from_query(req.query)
-                if _detected_major:
-                    req.major = _detected_major
+                from lib.catalog import _extract_major_from_query                # "học CNTT" / "học Công nghệ thông tin"
+                _study_major = detect_study_major_query(req.query)
+                if _study_major:
+                    req.major = _study_major
+                else:
+                    _detected_major = _extract_major_from_query(req.query)
+                    if _detected_major:
+                        req.major = _detected_major
             except Exception:
                 pass
 
@@ -1388,6 +1549,29 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             if major_clean and _major_norm and _major_norm not in _search_norm:
                 search_query = f"{search_query} {major_clean}".strip()
 
+        # ── Enhanced query detection (teaching subject, course, beginner, exam) ──
+        _teaching_subj = detect_teaching_subject(req.query)
+        _course_name = detect_course_name(req.query)
+        _is_beginner = is_beginner_friendly_query(req.query)
+        _is_exam_prep = is_exam_prep_query(req.query)
+        if _teaching_subj and _teaching_subj not in search_query:
+            search_query = f"{search_query} {_teaching_subj}".strip()
+        if _course_name and _course_name not in search_query:
+            search_query = f"{search_query} {_course_name}".strip()
+        if _is_beginner:
+            _beginner_terms = ["co ban", "nhap mon", "can ban"]
+            for bt in _beginner_terms:
+                if bt not in search_query:
+                    search_query = f"{search_query} {bt}".strip()
+                    break
+
+        # Nếu có year filter, loại bỏ năm khỏi search_query (year filter xử lý sau search)
+        if _year_filter_now and search_query:
+            _stripped = re.sub(r'\b(19\d{2}|20\d{2})\b', '', search_query).strip()
+            _stripped = re.sub(r'\s+', ' ', _stripped)
+            if _stripped:
+                search_query = _stripped
+
         _prefer_strict = detect_author_query(req.query) or detect_publisher_query(req.query)
         cache_key = f"catalog:{search_query}:{_prefer_strict}:{req.major or ''}" if catalog_mode else None
         use_cache = catalog_mode and not req.document_id and not req.query.startswith("__SUGGEST")
@@ -1404,14 +1588,9 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             if catalog_mode and bm25_results and not _prefer_strict:
                 bm25_results = [r for r in bm25_results if not str(r.get("doc", {}).get("csv_file", "")).startswith("pdf:") and r.get("doc", {}).get("page") is None]
             catalog_query_token_count = len(topic_tokens(strip_search_intent_phrases(req.query)))
-            if catalog_mode and (is_list_request or catalog_query_token_count <= 7):
+            if catalog_mode and (is_list_request or catalog_query_token_count <= 5):
                 metadata_results = metadata_search_by_query(req.query, bm25_documents=retriever.bm25.documents, top_k=retrieval_k)
-                if is_list_request:
-                    # List request: chỉ dùng metadata (độ chính xác cao),
-                    # không merge BM25 vì full-text search gây nhiễu tài liệu không liên quan.
-                    bm25_results = metadata_results
-                else:
-                    bm25_results = catalog_merge_results(metadata_results, bm25_results)
+                bm25_results = catalog_merge_results(metadata_results, bm25_results)
             if cache_results:
                 seen = set()
                 merged = []
@@ -1456,6 +1635,134 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             if use_cache and search_results:
                 _search_cache.set(cache_key, search_results)
 
+        # Kiểm tra: nếu là author query mà không có kết quả nào khớp tác giả → ép fallback
+        if search_results and _prefer_strict and catalog_mode:
+            _author_name_check = extract_author_name(req.query) if detect_author_query(req.query) else ""
+            if _author_name_check:
+                _found_author_match = any(
+                    author_name_matches(r.get("doc", {}).get("author", ""), _author_name_check)
+                    for r in search_results
+                )
+                if not _found_author_match:
+                    logger.info("Author query '%s' → no match in BM25 results, forcing fallback", _author_name_check)
+                    search_results = []
+
+        # ── Fallback search: nếu BM25/cache 0 kết quả, thử query đơn giản hơn ──
+        if not search_results and catalog_mode:
+            _fallback_queries = []
+            _fb_seen = set()
+            def _add_fb(q):
+                if q and q not in _fb_seen and len(q) >= 2:
+                    _fb_seen.add(q)
+                    _fallback_queries.append(q)
+            # Hàm strip year
+            def _strip_year(t):
+                return re.sub(r'\s+', ' ', re.sub(r'\b(19\d{2}|20\d{2})\b', '', t)).strip()
+            # 0. fallback dành riêng cho author query: quét trực tiếp author field
+            if _prefer_strict:
+                _author_name = extract_author_name(req.query) if detect_author_query(req.query) else ""
+                _pub_name = extract_publisher_name(req.query) if detect_publisher_query(req.query) else ""
+                _fb_author_key = normalize_text(_author_name or _pub_name or "")
+                if _fb_author_key:
+                    _fb_scan = []
+                    _seen_t2 = set()
+                    for _doc in retriever.bm25.documents:
+                        # Kiểm tra tất cả các field chứa tên tác giả
+                        _doc_fields_to_check = [
+                            _doc.get('author', '') or '',
+                            _doc.get('co_authors', '') or '',
+                            _doc.get('authors', '') or '',
+                        ]
+                        if isinstance(_doc_fields_to_check[1], list):
+                            _doc_fields_to_check[1] = ' '.join(str(v) for v in _doc_fields_to_check[1])
+                        if isinstance(_doc_fields_to_check[2], list):
+                            _doc_fields_to_check[2] = ' '.join(str(v) for v in _doc_fields_to_check[2])
+                        _matched = False
+                        for _field_val in _doc_fields_to_check:
+                            _field_norm = normalize_text(_field_val)
+                            if not _field_norm:
+                                continue
+                            _check = _fb_author_key
+                            if _check in _field_norm or _field_norm in _check:
+                                _matched = True
+                                break
+                        if not _matched and _pub_name:
+                            _doc_pub = normalize_text(_doc.get('publisher', '') or '')
+                            _check_pub = normalize_text(_pub_name)
+                            if _check_pub in _doc_pub:
+                                _matched = True
+                        if not _matched:
+                            continue
+                        _t2 = (_doc.get('title', '') or '').lower().strip()
+                        if _t2 and _t2 not in _seen_t2:
+                            _seen_t2.add(_t2)
+                            _fb_scan.append({'doc': _doc, 'score': 10.0, 'index': 0})
+                            if len(_fb_scan) >= retrieval_k:
+                                break
+                    if _fb_scan:
+                        search_results = _fb_scan
+                        logger.info("Fallback author scan '%s' → %d results", _fb_author_key[:40], len(search_results))
+                        _prefer_strict = False
+            # Nếu không phải author query hoặc author scan vẫn 0, thử fallback thường
+            if not search_results and not _prefer_strict:
+                # 1. Teaching subject / course name
+                if _teaching_subj:
+                    _add_fb(_teaching_subj)
+                elif _course_name:
+                    _add_fb(_course_name)
+                # 2. normalize_text gốc
+                _simple = _strip_year(normalize_text(req.query))
+                if len(_simple) >= 3:
+                    _add_fb(_simple)
+                # 3. extract_primary_topic_text
+                from lib.catalog import extract_primary_topic_text
+                _core = _strip_year(normalize_text(extract_primary_topic_text(req.query)))
+                _add_fb(_core)
+                # 4. Content words: lọc stop words, noise, year numbers
+                _content_noise = {
+                    'co','ve','tu','tro','di','khong','toi','can','de','ban','nao',
+                    'phu','hop','bang','xuat','sau','tim','sach','cua','cac','cho',
+                    'khi','la','nhu','lan','qua','con','hay','lam','moi','mot',
+                    'vao','theo','duoc','neu','hoac','ne','thi','vay','nua','da',
+                    'het','them','xuat','nam','gioi','thieu','thu','vien','nguoi',
+                    'cung','rat','dang','phai','tu','la','co','cach','nay',
+                }
+                _cw_parts = [w for w in _strip_year(normalize_text(req.query)).split()
+                             if w not in VIETNAMESE_STOP_WORDS and w not in _content_noise and len(w) > 2]
+                _cw = ' '.join(_cw_parts)
+                _add_fb(_cw)
+                # 5. Domain expansion terms
+                from lib.catalog import expand_domain_terms
+                for _dt in expand_domain_terms(req.query):
+                    _add_fb(_strip_year(normalize_text(_dt)))
+                # 6. Tech keyword extraction
+                _tech_terms = re.findall(
+                    r'\b(python|java|javascript|typescript|sql|html|css|react|angular|'
+                    r'vue|node|mongodb|docker|kubernetes|flutter|swift|kotlin|rust|go\b(?!\w)|'
+                    r'machine\s*learning|deep\s*learning|ai|data\s*science|artificial\s*intelligence|'
+                    r'big\s*data|cloud\s*computing|blockchain|iot|devops|agile|scrum)\b',
+                    normalize_text(req.query), re.IGNORECASE
+                )
+                if _tech_terms:
+                    _add_fb(' '.join(_tech_terms))
+                for _fb in _fallback_queries:
+                    if not _fb or len(_fb) < 2:
+                        continue
+                    _fb_results = retriever.search_by_query(_fb, top_k=retrieval_k)
+                    if _fb_results:
+                        search_results = _fb_results
+                        logger.info("Fallback search '%s' → %d results", _fb[:60], len(search_results))
+                        break
+
+        if is_list_request and list_topic_query and search_results:
+            _topic_norm = normalize_text(list_topic_query).strip()
+            if _topic_norm:
+                search_results = [
+                    r for r in search_results
+                    if _topic_norm in normalize_text(r.get("doc", {}).get("title", "") or "")
+                    or _topic_norm in normalize_text(r.get("doc", {}).get("subject", "") or "")
+                ]
+
         if req.major and not req.document_id:
             major_norm = normalize_text(req.major).strip()
             if major_norm:
@@ -1475,6 +1782,14 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                             if doc_major_norm.startswith(cn + " ") or doc_major_norm.startswith(cn + ","): return True
                         return False
                     search_results = [r for r in search_results if _doc_matches_major(normalize_text(str(r.get("doc", r).get("major", ""))))]
+
+        # ── Language filter: "tiếng Anh" / "Song ngữ" ──
+        if _lang_filter_now and search_results:
+            search_results = filter_by_language(search_results, _lang_filter_now)
+
+        # ── Year filter: "xuất bản từ 2023", "sau 2022" ──
+        if _year_filter_now and search_results:
+            search_results = filter_by_year(search_results, _year_filter_now, _year_dir_now or "exact")
 
         total_found = len(search_results)
         if not req.document_id and not catalog_mode:

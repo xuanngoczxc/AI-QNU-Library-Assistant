@@ -1,40 +1,104 @@
 """
-lib/usage_logger.py — In-memory usage logging for analytics dashboard.
+lib/usage_logger.py — Usage logging with JSONL persistence + analytics dashboard support.
 
-Maintains an in-memory ring buffer.
-No disk writes — data survives only within the current server session.
+Writes every entry to a daily JSONL file (usage-YYYY-MM-DD.jsonl) so data
+survives server restarts. On startup, historical entries are reloaded into
+an in-memory history buffer for fast analytics aggregation.
 """
 
 from __future__ import annotations
 
 import os
+import json as _json
 import time
 import logging
+from pathlib import Path
 from collections import deque, Counter
 from typing import Optional
 
 logger = logging.getLogger("qnu.library.usage")
- 
+
 MAX_RECENT_IN_MEMORY = int(os.getenv("USAGE_RECENT_CAPACITY", "5000"))
+MAX_HISTORY_ENTRIES = int(os.getenv("USAGE_HISTORY_CAPACITY", "200000"))
+USAGE_LOG_DIR = os.getenv("USAGE_LOG_DIR", "usage-logs")
 
 
 class UsageLogger:
     """
-    In-memory structured logger for search queries.
-    Data is kept in a ring buffer — no disk I/O.
-    On server restart, analytics start fresh.
+    Structured logger for search queries with JSONL disk persistence.
+
+    - Every record() call appends a JSON line to a daily file.
+    - On startup, all JSONL files are replayed into an in-memory history buffer.
+    - Per-day counters (day_queries, day_noresult) survive deque eviction.
+    - Detailed analytics (intent, top queries, latency) use the full history.
     """
 
     def __init__(
         self,
         recent_capacity: int = MAX_RECENT_IN_MEMORY,
+        history_capacity: int = MAX_HISTORY_ENTRIES,
+        log_dir: str = USAGE_LOG_DIR,
     ):
         self._recent: deque[dict] = deque(maxlen=recent_capacity)
+        self._all_entries: deque[dict] = deque(maxlen=history_capacity)
         self._total_entries = 0
 
-        # per-day counters for dashboard quick stats
+        # per-day counters for dashboard quick stats (never evicted)
         self._day_queries: dict[str, int] = {}  # "YYYY-MM-DD" -> count
         self._day_noresult: dict[str, int] = {}
+
+        # disk persistence
+        self._log_dir = Path(log_dir)
+        self._log_dir.mkdir(parents=True, exist_ok=True)
+
+        # reload history from disk on startup
+        self._load_history()
+
+    # ── disk I/O ────────────────────────────────────────────
+
+    def _get_today_log_path(self) -> Path:
+        today = time.strftime("%Y-%m-%d")
+        return self._log_dir / f"usage-{today}.jsonl"
+
+    def _flush_entry(self, entry: dict) -> None:
+        """Append one JSON line to today's daily log file."""
+        path = self._get_today_log_path()
+        try:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(_json.dumps(entry, ensure_ascii=False) + "\n")
+        except OSError as e:
+            logger.warning("Failed to write usage log entry: %s", e)
+
+    def _load_history(self) -> None:
+        """Replay all JSONL files on startup to rebuild in-memory state."""
+        files = sorted(self._log_dir.glob("usage-*.jsonl"))
+        if not files:
+            return
+        logger.info("Loading %d usage log file(s)...", len(files))
+        loaded = 0
+        for path in files:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            entry = _json.loads(line)
+                        except _json.JSONDecodeError:
+                            continue
+                        self._all_entries.append(entry)
+                        self._recent.appendleft(entry)
+                        self._total_entries += 1
+                        day = (entry.get("ts") or "")[:10]
+                        if day:
+                            self._day_queries[day] = self._day_queries.get(day, 0) + 1
+                            if int(entry.get("result_count", 0)) <= 0:
+                                self._day_noresult[day] = self._day_noresult.get(day, 0) + 1
+                        loaded += 1
+            except OSError as e:
+                logger.warning("Failed to read usage log %s: %s", path.name, e)
+        logger.info("Loaded %d historical usage entries across %d file(s).", loaded, len(files))
 
     # ── public API ──────────────────────────────────────────
 
@@ -51,7 +115,7 @@ class UsageLogger:
         error: str = "",
         intent: str = "",
     ) -> None:
-        """Record one search query to disk + in-memory buffer."""
+        """Record one search query to disk + in-memory buffers."""
         now = time.time()
         ts_iso = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now))
         day_key = time.strftime("%Y-%m-%d", time.localtime(now))
@@ -70,8 +134,12 @@ class UsageLogger:
             "error": (error or "")[:300],
         }
 
+        # disk
+        self._flush_entry(entry)
+
         # in-memory (hot data for /dashboard)
         self._recent.appendleft(entry)
+        self._all_entries.append(entry)
         self._total_entries += 1
         self._day_queries[day_key] = self._day_queries.get(day_key, 0) + 1
         if result_count <= 0:
@@ -85,25 +153,24 @@ class UsageLogger:
         """Aggregate counters for the admin dashboard."""
         today = time.strftime("%Y-%m-%d")
         yesterday_key = time.strftime("%Y-%m-%d", time.localtime(time.time() - 86400))
+        entries_in_all = len(self._all_entries)
         return {
             "total_entries": self._total_entries,
             "today_queries": self._day_queries.get(today, 0),
             "yesterday_queries": self._day_queries.get(yesterday_key, 0),
             "today_no_result": self._day_noresult.get(today, 0),
             "in_memory_recent": len(self._recent),
+            "in_memory_history": entries_in_all,
         }
-
-    # ── JSONL file reader / aggregator ─────────────────────
 
     def compute_analytics(self, date_from: str = "", date_to: str = "") -> dict:
         """
-        Full analytics aggregation from the in-memory buffer
+        Full analytics aggregation from the in-memory history buffer,
         supplemented by per-day counters which survive deque eviction.
         Optionally filter by date range (inclusive, format YYYY-MM-DD).
         """
-        entries = list(self._recent)
+        entries = list(self._all_entries)
 
-        # ── seed per‑day totals from the always‑accurate counters ──
         day_counts: Counter = Counter()
         day_noresult: Counter = Counter()
         for d, c in self._day_queries.items():
@@ -111,7 +178,6 @@ class UsageLogger:
         for d, c in self._day_noresult.items():
             day_noresult[d] += c
 
-        # ── filter entries by date range ──
         if date_from:
             entries = [e for e in entries if (e.get("ts") or "")[:10] >= date_from]
             day_counts = Counter({d: c for d, c in day_counts.items() if d >= date_from})
@@ -128,10 +194,12 @@ class UsageLogger:
                 "intent_distribution": [],
                 "top_queries": [],
                 "top_no_result_queries": [],
-                "latency": {"avg_ms": 0, "p50_ms": 0, "p95_ms": 0, "p99_ms": 0},
+                "latency": {"avg_ms": 0, "min_ms": 0, "max_ms": 0, "p50_ms": 0, "p95_ms": 0, "p99_ms": 0},
                 "hourly_heatmap": [],
-                "recent": [],
                 "daily_no_result": [],
+                "monthly": [],
+                "unique_days": 0,
+                "weekday_distribution": [],
             }
 
         hour_counts: list[int] = [0] * 24
@@ -230,6 +298,7 @@ class UsageLogger:
         }
 
     # ── internal helpers ────────────────────────────────────
+
 
 _usage_logger: Optional[UsageLogger] = None
 

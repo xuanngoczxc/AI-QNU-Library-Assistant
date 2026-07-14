@@ -12,6 +12,9 @@ vector_db/
 *.pkl
 *.faiss
 
+# Usage logs (JSONL)
+usage-logs/
+
 # Archives
 *.zip
 *.tar
