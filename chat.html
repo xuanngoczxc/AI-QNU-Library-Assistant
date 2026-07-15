@@ -252,8 +252,8 @@
       position:relative;z-index:10;
     }
     .chat-header-left{min-width:0;}
-    .chat-header-left .eyebrow{font-size:10px;color:var(--on-surface-tertiary);letter-spacing:.06em;text-transform:uppercase;font-weight:700;}
-    .chat-header-left h2{font-size:20px;color:var(--on-surface);margin-top:2px;font-weight:700;letter-spacing:-.03em;}
+    .chat-header-left .eyebrow{font-size:12px;color:var(--on-surface-tertiary);letter-spacing:.06em;text-transform:uppercase;font-weight:700;}
+    .chat-header-left h2{font-size:18px;color:var(--on-surface);margin-top:2px;font-weight:700;letter-spacing:-.03em;}
     .clear-btn{
       width:36px;height:36px;border-radius:var(--cap);
       border:1px solid var(--outline-variant);background:transparent;
@@ -461,7 +461,7 @@
       font-size:14.5px;font-family:var(--font);
       color:var(--on-surface);resize:none;outline:none;
       height:44px;max-height:140px;line-height:24px;
-      overflow-y:auto;transition:var(--slow);
+      overflow-y:hidden;transition:var(--slow);
       background:var(--surface);
     }
     .composer textarea:focus{border-color:var(--primary);box-shadow:var(--shadow-glow);}
@@ -595,7 +595,7 @@
     .pdf-overlay-composer textarea{
       flex:1;padding:9px 14px;border:1.5px solid var(--outline-variant);border-radius:var(--cap);
       font-size:13px;font-family:var(--font);color:var(--on-surface);resize:none;outline:none;
-      min-height:38px;max-height:100px;line-height:1.5;transition:var(--slow);background:var(--surface);
+      min-height:38px;max-height:100px;line-height:1.5;overflow-y:hidden;transition:var(--slow);background:var(--surface);
     }
     .pdf-overlay-composer textarea:focus{border-color:var(--primary);box-shadow:var(--shadow-glow);}
     .pdf-overlay-composer .send-btn{height:36px;padding:0 16px;border-radius:var(--cap);}
