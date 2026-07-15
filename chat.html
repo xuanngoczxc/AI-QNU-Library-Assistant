@@ -391,9 +391,9 @@
     .book-card.pdf-source .book-card-header-icon{background:var(--tertiary-warm-container);color:var(--tertiary-warm);}
     .book-card-header:hover .book-card-header-icon{background:var(--primary);color:var(--on-primary);transform:scale(1.08) rotate(-4deg);}
     .book-card-header-text{flex:1;min-width:0;}
-    .book-card-header-row{display:flex;align-items:center;gap:8px;}
+    .book-card-header-row{display:flex;align-items:flex-start;gap:8px;}
     .book-card-header .book-title{flex:1;font-weight:600;color:var(--on-surface);font-size:13.5px;letter-spacing:-.01em;transition:color .2s;}
-    .book-card-chevron{flex-shrink:0;color:var(--on-surface-tertiary);transition:transform .3s var(--ease),color .2s;}
+    .book-card-chevron{flex-shrink:0;margin-top:3px;color:var(--on-surface-tertiary);transition:transform .3s var(--ease),color .2s;}
     .book-card-chevron.open{transform:rotate(180deg);color:var(--primary);}
     .book-card-header:hover .book-card-chevron{color:var(--primary);}
     .book-card-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
@@ -1161,7 +1161,14 @@ async function sendMessage() {
   ta.value = "";
   ta.style.height = "";
   addRecentSearch(query);
-  appendMsg("user", esc(query.replace(/\n/g, " ")));
+  // Hiển thị tên thân thiện nếu là list-topic marker
+  var displayQuery = query;
+  var listTopicPrefix = "__LIST_TOPIC__:";
+  if (displayQuery.startsWith(listTopicPrefix)) {
+    var topicName = displayQuery.slice(listTopicPrefix.length).trim();
+    displayQuery = "Liệt kê chi tiết về " + topicName;
+  }
+  appendMsg("user", esc(displayQuery.replace(/\n/g, " ")));
   const botId = "bot_" + Date.now();
   createStreamBubble(botId);
   setStreamingUI(true);
@@ -1604,7 +1611,8 @@ function renderGroupedSources(bubble, containerId) {
       if (item.query === "__SUGGEST_RELATED__") {
         chipsHtml += '<button class="follow-up-chip" onclick="showRelatedSuggestions()">' + esc(item.label || item) + '</button>';
       } else {
-        chipsHtml += '<button class="follow-up-chip" onclick="askFollowUp(this)">' + esc(item.label || item) + '</button>';
+        var q = item.query || item.label || item;
+        chipsHtml += '<button class="follow-up-chip" data-query="' + escAttr(q) + '" onclick="askFollowUp(this)">' + esc(item.label || item) + '</button>';
       }
     });
     chipsHtml += '</div></div>';
@@ -1666,7 +1674,7 @@ function renderFollowUpChips(afterId, items) {
     if (q === "__SUGGEST_RELATED__") {
       html += '<button class="follow-up-chip" onclick="showRelatedSuggestions()">' + _icon + ' ' + esc(label) + '</button>';
     } else {
-      html += '<button class="follow-up-chip" onclick="askFollowUp(this)">' + _icon + ' ' + esc(label) + '</button>';
+      html += '<button class="follow-up-chip" data-query="' + escAttr(q) + '" onclick="askFollowUp(this)">' + _icon + ' ' + esc(label) + '</button>';
     }
   }
   html += '</div></div>';
@@ -1674,8 +1682,9 @@ function renderFollowUpChips(afterId, items) {
 }
 
 function askFollowUp(btn) {
-  // Luôn dùng textContent để giữ nguyên text hiển thị
-  const query = btn.textContent.trim();
+  // Ưu tiên data-query (chứa query thật, ví dụ __LIST_TOPIC__:sinh hoc)
+  var query = btn.getAttribute('data-query');
+  if (!query) query = btn.textContent.trim();
   if (query === "__SUGGEST_RELATED__") {
     showRelatedSuggestions();
     return;
@@ -1862,7 +1871,14 @@ async function sendPdfOverlayMessage() {
   // Add user message
   const userMsg = document.createElement("div");
   userMsg.className = "pdf-overlay-msg user";
-  userMsg.innerHTML = `<div class="avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="bubble">${esc(query)}</div>`;
+  // Hiển thị tên thân thiện nếu là list-topic marker
+  var displayQuery = query;
+  var listTopicPrefix = "__LIST_TOPIC__:";
+  if (displayQuery.startsWith(listTopicPrefix)) {
+    var topicName = displayQuery.slice(listTopicPrefix.length).trim();
+    displayQuery = "Liệt kê chi tiết về " + topicName;
+  }
+  userMsg.innerHTML = `<div class="avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div class="bubble">${esc(displayQuery)}</div>`;
   document.getElementById("pdfOverlayMessages").appendChild(userMsg);
 
   // Add bot loading
@@ -1895,7 +1911,8 @@ async function sendPdfOverlayMessage() {
     if (data.follow_up_suggestions && data.follow_up_suggestions.length) {
       let chipsHtml = '<div class="follow-up-chips" style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border-light);">';
       data.follow_up_suggestions.forEach((item) => {
-        chipsHtml += `<button class="follow-up-chip" onclick="askFollowUpOverlay(this)">${esc(item.label || item)}</button>`;
+        var q = item.query || item.label || item;
+        chipsHtml += `<button class="follow-up-chip" data-query="${escAttr(q)}" onclick="askFollowUpOverlay(this)">${esc(item.label || item)}</button>`;
       });
       chipsHtml += '</div>';
       bubble.innerHTML += chipsHtml;
@@ -1911,8 +1928,9 @@ async function sendPdfOverlayMessage() {
 }
 
 async function askFollowUpOverlay(btn) {
-  // Luôn dùng textContent để giữ nguyên text hiển thị
-  const query = btn.textContent.trim();
+  // Ưu tiên data-query (chứa query thật)
+  var query = btn.getAttribute('data-query');
+  if (!query) query = btn.textContent.trim();
   if (query === "__SUGGEST_RELATED__") {
     closePdfOverlay();
     await showRelatedSuggestions();
@@ -2028,6 +2046,7 @@ function markdownToHtml(text) {
 }
 
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function escAttr(s){ return String(s).replace(/"/g,"&quot;").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function attr(s){ return esc(s).replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 function answerHasNoInformation(text) {
   const normalized = String(text || "")

@@ -1499,7 +1499,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                 answer_text = f"Có, thư viện hiện có tài liệu về **{topic_label}**. Bạn có muốn mình liệt kê chi tiết ra không?"
                 return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=count, current_document=None,
                     follow_up_suggestions=[
-                        {"label": "Liệt kê chi tiết", "query": f"{list_topic_marker}{topic}"},
+                        {"label": "Liệt kê chi tiết", "query": f"{list_topic_marker}{topic_label}"},
                         {"label": "Không, cảm ơn bạn", "query": "Cảm ơn bạn"},
                     ])
 
