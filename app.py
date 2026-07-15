@@ -271,6 +271,7 @@ def format_docs_with_metadata(search_results):
             if valid(author): clean += f" - {author}"
             if valid(publisher): clean += f" ({publisher})"
             if valid(abstract): clean += f"\n\nTóm tắt: {abstract[:800]}"
+            else: clean += "\n\nTóm tắt: (Không có tóm tắt)"
             content = clean[:3000]
 
         formatted.append({
@@ -1861,10 +1862,10 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                     "course": clean_display_value(meta['metadata'].get('course', ''), 140),
                     "keywords": meta['metadata'].get('keywords', []) or [],
                     "location": clean_display_value(meta['metadata'].get('location', ''), 3000),
-                    "abstract": clean_display_value(meta['metadata'].get('abstract', ''), 360),
+                    "abstract": "",  # Tạm thời không hiển thị tóm tắt do dữ liệu chưa đầy đủ
                     "ddc": clean_display_value(meta['metadata'].get('ddc', ''), 80),
                     "notes": clean_display_value(meta['metadata'].get('notes', ''), 180),
-                    "description": meta['text'][:200] if meta.get('text') else "",
+                    "description": "",
                     "is_pdf": False,
                     "pdf_id": "",
                     "file_name": "",
