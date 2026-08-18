@@ -1,0 +1,437 @@
+/* ══════════════════ SIDEBAR ══════════════════ */
+.sidebar {
+  width: var(--sidebar-w);
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 16px 20px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  transition: width 0.3s var(--ease), padding 0.3s var(--ease), opacity 0.2s;
+  border-right: 1px solid var(--outline-variant);
+  position: relative;
+  z-index: 20;
+}
+
+.sidebar-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 0 4px;
+  flex: 1;
+  scrollbar-gutter: stable;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
+.sidebar-sticky {
+  flex-shrink: 0;
+  padding: 8px 0 6px;
+  margin-top: auto;
+  border-top: 1px solid var(--outline-variant);
+}
+
+/* Brand */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  background: var(--primary-container);
+  border-radius: var(--cap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 6px;
+  box-shadow: 0 2px 8px rgba(26, 107, 138, 0.12);
+}
+
+.brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--cap);
+  display: block;
+}
+
+.brand-text h1 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+}
+
+.brand-text p {
+  font-size: 10px;
+  color: var(--on-surface-tertiary);
+  margin-top: 2px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* New chat — capsule primary */
+.new-chat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 20px;
+  background: var(--primary);
+  border: none;
+  border-radius: var(--cap);
+  color: var(--on-primary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--slow);
+  letter-spacing: -0.01em;
+  line-height: 1;
+  box-shadow: var(--shadow-btn);
+  width: 100%;
+}
+
+.new-chat-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-btn-hover);
+}
+
+.new-chat-btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: var(--shadow-btn);
+}
+
+.new-chat-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.section-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-tertiary);
+  margin-top: 14px;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+
+/* Faculty Tree */
+.faculty-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 200px;
+  padding-right: 2px;
+}
+
+.faculty-tree-loading {
+  font-size: 11px;
+  color: var(--on-surface-tertiary);
+  padding: 6px 2px;
+}
+
+.faculty-group {
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--round-sm);
+  overflow: hidden;
+  background: var(--surface-container);
+  transition: box-shadow 0.2s;
+}
+
+.faculty-group:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.faculty-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: var(--slow);
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+
+.faculty-header:hover {
+  background: var(--surface-container-higher);
+}
+
+.faculty-header.open {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.faculty-header.open:hover {
+  background: #B0DCE8;
+}
+
+.faculty-chevron {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: transform var(--slow);
+}
+
+.faculty-header.open .faculty-chevron {
+  transform: rotate(180deg);
+  opacity: 0.85;
+}
+
+.faculty-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faculty-children {
+  display: none;
+  flex-direction: column;
+}
+
+.faculty-group.open .faculty-children {
+  display: flex;
+}
+
+.faculty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 16px;
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  font-weight: 400;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: var(--slow);
+  font-family: inherit;
+  border-top: 1px solid var(--outline-variant);
+  position: relative;
+}
+
+.faculty-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: transparent;
+  border-radius: 0 2px 2px 0;
+  transition: 0.2s;
+}
+
+.faculty-row:hover {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+
+.faculty-row:hover::before {
+  background: var(--primary);
+}
+
+.faculty-row.active {
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
+}
+
+.faculty-row.active::before {
+  background: var(--on-primary);
+}
+
+.faculty-row .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faculty-clear {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-top: 4px;
+  background: var(--tertiary-warm-container);
+  border: none;
+  color: var(--tertiary-warm);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--cap);
+  cursor: pointer;
+  transition: var(--slow);
+  font-family: inherit;
+}
+
+.faculty-clear.show {
+  display: flex;
+}
+
+.faculty-clear:hover {
+  background: var(--tertiary-warm);
+  color: var(--on-primary);
+  transform: scale(1.03);
+}
+
+/* Admin Bar */
+.admin-section {
+  padding: 0;
+}
+
+.admin-login-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.admin-input {
+  flex: 1;
+  padding: 7px 12px;
+  border-radius: var(--cap);
+  border: 1.5px solid var(--outline-variant);
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font-size: 11px;
+  outline: none;
+  transition: var(--slow);
+  font-family: var(--font);
+  height: 32px;
+}
+
+.admin-input::placeholder {
+  color: var(--on-surface-tertiary);
+}
+
+.admin-input:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: var(--shadow-glow);
+}
+
+.admin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px 14px;
+  border-radius: var(--cap);
+  border: none;
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--slow);
+  white-space: nowrap;
+  font-family: var(--font);
+  height: 32px;
+}
+
+.admin-btn:hover {
+  background: var(--surface-container-higher);
+}
+
+.admin-btn.primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.admin-btn.primary:hover {
+  background: var(--primary-hover);
+  box-shadow: var(--shadow-md);
+}
+
+/* Sidebar collapse on desktop */
+@media (min-width: 769px) {
+  .shell.sidebar-collapsed .sidebar {
+    width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    opacity: 0;
+    pointer-events: none;
+    border-right: none;
+  }
+}
+
+/* Mobile Sidebar Drawer */
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    background: #FFFFFF;
+    box-shadow: var(--shadow-2xl);
+    transform: translateX(-100%);
+    transition: transform 0.3s var(--ease);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 90;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .sidebar-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

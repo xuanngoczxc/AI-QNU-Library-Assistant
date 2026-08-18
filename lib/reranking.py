@@ -264,18 +264,12 @@ def author_name_matches(doc_author: str, query_author: str) -> bool:
     # ── 2b. Subset check (query_set phải là subset của doc_set) ──
     #    Không chấp nhận chiều ngược lại: doc_set.issubset(query_set) cho phép
     #    doc có ít token hơn query → false positive ("Nguyễn Hữu Nguyên" vs "Nguyễn Hữu Trọn")
-    if query_set.issubset(doc_set):
-        # Với 2-token query và doc >2 tokens: yêu cầu query tokens khớp
+    if query_set.issubset(doc_set):        # Với 2-token query và doc >2 tokens: yêu cầu query tokens khớp
         # ĐẦU và CUỐI của doc_tokens (surname + given name position).
         # Tránh false positive: "Lương Hiền" vs "Trương Hiền Lượng"
         #   doc_tokens=["truong","hien","luong"] → doc[0]="truong", doc[-1]="luong"
         #   query_tokens={"luong","hien"} → chỉ "luong" khớp doc[-1], thiếu "truong" → reject
         if len(query_tokens) == 2 and len(doc_tokens) > 2:
-            # Với 2-token query và doc >2 tokens: yêu cầu 2 query token khớp
-            # token ĐẦU (surname) và token CUỐI (given name) của doc.
-            # Giới hạn tối đa 1 từ đệm (middle name), không cho 2+ từ đệm:
-            #   "Lương Văn Hiền" (3t) → pass
-            #   "Lương Thị Thu Hiền" (4t, 2 middle) → fail
             doc_first = doc_tokens[0]
             doc_last = doc_tokens[-1]
             if (query_tokens[0] == doc_first and query_tokens[1] == doc_last
@@ -284,12 +278,10 @@ def author_name_matches(doc_author: str, query_author: str) -> bool:
             return False
         return True
 
-    # ── 3. Single token fallback (tối thiểu 3 ký tự) ──
     if len(query_tokens) == 1 and len(query_tokens[0]) >= 3:
         if query_tokens[0] in doc_norm:
             return True
     return False
-
 
 def merge_search_results(*groups: list[dict]) -> list[dict]:
     merged = {}
@@ -364,8 +356,6 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
         non_author_results = []
         for result in search_results:
             doc = result.get("doc", {})
-            # Khi prefer_strict=True: chỉ kiểm tra trường author chính
-            # Khi prefer_strict=False: kiểm tra cả co_authors, authors
             primary_author = doc.get("author", "")
             if prefer_strict:
                 matches = author_name_matches(primary_author, author_name)

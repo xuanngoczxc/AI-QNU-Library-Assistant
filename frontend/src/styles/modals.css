@@ -1,0 +1,157 @@
+/* ══════════════════ MODALS & TOAST ══════════════════ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.25s var(--ease);
+}
+
+.modal-dialog {
+  width: 100%;
+  max-width: 800px;
+  max-height: 85vh;
+  background: var(--surface);
+  border-radius: var(--round-xl);
+  box-shadow: var(--shadow-2xl);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--outline-variant);
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--outline-variant);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-container);
+}
+
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--cap);
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--fast);
+}
+
+.modal-close-btn:hover {
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}
+
+.modal-search-bar {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--outline-variant);
+  background: var(--surface);
+}
+
+.modal-search-input {
+  width: 100%;
+  padding: 9px 16px;
+  border-radius: var(--cap);
+  border: 1.5px solid var(--outline-variant);
+  background: var(--surface-container);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--on-surface);
+  outline: none;
+  transition: var(--slow);
+}
+
+.modal-search-input:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: var(--shadow-glow);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--outline-variant);
+  background: var(--surface-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pagination-btn {
+  padding: 5px 12px;
+  border-radius: var(--cap);
+  border: 1px solid var(--outline-variant);
+  background: var(--surface);
+  color: var(--on-surface);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--fast);
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  font-size: 12px;
+  color: var(--on-surface-tertiary);
+  margin: 0 4px;
+}
+
+/* Toast */
+.toast-msg {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--error-container);
+  color: var(--on-error-container);
+  padding: 12px 24px;
+  border-radius: var(--cap);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow-xl);
+  z-index: 9999;
+  white-space: nowrap;
+  animation: toastFadeIn 0.25s var(--ease);
+}
+
+.toast-msg.success {
+  background: var(--success-container);
+  color: var(--success);
+}

@@ -99,7 +99,14 @@ load_dotenv()
 if not is_vercel_runtime():
     check_backend()
 
+from fastapi.staticfiles import StaticFiles
+
 app = FastAPI(title="Th\u01b0 vi\u1ec7n QNU RAG API", version="2.0.0")
+
+# Mount React assets if frontend/dist exists
+_frontend_dist = Path("frontend/dist")
+if (_frontend_dist / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(_frontend_dist / "assets")), name="react_assets")
 
 
 @app.middleware("http")
@@ -1976,6 +1983,9 @@ def root():
 
 @app.get("/chat", response_class=FileResponse)
 def serve_chat_ui():
+    react_index = Path("frontend/dist/index.html")
+    if react_index.exists():
+        return FileResponse(str(react_index), media_type="text/html", headers={"Cache-Control": "no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
     html_file = "chat.html"
     if not os.path.exists(html_file):
         return {"error": "chat.html not found"}

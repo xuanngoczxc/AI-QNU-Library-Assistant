@@ -1,0 +1,96 @@
+:root {
+  /* M3 Tonal palette */
+  --primary: #1A6B8A;
+  --on-primary: #FFFFFF;
+  --primary-container: #C0E8F7;
+  --on-primary-container: #001E2C;
+  --primary-hover: #155E7A;
+  --secondary: #4B5A6A;
+  --on-secondary: #FFFFFF;
+  --secondary-container: #D5E3F2;
+  --tertiary: #7D5260;
+  --tertiary-container: #FFD9DD;
+  --tertiary-warm: #7B5E3F;
+  --tertiary-warm-container: #F9E1C0;
+
+  /* Surfaces — Soft UI light */
+  --surface: #FFFFFF;
+  --surface-dim: #E8ECF0;
+  --surface-container: #F2F5F9;
+  --surface-container-high: #EAEEF3;
+  --surface-container-higher: #E0E5EB;
+  --surface-container-low: #F6F8FA;
+  --bg: #EEF1F5;
+  --bg-app: #E4E9F0;
+
+  /* Text & stroke */
+  --on-surface: #1C1E24;
+  --on-surface-variant: #4A4E58;
+  --on-surface-tertiary: #767B87;
+  --outline: #BCC2CC;
+  --outline-variant: #DEE2EA;
+
+  /* Status */
+  --error: #BA1A1A;
+  --on-error: #FFFFFF;
+  --error-container: #FFDAD6;
+  --on-error-container: #410002;
+  --success: #1E7A44;
+  --success-container: #C7F0D4;
+  --warning: #8A6A00;
+  --warning-container: #FFE3A0;
+
+  /* Shadows — Soft UI / Premium layered */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 32px rgba(0, 0, 0, 0.06), 0 4px 10px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 56px rgba(0, 0, 0, 0.07), 0 8px 20px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 32px 80px rgba(0, 0, 0, 0.08), 0 12px 32px rgba(0, 0, 0, 0.05);
+  --shadow-glow: 0 0 0 3px rgba(26, 107, 138, 0.15);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
+  --shadow-btn: 0 4px 12px rgba(26, 107, 138, 0.2);
+  --shadow-btn-hover: 0 6px 20px rgba(26, 107, 138, 0.25);
+
+  /* Typography */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+
+  /* Capsule shape tokens */
+  --cap: 9999px;
+  --round-xs: 8px;
+  --round-sm: 12px;
+  --round-md: 16px;
+  --round-lg: 20px;
+  --round-xl: 24px;
+
+  /* Motion */
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --fast: 180ms var(--spring);
+  --slow: 350ms var(--ease);
+
+  /* Layout */
+  --sidebar-w: 300px;
+
+  /* Backward compat aliases */
+  --radius-sm: var(--round-sm);
+  --radius-md: var(--round-md);
+  --radius-lg: var(--round-lg);
+  --radius-xl: var(--cap);
+  --text-primary: var(--on-surface);
+  --text-secondary: var(--on-surface-variant);
+  --text-tertiary: var(--on-surface-tertiary);
+  --accent: var(--primary);
+  --accent-hover: var(--primary-hover);
+  --accent-soft: var(--primary-container);
+  --accent-warm: var(--tertiary-warm);
+  --accent-warm-light: var(--tertiary-warm-container);
+  --border: var(--outline-variant);
+  --border-light: var(--outline-variant);
+  --pastel-red: var(--error-container);
+  --pastel-red-text: var(--error);
+  --pastel-green: var(--success-container);
+  --pastel-green-text: var(--success);
+  --pastel-yellow: var(--warning-container);
+  --pastel-yellow-text: var(--warning);
+  --pastel-blue: var(--primary-container);
+}

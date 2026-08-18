@@ -116,7 +116,6 @@ CÂU HỎI: {{question}}
 TRẢ LỜI (Tiếng Việt, chính xác, trọng tâm vào chương {chapter_num}):
 """
 
-
 def build_method_prompt() -> str:
     return """
 Bạn là trợ lý AI của Thư viện Trường Đại học Quy Nhơn.

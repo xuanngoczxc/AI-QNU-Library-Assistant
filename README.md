@@ -123,6 +123,7 @@ ADMIN_PASSWORD=admin123
 
 ### 5. Chạy server
 
+#### Chạy Backend (FastAPI):
 ```bash
 # Cách 1: uvicorn trực tiếp
 python -m uvicorn app:app --host 127.0.0.1 --port 8000
@@ -132,7 +133,22 @@ $env:PYTHONIOENCODING="utf-8"
 python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-Mở <http://127.0.0.1:8000> để truy cập UI chatbot, hoặc <http://127.0.0.1:8000/docs> để xem Swagger.
+#### Chạy Frontend React (Development mode với Hot-reload):
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Truy cập giao diện phát triển React tại <http://localhost:5173> (đã cấu hình tự động proxy sang backend port 8000).
+
+#### Build Frontend React cho Production:
+```bash
+cd frontend
+npm run build
+```
+Sau khi build, FastAPI sẽ tự động phục vụ bản React tại <http://127.0.0.1:8000/chat> hoặc <http://127.0.0.1:8000/>.
+
+Mở <http://127.0.0.1:8000/chat> để truy cập UI chatbot, hoặc <http://127.0.0.1:8000/docs> để xem Swagger.
 
 ---
 
