@@ -1,7 +1,6 @@
 import React from 'react';
 import type { FacultyItem } from '../../types';
-
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 interface FacultyTreeProps {
   faculties: FacultyItem[];
@@ -12,7 +11,7 @@ interface FacultyTreeProps {
   openGroups: Record<string, boolean>;
   onToggleGroup: (khoa: string) => void;
   onSelectMajor: (nganh: string, khoa: string) => void;
-  onClearMajor: () => void;
+  onClearMajor?: () => void;
 }
 
 export const FacultyTree: React.FC<FacultyTreeProps> = ({
@@ -20,22 +19,13 @@ export const FacultyTree: React.FC<FacultyTreeProps> = ({
   loading,
   error,
   selectedMajor,
-  selectedKhoa,
   openGroups,
   onToggleGroup,
   onSelectMajor,
-  onClearMajor,
 }) => {
   return (
     <div>
       <div className="section-title">Danh mục Khoa &amp; Ngành</div>
-
-      {selectedMajor && (
-        <button className="faculty-clear show" onClick={onClearMajor}>
-          <X size={12} strokeWidth={2.5} />
-          <span>{selectedKhoa ? `${selectedKhoa} – ${selectedMajor}` : selectedMajor} (Xóa)</span>
-        </button>
-      )}
 
       <div className="faculty-tree">
         {loading && <div className="faculty-tree-loading">Đang tải danh mục khoa...</div>}

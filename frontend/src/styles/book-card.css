@@ -252,6 +252,111 @@
   filter: brightness(0.95);
 }
 
+/* ══════════════════ DOC TYPE GROUP ACCORDION ══════════════════ */
+.doc-group-section {
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--round-md);
+  overflow: hidden;
+  background: var(--surface);
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-card);
+  transition: var(--slow);
+}
+
+.doc-group-section:hover {
+  border-color: var(--outline);
+}
+
+.doc-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface-container);
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.2s var(--ease);
+}
+
+.doc-group-header:hover {
+  background: var(--surface-container-high);
+}
+
+.doc-group-header.open {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.doc-group-chevron {
+  color: var(--on-surface-tertiary);
+  transition: transform 0.25s var(--spring);
+  flex-shrink: 0;
+}
+
+.doc-group-header.open .doc-group-chevron {
+  transform: rotate(90deg);
+  color: var(--on-primary-container);
+}
+
+.doc-group-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.doc-group-header.open .doc-group-icon {
+  color: var(--on-primary-container);
+}
+
+.doc-group-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--on-surface);
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+
+.doc-group-header.open .doc-group-title {
+  color: var(--on-primary-container);
+}
+
+.doc-group-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-high);
+  padding: 2px 8px;
+  border-radius: var(--cap);
+  border: 1px solid var(--outline-variant);
+}
+
+.doc-group-header.open .doc-group-badge {
+  background: rgba(255, 255, 255, 0.4);
+  color: var(--on-primary-container);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .doc-group-header.open .doc-group-badge {
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--on-primary-container);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.doc-group-body {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface-dim);
+}
+
 /* ══════════════════ SOURCES PAGINATION ══════════════════ */
 .sources-pagination {
   margin-top: 10px;

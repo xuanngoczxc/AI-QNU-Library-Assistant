@@ -6,6 +6,7 @@ export interface BookSource {
   link?: string;
   source?: string;
   doc_type?: string;
+  loai_tai_lieu?: string;
   format?: string;
   major?: string;
   publisher?: string;
