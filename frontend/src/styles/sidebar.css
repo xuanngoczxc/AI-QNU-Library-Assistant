@@ -1,13 +1,12 @@
-/* ══════════════════ SIDEBAR ══════════════════ */
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   display: flex;
   flex-direction: column;
-  padding: 16px 16px 20px;
+  padding: 16px 16px 0;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -23,7 +22,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 0 0 4px;
+  padding: 0 0 10px;
   flex: 1;
   scrollbar-gutter: stable;
 }
@@ -36,7 +35,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--glass-bg-sticky);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -45,9 +44,16 @@
 
 .sidebar-sticky {
   flex-shrink: 0;
-  padding: 8px 0 6px;
-  margin-top: auto;
+  margin: auto -16px 0;
+  padding: 10px 16px 8px;
   border-top: 1px solid var(--outline-variant);
+  background: var(--glass-bg);
+  min-height: 76px;
+  height: 76px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
 }
 
 /* Brand */
@@ -319,17 +325,23 @@
 /* Admin Bar */
 .admin-section {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: space-between;
 }
 
 .admin-login-row {
   display: flex;
-  gap: 6px;
-  margin-top: 0;
+  gap: 5px;
+  align-items: center;
+  height: 34px;
 }
 
 .admin-input {
   flex: 1;
-  padding: 7px 12px;
+  height: 34px;
+  padding: 0 11px;
   border-radius: var(--cap);
   border: 1.5px solid var(--outline-variant);
   background: var(--surface-container);
@@ -338,7 +350,7 @@
   outline: none;
   transition: var(--slow);
   font-family: var(--font);
-  height: 32px;
+  box-sizing: border-box;
 }
 
 .admin-input::placeholder {
@@ -352,11 +364,12 @@
 }
 
 .admin-btn {
-  display: flex;
+  height: 34px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 7px 14px;
+  padding: 0 12px;
   border-radius: var(--cap);
   border: none;
   background: var(--surface-container-high);
@@ -367,21 +380,39 @@
   transition: var(--slow);
   white-space: nowrap;
   font-family: var(--font);
-  height: 32px;
+  box-sizing: border-box;
 }
 
-.admin-btn:hover {
+.admin-btn:hover:not(:disabled) {
   background: var(--surface-container-higher);
 }
 
 .admin-btn.primary {
   background: var(--primary);
   color: var(--on-primary);
+  box-shadow: var(--shadow-btn);
 }
 
-.admin-btn.primary:hover {
+.admin-btn.primary:hover:not(:disabled) {
   background: var(--primary-hover);
   box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.admin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-hint {
+  font-size: 10px;
+  color: var(--on-surface-tertiary);
+  margin-top: 2px;
+  text-align: center;
+  line-height: 12px;
+  height: 12px;
+  font-weight: 500;
+  user-select: none;
 }
 
 /* Sidebar collapse on desktop */
@@ -408,7 +439,7 @@
     bottom: 0;
     left: 0;
     z-index: 100;
-    background: #FFFFFF;
+    background: var(--surface);
     box-shadow: var(--shadow-2xl);
     transform: translateX(-100%);
     transition: transform 0.3s var(--ease);

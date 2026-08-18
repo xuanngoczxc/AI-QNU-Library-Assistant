@@ -51,12 +51,13 @@ export const AdminLoginBar: React.FC<AdminLoginBarProps> = ({ onShowToast }) => 
             className="admin-btn primary"
             onClick={handleLogin}
             disabled={loading || !password.trim()}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            title="Đăng nhập Quản trị viên"
           >
-            <KeyRound size={13} />
+            <KeyRound size={14} />
             <span>{loading ? '...' : 'Admin'}</span>
           </button>
         </div>
+        <div className="admin-hint">Dành cho Quản trị viên</div>
       </div>
     </div>
   );

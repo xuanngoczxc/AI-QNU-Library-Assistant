@@ -11,7 +11,7 @@
   border-radius: var(--round-xl);
   overflow: hidden;
   position: relative;
-  box-shadow: var(--shadow-2xl), 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 0 0 1px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-2xl), 0 0 0 1px var(--shell-inner-border) inset, 0 0 0 1px var(--shell-border);
   background: var(--surface);
   color: var(--on-surface);
   font-family: var(--font);
@@ -22,7 +22,7 @@
 .admin-sidebar {
   width: 275px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-right: 1px solid var(--outline-variant);
@@ -245,6 +245,34 @@
 .admin-btn-apply:hover {
   background: var(--primary-hover);
   transform: translateY(-1px);
+}
+
+.admin-theme-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--cap);
+  border: 1px solid var(--outline-variant);
+  background: var(--surface);
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: var(--fast);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.admin-theme-btn:hover {
+  background: var(--surface-container-high);
+  color: var(--primary);
+  border-color: var(--outline);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+.admin-theme-btn:active {
+  transform: scale(0.95);
 }
 
 /* ── KPI Grid ── */

@@ -43,6 +43,13 @@ export const IntentChart: React.FC<IntentChartProps> = ({ intentDistribution = [
 
     const colors = intentDistribution.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
 
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const chartBorder = isDark ? '#141820' : '#FFFFFF';
+    const tooltipBg = isDark ? '#1C222C' : '#FFFFFF';
+    const tooltipTitle = isDark ? '#EFF3F8' : '#1C1E24';
+    const tooltipText = isDark ? '#C0CAD7' : '#4A4E58';
+    const tooltipBorder = isDark ? '#414E62' : '#DEE2EA';
+
     chartInstanceRef.current = new Chart(canvasRef.current, {
       type: 'doughnut',
       data: {
@@ -51,7 +58,7 @@ export const IntentChart: React.FC<IntentChartProps> = ({ intentDistribution = [
           {
             data: intentDistribution.map((d) => d.count),
             backgroundColor: colors,
-            borderColor: '#FFFFFF',
+            borderColor: chartBorder,
             borderWidth: 2,
             hoverOffset: 6,
           },
@@ -64,10 +71,10 @@ export const IntentChart: React.FC<IntentChartProps> = ({ intentDistribution = [
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#FFFFFF',
-            titleColor: '#1C1E24',
-            bodyColor: '#4A4E58',
-            borderColor: '#DEE2EA',
+            backgroundColor: tooltipBg,
+            titleColor: tooltipTitle,
+            bodyColor: tooltipText,
+            borderColor: tooltipBorder,
             borderWidth: 1,
             padding: 8,
             cornerRadius: 6,

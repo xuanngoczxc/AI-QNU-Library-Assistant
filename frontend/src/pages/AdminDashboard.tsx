@@ -20,7 +20,8 @@ import { TopQueriesTable } from '../components/Admin/TopQueriesTable';
 import { RecentActivityList } from '../components/Admin/RecentActivityList';
 import { CustomDateRangePicker } from '../components/Admin/CustomDateRangePicker';
 import { Toast } from '../components/Modals/Toast';
-import { BarChart3, RefreshCw, Menu } from 'lucide-react';
+import { useTheme } from '../hooks/useTheme';
+import { BarChart3, RefreshCw, Menu, Sun, Moon } from 'lucide-react';
 
 import '../styles/admin.css';
 
@@ -37,6 +38,7 @@ function getDefaultDateRange() {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoToChat }) => {
+  const { theme, toggleTheme } = useTheme();
   const [token, setToken] = useState<string>(() => localStorage.getItem('qnu_admin_token') || '');
   const [adminData, setAdminData] = useState<AdminDashboardData | null>(null);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsResponse | null>(null);
@@ -240,6 +242,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onGoToChat }) =>
             >
               <RefreshCw size={14} className={loading ? 'spin' : ''} />
               <span>Áp dụng</span>
+            </button>
+
+            <button
+              type="button"
+              className="admin-theme-btn"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối'}
+              aria-label="Toggle Theme"
+            >
+              {theme === 'dark' ? (
+                <Sun size={15} color="#FFD271" />
+              ) : (
+                <Moon size={15} />
+              )}
             </button>
           </div>
         </div>

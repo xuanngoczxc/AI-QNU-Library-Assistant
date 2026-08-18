@@ -35,7 +35,7 @@ body {
   border-radius: var(--round-xl);
   overflow: hidden;
   position: relative;
-  box-shadow: var(--shadow-2xl), 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 0 0 1px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-2xl), 0 0 0 1px var(--shell-inner-border) inset, 0 0 0 1px var(--shell-border);
   background: var(--surface);
   transition: border-radius 0.3s var(--ease), box-shadow 0.3s var(--ease);
 }

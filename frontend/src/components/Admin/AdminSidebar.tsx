@@ -68,6 +68,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             type="button"
             className="admin-nav-item logout"
             onClick={onLogout}
+            style={{ marginTop: 'auto' }}
           >
             <LogOut size={17} />
             <span>Đăng xuất</span>
