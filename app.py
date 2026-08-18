@@ -2029,6 +2029,13 @@ def status():
 
 @app.get("/admin", response_class=FileResponse)
 def serve_admin_dashboard():
+    react_index = Path("frontend/dist/index.html")
+    if react_index.exists():
+        return FileResponse(str(react_index), media_type="text/html", headers={
+            "Cache-Control": "no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        })
     html_file = "admin-dashboard.html"
     if not os.path.exists(html_file):
         return {"error": "admin-dashboard.html not found"}

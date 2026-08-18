@@ -324,3 +324,36 @@
   padding: 0 2px;
 }
 
+@media (max-width: 768px) {
+  .book-card {
+    padding: 10px 12px;
+    border-radius: var(--round-sm);
+  }
+
+  .book-title {
+    font-size: 13px;
+  }
+
+  .book-body {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 8px 10px;
+  }
+
+  .sources-pagination {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .sources-page-btn.num-btn {
+    min-width: 24px;
+    height: 24px;
+    font-size: 11px;
+  }
+
+  .sources-page-btn.nav-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+}
+

@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { ChatHeader } from './components/Chat/ChatHeader';
 import { MessageList } from './components/Chat/MessageList';
 import { Composer } from './components/Chat/Composer';
 import { BrowseModal } from './components/Modals/BrowseModal';
 import { Toast } from './components/Modals/Toast';
+import { AdminDashboard } from './pages/AdminDashboard';
 import { useChatStream } from './hooks/useChatStream';
 import { useFacultyTree } from './hooks/useFacultyTree';
 
@@ -15,6 +16,22 @@ import './styles/book-card.css';
 import './styles/modals.css';
 
 export const App: React.FC = () => {
+  // Current route pathname
+  const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname);
+
+  const navigate = useCallback((path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [browseModalOpen, setBrowseModalOpen] = useState(false);
@@ -64,7 +81,6 @@ export const App: React.FC = () => {
   );
 
   const handleToggleSidebar = () => {
-    // Nếu màn hình mobile -> mở drawer, desktop -> toggle collapse
     if (window.innerWidth <= 768) {
       setMobileSidebarOpen((prev) => !prev);
     } else {
@@ -72,6 +88,12 @@ export const App: React.FC = () => {
     }
   };
 
+  // Nếu đang ở trang /admin -> render AdminDashboard
+  if (currentPath === '/admin' || currentPath.startsWith('/admin/')) {
+    return <AdminDashboard onGoToChat={() => navigate('/chat')} />;
+  }
+
+  // Mặc định render Chatbot UI
   return (
     <div className={`shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar

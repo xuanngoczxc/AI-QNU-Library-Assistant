@@ -141,3 +141,56 @@ export async function loginAdmin(password: string): Promise<{ token: string; sta
 
   return res.json();
 }
+
+export async function fetchAdminDashboard(token: string) {
+  const res = await fetch('/api/admin/dashboard', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) throw new Error('Không thể tải thông tin admin');
+  return res.json();
+}
+
+export async function uploadAdminData(token: string, file: File) {
+  const fd = new FormData();
+  fd.append('token', token);
+  fd.append('file', file);
+  const res = await fetch('/api/admin/upload-data', {
+    method: 'POST',
+    body: fd,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Upload thất bại');
+  return data;
+}
+
+export async function deleteAdminFile(token: string, fileName: string) {
+  const res = await fetch('/api/admin/delete-file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, file_name: fileName }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Xóa thất bại');
+  return data;
+}
+
+export async function fetchUsageAnalytics(dateFrom?: string, dateTo?: string) {
+  let url = '/api/usage/analytics';
+  const params: string[] = [];
+  if (dateFrom) params.push(`date_from=${dateFrom}`);
+  if (dateTo) params.push(`date_to=${dateTo}`);
+  if (params.length) url += `?${params.join('&')}`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Không thể tải dữ liệu phân tích');
+  return res.json();
+}
+
+export async function fetchRecentActivity(limit = 10) {
+  const res = await fetch(`/api/usage/recent?n=${limit}`);
+  if (!res.ok) throw new Error('Không thể tải hoạt động gần đây');
+  return res.json();
+}
+

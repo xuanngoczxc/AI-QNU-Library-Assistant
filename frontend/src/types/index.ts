@@ -67,3 +67,58 @@ export interface BrowseDocumentResponse {
   limit: number;
   error?: string;
 }
+
+export interface AdminFileItem {
+  name: string;
+  size: number;
+  mtime: string;
+}
+
+export interface AdminDashboardData {
+  documents?: {
+    total?: number;
+  };
+  updated?: {
+    last_data_update?: string;
+  };
+  files?: AdminFileItem[];
+}
+
+export interface DailyQueryItem {
+  date: string;
+  queries: number;
+  no_result?: number;
+}
+
+export interface IntentDistItem {
+  intent: string;
+  count: number;
+  pct: number;
+}
+
+export interface TopQueryItem {
+  query: string;
+  count: number;
+}
+
+export interface AnalyticsResponse {
+  total: number;
+  unique_days?: number;
+  daily_queries?: DailyQueryItem[];
+  daily_no_result?: { date: string; count: number }[];
+  intent_distribution?: IntentDistItem[];
+  top_queries?: TopQueryItem[];
+}
+
+export interface RecentActivityEntry {
+  query: string;
+  result_count?: number;
+  latency_ms?: number;
+  ts: string;
+  error?: boolean;
+}
+
+export interface RecentActivityResponse {
+  entries: RecentActivityEntry[];
+}
+

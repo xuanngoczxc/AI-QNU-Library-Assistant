@@ -92,8 +92,10 @@ body {
   body {
     padding: 0;
   }
-  .shell {
+  .shell,
+  .admin-app {
     height: 100dvh;
+    height: 100vh;
     border-radius: 0;
     max-width: 100%;
     box-shadow: none;
