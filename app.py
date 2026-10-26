@@ -3690,6 +3690,9 @@ async def chat_stream(req: ChatRequest, fast_request: Request = None):
 
 @app.get("/")
 def root():
+    react_index = Path("frontend/dist/index.html")
+    if react_index.exists():
+        return FileResponse(str(react_index), media_type="text/html", headers={"Cache-Control": "no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
     return {"status": "ok", "message": "Thư viện QNU RAG API đang chạy", "llm_backend": "OpenRouter", "model": OPENROUTER_MODEL, "ui_url": "/chat", "read_only": is_vercel_runtime()}
 
 @app.get("/chat", response_class=FileResponse)
@@ -3715,9 +3718,29 @@ def serve_chat_ui():
         content = content.replace('<script>\nconst BACKEND', inline + '\n<script>\nconst BACKEND', 1)
     return Response(content=content, media_type="text/html", headers={"Cache-Control": "no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"})
 
-@app.get("/static/SHL-logo.png", response_class=FileResponse, include_in_schema=False)
+@app.get("/SHL-logo.png", include_in_schema=False)
+@app.get("/static/SHL-logo.png", include_in_schema=False)
 def serve_logo():
-    return FileResponse("SHL-logo.png", media_type="image/png")
+    react_logo = Path("frontend/dist/SHL-logo.png")
+    if react_logo.exists():
+        return FileResponse(str(react_logo), media_type="image/png")
+    if os.path.exists("SHL-logo.png"):
+        return FileResponse("SHL-logo.png", media_type="image/png")
+    raise HTTPException(404, "Logo not found")
+
+@app.get("/favicon.svg", include_in_schema=False)
+def serve_dist_favicon_svg():
+    fav = Path("frontend/dist/favicon.svg")
+    if fav.exists():
+        return FileResponse(str(fav), media_type="image/svg+xml")
+    raise HTTPException(404, "Favicon not found")
+
+@app.get("/icons.svg", include_in_schema=False)
+def serve_dist_icons_svg():
+    ico = Path("frontend/dist/icons.svg")
+    if ico.exists():
+        return FileResponse(str(ico), media_type="image/svg+xml")
+    raise HTTPException(404, "Icons not found")
 
 # ── Serve embed/widget files ──────────────────────────────
 @app.get("/embed/{filename}", include_in_schema=False)

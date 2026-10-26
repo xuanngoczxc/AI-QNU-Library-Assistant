@@ -16,6 +16,9 @@ __pycache__
 uvicorn*.log
 pdf_cache.json
 
+frontend/node_modules
+frontend/dist
+
 Data/_documents_cache.pkl
 Data/_topic_index.pkl
 *.faiss

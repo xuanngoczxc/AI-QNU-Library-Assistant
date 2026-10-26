@@ -1,0 +1,32 @@
+services:
+  qnu-library-assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qnu-library-assistant
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-qnu/qwen3.8-27b-fp8}
+      - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://qnu-9router.duckdns.org/v1}
+      - OPENROUTER_FALLBACK_MODELS=${OPENROUTER_FALLBACK_MODELS:-}
+      - OPENROUTER_HTTP_REFERER=${OPENROUTER_HTTP_REFERER:-http://localhost:8000}
+      - OPENROUTER_APP_TITLE=${OPENROUTER_APP_TITLE:-QNU Library Assistant}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+    volumes:
+      - ./Data:/code/Data
+      - ./usage-logs:/code/usage-logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
