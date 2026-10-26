@@ -431,10 +431,21 @@
   min-width: 0;
 }
 
-.admin-card-daily { grid-area: daily; }
-.admin-card-intent { grid-area: intent; }
-.admin-card-top { grid-area: top; }
-.admin-card-recent { grid-area: recent; }
+.admin-card-daily {
+  grid-area: daily;
+}
+
+.admin-card-intent {
+  grid-area: intent;
+}
+
+.admin-card-top {
+  grid-area: top;
+}
+
+.admin-card-recent {
+  grid-area: recent;
+}
 
 .admin-chart-card {
   background: var(--surface);
@@ -642,6 +653,7 @@
   .admin-kpi-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
   .admin-chart-grid {
     grid-template-columns: 1fr;
     grid-template-areas:

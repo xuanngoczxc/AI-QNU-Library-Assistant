@@ -25,7 +25,7 @@ export const FacultyTree: React.FC<FacultyTreeProps> = ({
 }) => {
   return (
     <div>
-      <div className="section-title">Danh mục Khoa &amp; Ngành</div>
+      <div className="section-title">Tài liệu theo Khoa &amp; Ngành</div>
 
       <div className="faculty-tree">
         {loading && <div className="faculty-tree-loading">Đang tải danh mục khoa...</div>}

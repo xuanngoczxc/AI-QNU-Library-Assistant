@@ -17,6 +17,13 @@ from .text_utils import normalize_text
 
 DATA_DIR = Path("Data")
 
+def _safe_print(*args, **kwargs):
+    try:
+        print(*args, **kwargs)
+    except UnicodeEncodeError:
+        text = ' '.join(str(a) for a in args)
+        print(text.encode('ascii', errors='replace').decode('ascii'), **kwargs)
+
 class BM25SearchEngine:
     """BM25 ranking algorithm for efficient full-text search"""
 
@@ -43,7 +50,7 @@ class BM25SearchEngine:
 
         self.avg_doc_length = sum(self.doc_lengths) / len(self.doc_lengths) if self.doc_lengths else 1
         self.num_docs = len(self.documents)
-        print(f"✅ BM25 Index built: {self.num_docs} docs, {len(self.vocabulary)} unique terms")
+        _safe_print(f"✅ BM25 Index built: {self.num_docs} docs, {len(self.vocabulary)} unique terms")
 
     def _tokenize(self, text):
         tokens = re.findall(r'\w+', text.lower(), re.UNICODE)
@@ -129,10 +136,10 @@ class BM25SearchEngine:
             if coverage < min_coverage:
                 continue
 
-            # Các token phải xuất hiện đúng thứ tự và gần nhau (cách tối đa 3 từ)
-            if len(tokens) >= 2:
-                if not self._tokens_in_proximity(self.tokenized_docs[doc_idx], tokens, max_gap=3):
-                    continue
+            # Proximity boost: thưởng điểm khi các từ khóa xuất hiện gần nhau
+            proximity_boost = 0.0
+            if len(tokens) >= 2 and self._tokens_in_proximity(self.tokenized_docs[doc_idx], tokens, max_gap=6):
+                proximity_boost = 4.0
 
             bm25_score = self._bm25_score(tokens, doc_idx)
 
@@ -142,7 +149,7 @@ class BM25SearchEngine:
                 if re.search(re.escape(normalized_query), doc_text, re.IGNORECASE):
                     regex_boost = 5.0
 
-            total_score = bm25_score + regex_boost
+            total_score = bm25_score + regex_boost + proximity_boost
             if total_score >= min_score:
                 scores.append((doc_idx, total_score))
 
@@ -188,11 +195,6 @@ class BM25SearchEngine:
 
             if coverage < min_coverage:
                 continue
-
-            # Các token phải xuất hiện đúng thứ tự và gần nhau (cách tối đa 3 từ)
-            if len(tokens) >= 2:
-                if not self._tokens_in_proximity(self.tokenized_docs[doc_idx], tokens, max_gap=3):
-                    continue
 
             bm25_score = self._bm25_score(tokens, doc_idx)
             if bm25_score >= min_score:
@@ -254,7 +256,13 @@ class DocumentIndexer:
         # 2. Load XLSX files — ưu tiên upload-* nếu có (bản đầy đủ hơn)
         #    File gốc qnu-allITEM-* vẫn giữ trong thư mục để backup
         upload_files = sorted(data_path.glob("upload-*.xlsx"))
-        main_files = sorted(data_path.glob("qnu-allITEM-*-chuan-hoa.xlsx"))
+        # Ưu tiên file chuẩn hóa mới qnu-allITEM-*-chuan-hoa-new.xlsx
+        new_main_files = [f for f in data_path.glob("qnu-allITEM-*-chuan-hoa-new.xlsx") if not f.name.endswith(".backup_raw.xlsx")]
+        if new_main_files:
+            main_files = sorted(new_main_files)
+        else:
+            main_files = sorted(data_path.glob("qnu-allITEM-*-chuan-hoa.xlsx"))
+
         if upload_files:
             xlsx_files = upload_files  # chỉ load file upload
             skip_main = True
@@ -265,7 +273,10 @@ class DocumentIndexer:
         for xlsx_f in xlsx_files:
             try:
                 fmt = DocumentIndexer._detect_xlsx_format(str(xlsx_f))
-                if fmt == "marc":
+                if fmt == "standardized":
+                    xlsx_docs = DocumentIndexer._load_xlsx_standardized(str(xlsx_f))
+                    print(f"✅ Loaded {len(xlsx_docs)} documents from {xlsx_f.name} (standardized 32-column structure)")
+                elif fmt == "marc":
                     xlsx_docs = DocumentIndexer._load_xlsx_marc(str(xlsx_f))
                     print(f"✅ Loaded {len(xlsx_docs)} documents from {xlsx_f.name} (MARC structure)")
                 else:
@@ -572,10 +583,11 @@ class DocumentIndexer:
 
     @staticmethod
     def _detect_xlsx_format(filepath):
-        """Auto-detect whether an XLSX file uses MARC tag columns (100, 245, 260...)
+        """Auto-detect whether an XLSX file uses standardized 32 columns,
+        MARC numeric tag columns (100, 245, 260...),
         or generic Vietnamese/English column names (Tiêu đề, Tác giả, Title...).
 
-        Returns: 'marc' or 'generic'
+        Returns: 'standardized', 'marc' or 'generic'
         """
         try:
             df = pd.read_excel(filepath, header=0, nrows=3, dtype=str)
@@ -583,6 +595,13 @@ class DocumentIndexer:
             return "generic"
 
         cols = [str(c).strip() for c in df.columns]
+        standardized_indicators = {
+            "Nhan đề chính(245$a)", "Số ĐKCB",
+            "Chỉ số phân loai DDC(082$a)", "Tác giả chính(100$a)"
+        }
+        if any(ind in cols for ind in standardized_indicators):
+            return "standardized"
+
         # MARC format: has numeric tag columns like 100, 245, 260, 520, 650, 856
         marc_tags = {"100", "245", "246", "250", "260", "261", "291", "520", "526", "650", "700", "856"}
         numeric_cols = {c for c in cols if c.isdigit()}
@@ -771,7 +790,7 @@ class DocumentIndexer:
     @staticmethod
     def _doc_to_markdown(title, bilingual, subtitle, edition, author, co_authors,
                          place, publisher, year, major, doc_type, course, abstract,
-                         keywords, locations):
+                         keywords, locations, ddc=None, ddc_cutter=None):
         """Convert parsed MARC fields into a single markdown block (used as searchable text).
 
         245 (title), 246 (bilingual), 250 (edition) are grouped on the same heading line.
@@ -800,6 +819,11 @@ class DocumentIndexer:
             lines.append(f"**Nơi xuất bản:** {place}")
         if year:
             lines.append(f"**Năm xuất bản:** {year}")
+        if ddc:
+            ddc_line = f"**Phân loại DDC:** {ddc}"
+            if ddc_cutter:
+                ddc_line += f" / {ddc_cutter}"
+            lines.append(ddc_line)
         if doc_type:
             lines.append(f"**Loại tài liệu:** {doc_type}")
         if major:
@@ -818,6 +842,230 @@ class DocumentIndexer:
             lines.append("### Tóm tắt")
             lines.append(abstract)
         return "\n".join(lines).strip()
+
+    @staticmethod
+    def _load_xlsx_standardized(filepath):
+        """Load documents from standardized 32-column library XLSX file (e.g. qnu-allITEM-*-new.xlsx)."""
+        documents = []
+        try:
+            xl = pd.ExcelFile(filepath)
+            sheet = 'Dữ liệu chuẩn hóa' if 'Dữ liệu chuẩn hóa' in xl.sheet_names else 0
+            df = pd.read_excel(filepath, sheet_name=sheet, header=0, dtype=str)
+        except Exception as e:
+            print(f"⚠️ Cannot read {filepath}: {e}")
+            return documents
+
+        if df.empty:
+            return documents
+
+        col_map = {str(c).strip(): c for c in df.columns}
+
+        def _val(row, *possible_keys):
+            for k in possible_keys:
+                for c_clean, c_orig in col_map.items():
+                    if k.lower() in c_clean.lower():
+                        v = row.get(c_orig)
+                        if pd.notna(v):
+                            s = str(v).strip()
+                            if s and s.lower() != 'nan':
+                                return s
+            return ''
+
+        cleaner = DocumentIndexer._clean_marc_value
+
+        for idx, row in df.iterrows():
+            try:
+                doc_id = _val(row, 'ItemId')
+                title = cleaner(_val(row, 'Nhan đề chính(245$a)', 'Nhan đề chính'))
+                subtitle = cleaner(_val(row, 'Nhan đề khác(245$b)', 'Nhan đề khác'))
+                bilingual = cleaner(_val(row, 'Nhan đề song song(246$a)', 'Nhan đề song song'))
+                part_no = cleaner(_val(row, '245$n', 'Số thứ tự tập'))
+                part_name = cleaner(_val(row, '245$p', 'Tên của tập'))
+
+                author_100 = cleaner(_val(row, 'Tác giả chính(100$a)', 'Tác giả chính'))
+                resp_245c = cleaner(_val(row, 'Trách nhiệm(245$c)', 'Trách nhiệm'))
+                # Ưu tiên lấy Trách nhiệm(245$c) để hiển thị vì đầy đủ danh sách tác giả/dịch giả hơn
+                author = resp_245c or author_100 or 'Unknown'
+
+                co_authors_raw = cleaner(_val(row, '700$a', 'đồng tác giả'))
+                co_authors = []
+                if co_authors_raw:
+                    parts = [a.strip() for a in re.split(r'[,;|]', co_authors_raw) if a.strip()]
+                    for p in parts:
+                        norm_p = DocumentIndexer._normalize_author(p)
+                        norm_auth = DocumentIndexer._normalize_author(author)
+                        if p and norm_p not in norm_auth and p.lower() not in author.lower() and p not in co_authors:
+                            co_authors.append(p)
+
+                authors_list = [author] + [c for c in co_authors if c != author] if author != 'Unknown' else co_authors
+                role = cleaner(_val(row, '700$e', 'Thuật ngữ liên quan'))
+
+                publisher = cleaner(_val(row, '260$b', 'Tên nhà xuất bản'))
+                place = cleaner(_val(row, '260$a', 'Nơi xuất bản'))
+                year_raw = _val(row, '260$c', 'Năm xuất bản')
+                year = re.sub(r'\D', '', year_raw) if year_raw else 'N/A'
+
+                ddc = cleaner(_val(row, '082$a', 'DDC(082$a)'))
+                ddc_cutter = cleaner(_val(row, '082$b', '082$b'))
+                udc = cleaner(_val(row, '084$a', 'UDC(084$a)'))
+                isbn = cleaner(_val(row, '020$a', 'ISBN'))
+                price = cleaner(_val(row, '020$c', 'Giá tiền'))
+                language = cleaner(_val(row, '041$a', 'Ngôn ngữ'))
+                physical = cleaner(_val(row, '300$a', 'Khối lượng'))
+                illustration = cleaner(_val(row, '300$b', 'Tài liệu minh họa'))
+                size = cleaner(_val(row, '300$c', 'Khổ'))
+                series = cleaner(_val(row, '490$a', 'tùng thư'))
+                other_class = cleaner(_val(row, '084$b', 'Chỉ số phân loại khác'))
+                copyright_note = cleaner(_val(row, '540$a', 'xuất xứ', 'bản quyền'))
+                notes = cleaner(_val(row, '500$a', 'Ghi chú chung'))
+                abstract = cleaner(_val(row, '520$a', 'Tóm tắt'))
+                # Chuyên ngành là cột Tên của chương trình(526$a)
+                major = cleaner(_val(row, 'Tên của chương trình(526$a)', '526$a', 'chương trình'))
+                # Loại tài liệu chính là cột Mức độ quan tâm(526$b)
+                doc_type_raw = cleaner(_val(row, 'Mức độ quan tâm(526$b)', '526$b', 'quan tâm', 'Mức độ'))
+                doc_type = doc_type_raw
+                if doc_type:
+                    dt_lower = doc_type.lower()
+                    if dt_lower in ('tài liệu tham khảo', 'tài liệu kham khảo', 'tham khảo', 'sách tham khảo'):
+                        doc_type = 'Tài liệu tham khảo'
+                    elif dt_lower in ('giáo trình', 'giáo trình chính'):
+                        doc_type = 'Giáo trình'
+                    elif dt_lower in ('kiểm định', 'kiểm định aun'):
+                        doc_type = 'Kiểm định'
+
+                keywords_raw = cleaner(_val(row, '650$a', 'Từ khóa'))
+                keywords = [k.strip() for k in re.split(r'[,;|]', keywords_raw) if k.strip()] if keywords_raw else []
+
+                link = _val(row, '856$u', 'Đường dẫn')
+
+                raw_dkcb = _val(row, 'Số ĐKCB')
+                locations = []
+                if raw_dkcb:
+                    room_entries = [r.strip() for r in raw_dkcb.split('|') if r.strip()]
+                    for entry in room_entries:
+                        if ':' in entry:
+                            room_name, codes_str = entry.split(':', 1)
+                            codes = [c.strip() for c in codes_str.split(',') if c.strip()]
+                            locations.append({
+                                'room': room_name.strip(),
+                                'accession_numbers': codes,
+                                'count': len(codes)
+                            })
+                        else:
+                            locations.append({
+                                'room': 'Kho chung',
+                                'accession_numbers': [entry.strip()],
+                                'count': 1
+                            })
+
+                if not title and not author:
+                    continue
+
+                loc_strings = []
+                for loc in locations:
+                    accs = ', '.join(loc['accession_numbers'][:5])
+                    if len(loc['accession_numbers']) > 5:
+                        accs += f" ... (+{len(loc['accession_numbers'])-5})"
+                    loc_strings.append(f"**{loc['room']}**: {accs} (tổng: {loc['count']})")
+
+                location_display = ' ; '.join(
+                    f"{loc['room']}: {', '.join(loc['accession_numbers'][:3])}"
+                    f"{' ...' if loc['count'] > 3 else ''} (SL: {loc['count']})"
+                    for loc in locations
+                )
+
+                text = DocumentIndexer._doc_to_markdown(
+                    title=title,
+                    bilingual=bilingual,
+                    subtitle=subtitle,
+                    edition='',
+                    author=author,
+                    co_authors=co_authors,
+                    place=place,
+                    publisher=publisher,
+                    year=year,
+                    major=major,
+                    doc_type=doc_type,
+                    course='',
+                    abstract=abstract,
+                    keywords=keywords,
+                    locations=loc_strings,
+                    ddc=ddc,
+                    ddc_cutter=ddc_cutter,
+                )
+
+                flat_parts = [
+                    title, subtitle, bilingual, part_no, part_name,
+                    author, author_100, ' '.join(co_authors),
+                    publisher, place, year,
+                    (f"ddc {ddc}" if ddc else ''),
+                    ddc, ddc_cutter,
+                    (f"udc {udc}" if udc else ''),
+                    udc, isbn,
+                    (f"chuyên ngành {major}" if major else ''),
+                    major,
+                    (f"loại tài liệu {doc_type}" if doc_type else ''),
+                    doc_type,
+                    abstract, notes,
+                    ' '.join(keywords),
+                    ' '.join(loc['room'] for loc in locations),
+                    ' '.join(' '.join(loc['accession_numbers'][:10]) for loc in locations),
+                    doc_id
+                ]
+                flat_text = ' '.join(p for p in flat_parts if p)
+
+                document = {
+                    'title': title,
+                    'author': author,
+                    'author_100': author_100,
+                    'responsibility': resp_245c,
+                    'co_authors': co_authors,
+                    'authors': authors_list,
+                    'year': year if year else 'N/A',
+                    'subject': (keywords[0] if keywords else (major or publisher)),
+                    'link': link,
+                    'doc_type': doc_type,
+                    'format': 'Sách',
+                    'publisher': publisher,
+                    'place': place,
+                    'edition': '',
+                    'major': major,
+                    'bilingual_title': bilingual,
+                    'subtitle': subtitle,
+                    'part_number': part_no,
+                    'part_name': part_name,
+                    'course': '',
+                    'keywords': keywords,
+                    'abstract': abstract,
+                    'ddc': ddc,
+                    'ddc_cutter': ddc_cutter,
+                    'udc': udc,
+                    'isbn': isbn,
+                    'price': price,
+                    'language': language,
+                    'physical': physical,
+                    'illustration': illustration,
+                    'size': size,
+                    'series': series,
+                    'other_class': other_class,
+                    'copyright': copyright_note,
+                    'notes': notes,
+                    'role': role,
+                    'doc_id': doc_id,
+                    'locations': locations,
+                    'location': location_display,
+                    'source': str(filepath),
+                    'csv_file': str(filepath),
+                    'text': text,
+                    'flat_text': flat_text,
+                }
+                documents.append(document)
+            except Exception as e:
+                if idx < 5:
+                    print(f"⚠️ Error parsing row {idx}: {e}")
+                continue
+
+        return documents
 
     @staticmethod
     def _load_xlsx_marc(filepath):
@@ -1065,7 +1313,8 @@ class HybridSearchEngine:
         return related[:top_k]
 
     def search_with_filters(self, query, filters=None, top_k=6):
-        results = self.bm25.search(query, top_k=top_k*2)
+        initial_k = max(top_k * 8, 80) if filters else top_k * 2
+        results = self.bm25.search(query, top_k=initial_k)
 
         if filters:
             try:
@@ -1086,28 +1335,27 @@ class HybridSearchEngine:
                 "bo mon ", "cong nghe ", "cong nghe ky thuat ",
             )
 
+            def _clean_m(s: str) -> str:
+                s = normalize_text(str(s or ""))
+                s = re.sub(r"[-_/,]+", " ", s)
+                return re.sub(r"\s+", " ", s).strip()
+
             def _major_matches_filter(fmajor: str, doc_major: str) -> bool:
                 if not doc_major:
                     return False
-                if fmajor == doc_major:
+                f_clean = _clean_m(fmajor)
+                d_clean = _clean_m(doc_major)
+                if not f_clean or not d_clean:
+                    return False
+                if f_clean == d_clean or f_clean in d_clean:
                     return True
-                f_tokens = set(fmajor.split())
-                candidates = {fmajor}
                 for cn in _all_canonicals:
-                    if cn == fmajor:
-                        candidates.add(cn)
-                for c in candidates:
-                    if c and c in doc_major:
+                    cn_clean = _clean_m(cn)
+                    if cn_clean == f_clean and cn_clean in d_clean:
                         return True
-                    if c and doc_major.startswith(c + " "):
+                for pfx in _ACCEPT_PREFIXES:
+                    if d_clean == (_clean_m(pfx) + " " + f_clean).strip():
                         return True
-                    if c and doc_major.startswith(c + ","):
-                        return True
-                # Prefix variations
-                for c in candidates:
-                    for pfx in _ACCEPT_PREFIXES:
-                        if doc_major == (pfx.rstrip() + " " + c).strip():
-                            return True
                 return False
 
             for result in results[:]:
@@ -1131,6 +1379,13 @@ class HybridSearchEngine:
                     fmajor = normalize_text(filters['major']).strip()
                     doc_major = normalize_text(str(doc.get('major', '')))
                     if not _major_matches_filter(fmajor, doc_major):
+                        results.remove(result)
+                        continue
+
+                if 'doc_type' in filters and filters['doc_type']:
+                    fdoctype = normalize_text(filters['doc_type']).strip().lower()
+                    doc_dt = normalize_text(str(doc.get('doc_type', ''))).strip().lower()
+                    if not doc_dt or (fdoctype not in doc_dt and doc_dt not in fdoctype):
                         results.remove(result)
                         continue
 

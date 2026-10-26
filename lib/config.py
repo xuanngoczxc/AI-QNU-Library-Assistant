@@ -9,20 +9,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "poolside/laguna-xs.2:free")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "qnu/qwen3.5-9b").strip()
+_raw_fallback = os.getenv("OPENROUTER_FALLBACK_MODELS", "").strip()
 OPENROUTER_FALLBACK_MODELS = [
     m.strip()
-    for m in os.getenv(
-        "OPENROUTER_FALLBACK_MODELS",
-        "meta-llama/llama-3.3-70b-instruct:free,"
-        "qwen/qwen-2.5-72b-instruct:free,"
-        "mistralai/mistral-small-3.2-24b-instruct:free,"
-        "google/gemini-2.0-flash-exp:free,"
-        "openai/gpt-oss-20b:free"
-    ).split(",")
+    for m in _raw_fallback.split(",")
     if m.strip()
-]
-OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+] if _raw_fallback else []
+
+_raw_base = os.getenv("OPENROUTER_BASE_URL", "https://qnu-9router.duckdns.org/v1").strip().rstrip("/")
+if _raw_base.endswith("/chat/completions"):
+    _raw_base = _raw_base[:-len("/chat/completions")].rstrip("/")
+OPENROUTER_BASE_URL = _raw_base
+
 OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "QNU Library Assistant")
 OPENROUTER_HTTP_REFERER = os.getenv("OPENROUTER_HTTP_REFERER", "http://localhost:8000")
 

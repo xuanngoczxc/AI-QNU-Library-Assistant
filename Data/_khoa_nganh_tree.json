@@ -1,7 +1,7 @@
 [
   {
-    "khoa": "Khoa ngoại ngữ",
-    "total": 513,
+    "khoa": "Khoa Ngoại ngữ",
+    "total": 532,
     "nganh": [
       {
         "nganh": "Ngôn ngữ Trung Quốc",
@@ -10,216 +10,300 @@
       {
         "nganh": "Ngôn ngữ Anh",
         "count": 194
+      },
+      {
+        "nganh": "Ngôn ngữ học",
+        "count": 19
       }
     ]
   },
   {
-    "khoa": "Khoa sư phạm",
-    "total": 438,
+    "khoa": "Khoa Sư phạm",
+    "total": 436,
     "nganh": [
       {
-        "nganh": "Sư phạm Lịch sử",
-        "count": 102
+        "nganh": "Sư phạm Tin học",
+        "count": 81
       },
       {
-        "nganh": "Sư phạm Tin học",
-        "count": 76
+        "nganh": "Sư phạm Lịch sử",
+        "count": 78
       },
       {
         "nganh": "Sư phạm Vật lý",
-        "count": 65
-      },
-      {
-        "nganh": "Sư phạm Toán",
-        "count": 58
+        "count": 61
       },
       {
         "nganh": "Sư phạm Sinh học",
-        "count": 57
+        "count": 52
       },
       {
         "nganh": "Sư phạm Địa lý",
         "count": 51
       },
       {
-        "nganh": "Sư phạm Hóa học",
-        "count": 14
+        "nganh": "Giáo dục Chính trị",
+        "count": 46
+      },
+      {
+        "nganh": "Sư phạm Toán học",
+        "count": 44
+      },
+      {
+        "nganh": "Sư phạm Lịch sử - Địa lý",
+        "count": 11
       },
       {
         "nganh": "Sư phạm Ngữ văn",
         "count": 8
       },
       {
+        "nganh": "Sư phạm Hóa học",
+        "count": 3
+      },
+      {
         "nganh": "Sư phạm Khoa học tự nhiên",
-        "count": 7
+        "count": 1
       }
     ]
   },
   {
-    "khoa": "Khoa kinh tế và kế toán",
-    "total": 408,
+    "khoa": "Khoa Kỹ thuật và Công nghệ",
+    "total": 310,
     "nganh": [
-      {
-        "nganh": "Quản trị kinh doanh",
-        "count": 204
-      },
-      {
-        "nganh": "Kế toán",
-        "count": 111
-      },
-      {
-        "nganh": "Quản lý kinh tế",
-        "count": 59
-      },
-      {
-        "nganh": "Kinh tế",
-        "count": 34
-      }
-    ]
-  },
-  {
-    "khoa": "Khoa kỹ thuật và công nghệ",
-    "total": 304,
-    "nganh": [
-      {
-        "nganh": "Kỹ thuật điện",
-        "count": 145
-      },
       {
         "nganh": "Công nghệ thực phẩm",
-        "count": 83
+        "count": 90
+      },
+      {
+        "nganh": "Kỹ thuật điện",
+        "count": 86
       },
       {
         "nganh": "Kỹ thuật xây dựng",
-        "count": 53
+        "count": 52
       },
       {
-        "nganh": "Kỹ thuật ô tô",
+        "nganh": "Kỹ thuật Điện tử - Viễn thông",
+        "count": 44
+      },
+      {
+        "nganh": "Công nghệ kỹ thuật ô tô",
         "count": 19
       },
       {
-        "nganh": "Công nghệ kỹ thuật",
-        "count": 4
+        "nganh": "Kỹ thuật điều khiển và Tự động hóa",
+        "count": 17
+      },
+      {
+        "nganh": "Công nghệ kỹ thuật hóa học",
+        "count": 2
       }
     ]
   },
   {
-    "khoa": "Khoa lý luận chính trị - Luật và Quản lý nhà nước",
-    "total": 169,
+    "khoa": "Khoa Tài chính - Ngân hàng và Quản trị kinh doanh",
+    "total": 292,
     "nganh": [
       {
-        "nganh": "Luật",
-        "count": 77
+        "nganh": "Quản trị kinh doanh",
+        "count": 169
       },
       {
-        "nganh": "Quản lý nhà nước",
-        "count": 57
+        "nganh": "Tài chính - Ngân hàng",
+        "count": 86
       },
       {
-        "nganh": "Giáo dục chính trị",
-        "count": 31
+        "nganh": "Quản trị khách sạn",
+        "count": 18
+      },
+      {
+        "nganh": "Quản trị dịch vụ du lịch và lữ hành",
+        "count": 16
+      },
+      {
+        "nganh": "Logistics và Quản lý chuỗi cung ứng",
+        "count": 3
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa Kinh tế và Kế toán",
+    "total": 231,
+    "nganh": [
+      {
+        "nganh": "Kế toán",
+        "count": 132
+      },
+      {
+        "nganh": "Quản lý kinh tế",
+        "count": 76
+      },
+      {
+        "nganh": "Kinh tế",
+        "count": 20
+      },
+      {
+        "nganh": "Kiểm toán",
+        "count": 3
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa Khoa học Xã hội và Nhân văn",
+    "total": 117,
+    "nganh": [
+      {
+        "nganh": "Quản lý giáo dục",
+        "count": 60
+      },
+      {
+        "nganh": "Đông phương học",
+        "count": 23
+      },
+      {
+        "nganh": "Văn học",
+        "count": 21
+      },
+      {
+        "nganh": "Việt Nam học",
+        "count": 4
       },
       {
         "nganh": "Công tác xã hội",
         "count": 4
-      }
-    ]
-  },
-  {
-    "khoa": "Khoa tài chính - ngân hàng và quản trị kinh doanh",
-    "total": 124,
-    "nganh": [
-      {
-        "nganh": "Tài chính - Ngân hàng",
-        "count": 124
-      }
-    ]
-  },
-  {
-    "khoa": "Khoa toán và thống kê",
-    "total": 114,
-    "nganh": [
-      {
-        "nganh": "Toán học",
-        "count": 114
-      }
-    ]
-  },
-  {
-    "khoa": "Khoa khoa học xã hội và nhân văn",
-    "total": 97,
-    "nganh": [
-      {
-        "nganh": "Văn học",
-        "count": 40
-      },
-      {
-        "nganh": "Lịch sử",
-        "count": 29
-      },
-      {
-        "nganh": "Triết học",
-        "count": 24
       },
       {
         "nganh": "Tâm lý học",
+        "count": 3
+      },
+      {
+        "nganh": "Lịch sử",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa Toán và Thống kê",
+    "total": 113,
+    "nganh": [
+      {
+        "nganh": "Toán ứng dụng",
+        "count": 56
+      },
+      {
+        "nganh": "Toán học",
+        "count": 22
+      },
+      {
+        "nganh": "Toán giải tích",
+        "count": 16
+      },
+      {
+        "nganh": "Phương pháp toán sơ cấp",
+        "count": 15
+      },
+      {
+        "nganh": "Đại số và Lý thuyết số",
         "count": 4
       }
     ]
   },
   {
-    "khoa": "Khoa khoa học tự nhiên",
-    "total": 92,
+    "khoa": "Khoa Lý luận chính trị - Luật và Quản lý Nhà nước",
+    "total": 101,
     "nganh": [
       {
-        "nganh": "Khoa học môi trường",
-        "count": 37
+        "nganh": "Luật",
+        "count": 73
+      },
+      {
+        "nganh": "Chính trị học",
+        "count": 23
+      },
+      {
+        "nganh": "Quản lý nhà nước",
+        "count": 5
+      },
+      {
+        "nganh": "Triết học",
+        "count": 0
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa Khoa học Tự nhiên",
+    "total": 98,
+    "nganh": [
+      {
+        "nganh": "Quản lý Tài nguyên và Môi trường",
+        "count": 26
       },
       {
         "nganh": "Hóa học",
-        "count": 25
+        "count": 19
       },
       {
         "nganh": "Sinh học",
-        "count": 20
+        "count": 19
       },
       {
         "nganh": "Vật lý",
+        "count": 16
+      },
+      {
+        "nganh": "Quản lý đất đai",
+        "count": 12
+      },
+      {
+        "nganh": "Nông học",
+        "count": 5
+      },
+      {
+        "nganh": "Khoa học vật liệu",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "khoa": "Khoa Công nghệ thông tin",
+    "total": 85,
+    "nganh": [
+      {
+        "nganh": "Khoa học dữ liệu",
+        "count": 61
+      },
+      {
+        "nganh": "Khoa học máy tính",
+        "count": 14
+      },
+      {
+        "nganh": "Công nghệ thông tin",
         "count": 10
       }
     ]
   },
   {
-    "khoa": "Khoa công nghệ thông tin",
-    "total": 81,
-    "nganh": [
-      {
-        "nganh": "Công nghệ thông tin",
-        "count": 81
-      }
-    ]
-  },
-  {
-    "khoa": "Khoa giáo dục tiểu học và mần non",
-    "total": 64,
+    "khoa": "Khoa Giáo dục Tiểu học và Mầm non",
+    "total": 41,
     "nganh": [
       {
         "nganh": "Giáo dục Tiểu học",
-        "count": 34
+        "count": 26
       },
       {
         "nganh": "Giáo dục Mầm non",
-        "count": 30
+        "count": 15
       }
     ]
   },
   {
-    "khoa": "Khoa giáo dục thể chất",
-    "total": 17,
+    "khoa": "Khoa Giáo dục Thể chất",
+    "total": 9,
     "nganh": [
       {
-        "nganh": "Giáo dục thể chất",
-        "count": 17
+        "nganh": "Giáo dục Thể chất",
+        "count": 9
       }
     ]
   }

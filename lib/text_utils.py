@@ -317,7 +317,123 @@ def suggest_terms_for_query(query: str) -> dict:
                 'corrected': result['spelling']
             })
 
-    return suggestions
+VIETNAMESE_SURNAMES = {
+    "nguyen", "tran", "le", "pham", "hoang", "huynh", "phan", "vu", "vo", "dang",
+    "bui", "do", "ho", "ngo", "duong", "ly", "dinh", "doan", "lam", "trinh",
+    "mai", "dao", "cao", "ha", "luu", "luong", "thai", "chau", "ta", "phung",
+    "to", "vuong", "van", "tong", "truong", "dieu", "quach", "nham", "lieu", "ton",
+    "khuu", "chu", "luc", "trieu", "la", "giang"
+}
+
+
+def clean_author_candidate(cand: str) -> str:
+    """
+    Cleans raw author candidate string by removing leading author prefixes,
+    trailing question words, location phrases, availability checks,
+    and conversational filler particles in Vietnamese.
+    """
+    if not cand:
+        return ""
+    c = cand.strip().strip(" ?.,!;:'\"")
+    # Strip leading markers like "tac gia", "cua", etc.
+    c = re.sub(r"^(?:tac\s+gia|dong\s+tac\s+gia|chu\s+bien|dich\s+gia|cua\s+tac\s+gia|cua)\s+", "", c, flags=re.I).strip()
+
+    patterns = [
+        # Location queries (ở đâu, ở phòng nào, phòng đọc nào...)
+        r"\s+\b(?:nam\s+o|o\s+tai|o|muon\s+o|tim\s+o|doc\s+o|lay\s+o|xem\s+o)\s+(?:dau|phong\s+(?:doc\s+)?nao|kho\s+nao|tang\s+(?:may|\d+)|ke\s+nao|gia\s+nao|cho\s+nao)\b.*$",
+        r"\s+\b(?:o\s+dau|nam\s+o\s+dau|o\s+phong\s+nao|o\s+kho\s+nao|o\s+tang\s+nao|o\s+tang\s+may|o\s+dau\s+vay|o\s+dau\s+a)\b.*$",
+        r"\s+\b(?:phong\s+(?:doc\s+)?nao|kho\s+nao|tang\s+(?:may|\d+)|ke\s+nao|gia\s+nao)\b.*$",
+        # Quantity / Listing (có những sách nào, có sách gì...)
+        r"\s+\b(?:co\s+(?:nhung\s+|cac\s+)?(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham|cuon|quyen)\s+nao)\b.*$",
+        r"\s+\b(?:co\s+(?:sach|tai\s+lieu|giao\s+trinh|cuon|quyen)\s+(?:gi|nao))\b.*$",
+        r"\s+\b(?:co\s+(?:tai\s+lieu|sach|giao\s+trinh)\s+gi\s+khong)\b.*$",
+        r"\s+\b(?:co\s+(?:nhung\s+|cac\s+)?(?:gi|gi\s+khong))\b.*$",
+        r"\s+\b(?:nhung\s+sach\s+nao|cac\s+sach\s+nao|sach\s+nao|tai\s+lieu\s+nao|cuon\s+nao|giao\s+trinh\s+nao)\b.*$",
+        # Borrowing / Availability
+        r"\s+\b(?:co\s+(?:duoc\s+)?(?:muon|muon\s+ve|doc)\s*(?:duoc\s+)?(?:khong|ko|k)?)\b.*$",
+        r"\s+\b(?:co\s+(?:ban\s+)?(?:dien\s+tu|ebook|pdf)\s*(?:khong|ko|k)?)\b.*$",
+        # Yes/No questioning (có không, có ko, có k, có chưa, còn không...)
+        r"\s+\b(?:co\s+khong|co\s+ko|co\s+k|co\s+chua|con\s+khong|con\s+ko|con\s+k)\b.*$",
+        r"\s+\b(?:dung\s+khong|phai\s+khong|dung\s+ko|phai\s+ko)\b.*$",
+        r"\s+\b(?:co\s+(?:chua|khong|ko|k))\b.*$",
+        # Trailing polite / question particles
+        r"\s+\b(?:khong\s+a|ko\s+a|k\s+a|khong\s+vay|ko\s+vay|k\s+vay|khong\s+nhi|ko\s+nhi|khong\s+ha|ko\s+ha)\b.*$",
+        r"\s+\b(?:khong|ko|k|chua|ha|nhi|the|vay|a|nhe|nha|voi|oi|ne)\b\s*$",
+        r"\s+\b(?:co|con)\b\s*$",
+        r"\s+\b(?:bot|ad|admin|ban|thu\s+vien)\b\s*$",
+    ]
+    for _ in range(3):
+        c = c.strip().strip(" ?.,!;:'\"")
+        for pat in patterns:
+            c = re.sub(pat, "", c, flags=re.I).strip()
+    return re.sub(r"\s+", " ", c).strip()
+
+
+def extract_author_candidate(query: str) -> str:
+    """
+    Extracts and cleans normalized author candidate from a user query.
+    Handles various phrasings:
+      - 'sách của tác giả X có không?'
+      - 'sách tác giả X ở phòng nào'
+      - 'tác giả X có sách gì'
+      - 'sách của X có không' (if X starts with a Vietnamese surname)
+    """
+    if not query:
+        return ""
+    q_norm = normalize_text(query).strip()
+    # Strip leading polite prefixes
+    q_norm = re.sub(r"^(?:da\s+)?(?:cho\s+(?:minh|em|toi)\s+(?:hoi|xin|biet)\s+)?(?:thu\s+vien\s+co\s+)?(?:co\s+)?", "", q_norm)
+    q_norm = re.sub(r"^(?:vay|the)\s+", "", q_norm)
+
+    patterns = [
+        r"\b(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham|luan\s+van)\s+(?:cua\s+(?:tac\s+gia\s+)?|ve\s+tac\s+gia\s+|tac\s+gia\s+)(.+)$",
+        r"\b(?:cua\s+)?tac\s+gia\s+(.+)$",
+        r"\b(?:sach|tai\s+lieu|giao\s+trinh)\s+cua\s+(.+)$",
+    ]
+    raw = None
+    for p in patterns:
+        m = re.search(p, q_norm)
+        if m:
+            raw = m.group(1).strip()
+            break
+
+    if not raw:
+        return ""
+
+    cleaned = clean_author_candidate(raw)
+    return cleaned
+
+
+GENERIC_BOOK_LISTING_PATTERNS = [
+    r"^(?:da\s+)?(?:cho\s+(?:em|minh|toi)\s+(?:hoi|xin|biet)\s+)?(?:thu\s+vien\s+co\s+)?(?:nhung|cac|co\s+(?:nhung|cac)?)\s+(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham|cuon|quyen)(?:\s+nao)?\b",
+    r"^(?:da\s+)?(?:sach|tai\s+lieu|giao\s+trinh|cuon|quyen)\s+nao\b",
+    r"^(?:liet\s+ke|danh\s+sach|tim\s+(?:cac|nhung)?)\s*(?:sach|tai\s+lieu|giao\s+trinh)\b",
+    r"^(?:sach|tai\s+lieu|giao\s+trinh)\s+(?:xuat\s+ban|nam\s+\d{4}|tu\s+nam|sau\s+nam)\b",
+]
+
+GENERIC_TITLES = {
+    "nhung sach nao", "sach nao", "cac sach nao", "nhung tai lieu nao", "tai lieu nao",
+    "nhung giao trinh nao", "giao trinh nao", "nhung cuon nao", "cac cuon nao", "cuon nao",
+    "nhung quyen nao", "cac quyen nao", "quyen nao", "nhung sach", "cac sach", "nhung tai lieu",
+    "cac tai lieu", "sach", "tai lieu", "giao trinh", "cuon", "quyen", "an pham", "luan van",
+    "co nhung sach nao", "co sach nao", "co tai lieu nao", "co nhung tai lieu nao", "nhung cuon sach",
+    "cac cuon sach", "nhung", "cac", "nao", "co", "khong"
+}
+
+
+def is_generic_book_listing_query(query: str) -> bool:
+    """
+    Returns True if the query is asking to list or search books in general
+    (e.g., 'những sách nào xuất bản năm 1991', 'sách nào xuất bản năm 2020')
+    rather than asking about the attributes of a single specific book.
+    """
+    if not query:
+        return False
+    qn = normalize_text(query).strip()
+    for pat in GENERIC_BOOK_LISTING_PATTERNS:
+        if re.search(pat, qn):
+            return True
+    return False
 
 
 if __name__ == "__main__":

@@ -1,30 +1,57 @@
+export interface LocationRoom {
+  room: string;
+  accession_numbers: string[];
+  count: number;
+}
+
 export interface BookSource {
+  doc_id?: string;
   title: string;
+  subtitle?: string;
+  bilingual_title?: string;
+  part_number?: string;
+  part_name?: string;
   author?: string;
+  author_100?: string;
+  responsibility?: string;
+  co_authors?: string[];
+  role?: string;
   year?: string;
-  subject?: string;
-  link?: string;
-  source?: string;
-  doc_type?: string;
-  loai_tai_lieu?: string;
-  format?: string;
-  major?: string;
   publisher?: string;
   place?: string;
   edition?: string;
-  bilingual_title?: string;
-  course?: string;
+  major?: string;
+  doc_type?: string;
+  loai_tai_lieu?: string;
+  format?: string;
+  subject?: string;
   keywords?: string[];
-  location?: string;
-  abstract?: string;
   ddc?: string;
+  ddc_cutter?: string;
+  udc?: string;
+  other_class?: string;
+  isbn?: string;
+  price?: string;
+  language?: string;
+  physical?: string;
+  illustration?: string;
+  size?: string;
+  series?: string;
   notes?: string;
+  abstract?: string;
+  copyright?: string;
+  location?: string;
+  locations?: LocationRoom[];
+  link?: string;
+  source?: string;
+  course?: string;
   description?: string;
   is_pdf?: boolean;
   pdf_id?: string;
   file_name?: string;
   display_name?: string;
   score?: number;
+  copies?: number;
 }
 
 export interface FollowUpSuggestion {

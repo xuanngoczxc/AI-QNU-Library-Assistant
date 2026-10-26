@@ -213,6 +213,8 @@
   flex-shrink: 0;
   opacity: 0.5;
   transition: transform var(--slow);
+  align-self: flex-start;
+  margin-top: 3px;
 }
 
 .faculty-header.open .faculty-chevron {
@@ -223,9 +225,9 @@
 .faculty-name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
 }
 
 .faculty-children {
@@ -290,9 +292,9 @@
 .faculty-row .name {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
 }
 
 .faculty-clear {

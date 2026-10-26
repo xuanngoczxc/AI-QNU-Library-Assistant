@@ -36,7 +36,7 @@ VIETNAMESE_STOP_WORDS = {
     "tram", "nghin", "trieu", "ty",
 }
 
-for compound_term in ("co", "chu", "giao", "hoc", "khi", "may", "quan", "tao"):
+for compound_term in ("co", "chu", "giao", "hoc", "khi", "may", "quan", "tao", "nam"):
     VIETNAMESE_STOP_WORDS.discard(compound_term)
 
 QUERY_INTENT_PATTERNS = [
@@ -92,11 +92,13 @@ GENERIC_CATALOG_PHRASES = {
     "dai hoc", "truong dai hoc", "truong dai hoc quy nhon",
     "khoa hoc", "nghien cuu", "phuong phap", "phuong phap nghien cuu",
     "nghien cuu khoa hoc", "co file", "khong co file", "loi file", "dang xu ly",
+    "cac loai", "the loai", "cac the loai", "cac dang", "nhung loai",
+    "cac loai hinh", "loai hinh", "cac van de", "nhung van de",
 }
 
 CATALOG_TOPIC_INDEX: dict[str, dict] = {}
 CATALOG_TOPIC_READY = False
-CATALOG_TOPIC_INDEX_VERSION = 2
+CATALOG_TOPIC_INDEX_VERSION = 3
 
 AI_QUERY_PATTERNS = [
     r"\btri tue nhan tao\b",
@@ -165,6 +167,7 @@ def clean_topic_tail(topic: str) -> str:
     for pattern in TOPIC_TRAILING_PATTERNS:
         topic = re.sub(pattern, " ", topic)
     topic = strip_search_intent_phrases(topic)
+    topic = re.sub(r"^(?:cac|nhung|mot so|tat ca cac|tat ca|nhom)\s+", " ", topic)
     return re.sub(r"\s+", " ", topic).strip()
 
 
@@ -244,11 +247,14 @@ def extract_keywords(text: str) -> str:
     catalog_matches = find_catalog_topic_matches(q)
     if not catalog_matches:
         catalog_matches = find_catalog_topic_matches(strip_search_intent_phrases(text))
-    selected_topics = catalog_matches[:3] if catalog_matches else [q]
+    # Filter out generic phrases
+    cleaned_matches = []
+    for cm in catalog_matches:
+        if cm in GENERIC_CATALOG_PHRASES:
+            continue
+        cleaned_matches.append(cm)
+    selected_topics = cleaned_matches[:2] if cleaned_matches else [q]
     expanded_terms = expand_domain_terms(text)
-    if catalog_matches:
-        combined = selected_topics + [normalize_topic_text(term) for term in expanded_terms]
-        return " ".join(term for term in dict.fromkeys(combined) if term)
     topic_text = " ".join(selected_topics)
     words = topic_text.split()
     protected_short_tokens = {
@@ -272,7 +278,10 @@ def extract_content_search_query(text: str) -> str:
         r"\b(?:hay|vui long)\b",
         r"\b(?:cho toi|cho minh|cho em)\b",
         r"\b(?:khong|ko|k)\b",
-        r"\b(?:sach|tai lieu|giao trinh|bai bao|bai)\s+cua\b",
+        r"\b(?:sach|tai lieu|giao trinh|bai bao|bai)\s+(?:ve|noi ve|cua)\b",
+        r"\b(?:ve|noi ve)\s+(?:cac|nhung|mot so)\b",
+        r"\b(?:ve|noi ve)\b",
+        r"^(?:cac|nhung|mot so)\s+",
         r"\bcua\s+tac gia\b",
         r"\btim kiem\b",
         r"\b(?:tim|tra cuu|liet ke)\b",
@@ -309,8 +318,6 @@ def get_doc_topic_fields(doc: dict) -> dict[str, str]:
         ("subject", doc.get("subject", "")), ("major", doc.get("major", "")),
         ("course", doc.get("course", "")), ("publisher", doc.get("publisher", "")),
         ("abstract", doc.get("abstract", "")), ("notes", doc.get("notes", "")),
-        ("doc_type", doc.get("doc_type", "")),
-        ("text_preview", (doc.get("text") or "")[:500]),
     ]
     # Include extra_fields (unmapped columns from generic XLSX loader)
     for k, v in doc.get("extra_fields", {}).items():
@@ -577,10 +584,10 @@ def search_topic_cache(query: str, bm25_documents: list[dict]) -> list[dict] | N
         prefix_key = f"__prefix__{q}"
         if prefix_key in TOPIC_CACHE:
             exact.update(TOPIC_CACHE[prefix_key])
-        return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in list(exact)[:120]]
+        return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in list(exact)]
     prefix_key = f"__prefix__{q}"
     if prefix_key in TOPIC_CACHE:
-        return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in TOPIC_CACHE[prefix_key][:120]]
+        return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in TOPIC_CACHE[prefix_key]]
     words = q.split()
     if len(words) >= 2:
         candidate_sets = []
@@ -753,6 +760,63 @@ def detect_year_constraint(query: str) -> tuple[int | None, str | None]:
     return None, None
 
 
+def doc_matches_year(doc: dict, year: int, direction: str = 'exact') -> bool:
+    """Kiểm tra document có khớp với điều kiện năm (exact / after / before) không."""
+    if not doc or not year:
+        return False
+    doc_year = doc.get('year', 0) if isinstance(doc, dict) else 0
+    if not doc_year or doc_year in ('N/A', 'Unknown', 'None', ''):
+        return False
+    try:
+        dy = int(doc_year)
+    except (ValueError, TypeError):
+        return False
+    if direction == 'exact':
+        return dy == year
+    elif direction == 'after':
+        return dy >= year
+    elif direction == 'before':
+        return dy <= year
+    return False
+
+
+def is_pure_year_query(query: str) -> tuple[bool, int | None, str | None]:
+    """
+    Phát hiện câu hỏi liệt kê sách thuần túy theo năm (không chứa chủ đề, ngành, hay tác giả cụ thể).
+    Ví dụ:
+    - 'những sách nào xuất bản năm 1991' -> (True, 1991, 'exact')
+    - 'sách xuất bản năm 1991' -> (True, 1991, 'exact')
+    - 'những sách từ năm 2020' -> (True, 2020, 'after')
+    - 'sách công nghệ thông tin năm 1991' -> (False, None, None)  (vì có chủ đề CNTT)
+    """
+    if not query:
+        return False, None, None
+    year, direction = detect_year_constraint(query)
+    if not year:
+        return False, None, None
+
+    q_norm = normalize_topic_text(query)
+    q_sub = re.sub(r'\b\d{4}\b', ' ', q_norm)
+    noise = [
+        "nhung", "cac", "co", "sach", "tai lieu", "giao trinh", "an pham",
+        "cuon", "quyen", "nao", "xuat ban", "xuat", "ban", "nam",
+        "tu", "sau", "truoc", "tro di", "tro ve", "tro len", "ve truoc",
+        "thoi", "ky", "giai doan", "trong", "vao", "khoang", "thoi diem",
+        "danh sach", "liet ke", "tim", "cho", "em", "minh", "toi", "hoi",
+        "xin", "biet", "thu vien", "co nhung", "tat ca", "nhung cuon", "cac cuon",
+        "nhung quyen", "cac quyen", "nhung sach", "cac sach"
+    ]
+    for w in sorted(noise, key=len, reverse=True):
+        q_sub = re.sub(r'\b' + re.escape(w) + r'\b', ' ', q_sub)
+
+    rem = q_sub.strip()
+    rem = re.sub(r'\s+', ' ', rem)
+    if len(rem) <= 2:
+        return True, year, direction
+    return False, None, None
+
+
+
 _BEGINNER_PHRASES = frozenset([
     "moi bat dau", "nguoi moi", "cho nguoi moi",
     "moi hoc", "bat dau",
@@ -887,7 +951,10 @@ def filter_by_language(results: list[dict], lang: str) -> list[dict]:
                 filtered.append(r)
         else:
             lang_norm = normalize_text(lang)
-            if lang_norm in norm_loc or lang_norm in norm_bilingual:
+            doc_lang = (doc.get('language', '') or '').lower()
+            if (lang_norm in norm_loc or lang_norm in norm_bilingual or
+                (lang == 'trung' and doc_lang in ('chi', 'zh', 'zho')) or
+                (lang == 'pháp' and doc_lang in ('fre', 'fr', 'fra'))):
                 filtered.append(r)
     return filtered
 

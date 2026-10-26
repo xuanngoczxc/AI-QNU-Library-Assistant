@@ -4,7 +4,7 @@ Import this module to read/write app-wide state.
 """
 
 import time
-from collections import Counter, deque
+from collections import Counter, deque, OrderedDict
 from .config import LLM_CIRCUIT_THRESHOLD, LLM_CIRCUIT_COOLDOWN, MAX_HISTORY
 
 # ── Uptime ────────────────────────────────────────────────
@@ -25,11 +25,34 @@ llm_circuit = {
     "cooldown_seconds": LLM_CIRCUIT_COOLDOWN,
 }
 
-# ── Session history (key = session_id) ────────────────────
-session_history: dict[str, list[dict]] = {}
+# ── Session history (key = session_id, max 2000 sessions with LRU eviction) ────
+MAX_SESSIONS = 2000
+session_history: OrderedDict[str, list[dict]] = OrderedDict()
 
 # ── PDF session history (key = "session_id:pdf_id") ──────
-pdf_session_history: dict[str, list[dict]] = {}
+pdf_session_history: OrderedDict[str, list[dict]] = OrderedDict()
+
+
+def get_session_history(session_id: str) -> list[dict]:
+    """Retrieve session history and mark as recently accessed (LRU)."""
+    if not session_id:
+        return []
+    if session_id in session_history:
+        session_history.move_to_end(session_id)
+        return session_history[session_id]
+    return []
+
+
+def save_session_history(session_id: str, history: list[dict]) -> None:
+    """Save session history with bounded LRU eviction to prevent memory leaks."""
+    if not session_id:
+        return
+    session_history[session_id] = history[-MAX_HISTORY:]
+    session_history.move_to_end(session_id)
+    # Evict oldest sessions when capacity is exceeded
+    while len(session_history) > MAX_SESSIONS:
+        session_history.popitem(last=False)
+
 
 # ── Lightweight in-memory analytics ───────────────────────
 query_analytics = {

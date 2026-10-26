@@ -17,6 +17,7 @@ pypdf>=3.0
 # Utilities
 python-dotenv
 requests
+httpx>=0.27.0
 numpy
 typing-extensions
 python-multipart

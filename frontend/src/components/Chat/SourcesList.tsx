@@ -35,27 +35,65 @@ function getDocTypeIcon(dt: string) {
   return <Folder size={16} />;
 }
 
-function normalizeDocType(raw?: string): string {
-  if (!raw) return 'Khác';
-  const trimmed = raw.trim();
-  if (!trimmed || trimmed === 'N/A' || trimmed === 'Unknown' || trimmed === 'nan') return 'Khác';
-  const low = trimmed.toLowerCase();
-  if (low === 'tài liệu tham khảo') return 'Tài liệu tham khảo';
-  if (low === 'giáo trình') return 'Giáo trình';
-  if (low === 'sách') return 'Sách';
-  if (low === 'kiểm định') return 'Kiểm định';
-  if (low === 'luận văn') return 'Luận văn';
-  return trimmed;
+function normalizeDocType(raw?: string, book?: BookSource): string {
+  const trimmed = (raw || '').trim();
+  if (trimmed && trimmed !== 'N/A' && trimmed !== 'Unknown' && trimmed !== 'nan' && trimmed !== 'Khác') {
+    const low = trimmed.toLowerCase();
+    if (low === 'tài liệu tham khảo') return 'Tài liệu tham khảo';
+    if (low === 'giáo trình') return 'Giáo trình';
+    if (low === 'sách') return 'Sách';
+    if (low === 'kiểm định') return 'Kiểm định';
+    if (low === 'luận văn') return 'Luận văn';
+    return trimmed;
+  }
+
+  // Suy luận thông minh khi trường doc_type bị trống hoặc ghi 'Khác'
+  if (book) {
+    const loc = (book.location || '').toLowerCase();
+    const t = (book.title || '').toLowerCase();
+    if (loc.includes('luận văn') || loc.includes('luan van') || /\blv\d+/i.test(loc) || t.startsWith('luận văn')) {
+      return 'Luận văn';
+    }
+    if (t.includes('tự đánh giá') || t.includes('kiểm định') || t.includes('minh chứng')) {
+      return 'Kiểm định';
+    }
+    if (t.includes('giáo trình') || t.includes('giao trinh') || loc.includes('giáo trình') || loc.includes('giao trinh')) {
+      return 'Giáo trình';
+    }
+    if (t.includes('bài tập') || t.includes('bai tap')) {
+      return 'Sách bài tập';
+    }
+    if (t.includes('kỷ yếu') || t.includes('ky yeu')) {
+      return 'Kỷ yếu';
+    }
+    if (loc.includes('phòng đọc') || loc.includes('phòng mượn') || loc.includes('kho')) {
+      return 'Sách';
+    }
+  }
+  return 'Sách';
+}
+
+function getVisiblePages(currentPage: number, totalPages: number): (number | string)[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, '...', totalPages];
+  }
+  if (currentPage >= totalPages - 3) {
+    return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+  return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
 }
 
 export const SourcesList: React.FC<SourcesListProps> = ({ sources, totalFound }) => {
   if (!sources || sources.length === 0) return null;
 
-  // 1. Nhóm các quyển sách theo loại tài liệu (doc_type)
+  // 1. Nhóm các quyển sách theo loại tài liệu (doc_type) với suy luận thông minh
   const groupedSources = useMemo(() => {
     const map: Record<string, BookSource[]> = {};
     for (const book of sources) {
-      const dt = normalizeDocType(book.doc_type || book.loai_tai_lieu);
+      const dt = normalizeDocType(book.doc_type || book.loai_tai_lieu, book);
       if (!map[dt]) map[dt] = [];
       map[dt].push(book);
     }
@@ -94,7 +132,9 @@ export const SourcesList: React.FC<SourcesListProps> = ({ sources, totalFound })
       <div className="sources-header">
         <BookOpen size={16} />
         <span>
-          Danh sách tài liệu liên quan ({totalFound || sources.length} kết quả):
+          {totalFound && totalFound > sources.length
+            ? `Danh sách tài liệu liên quan (hiển thị ${sources.length} / ${totalFound} kết quả):`
+            : `Danh sách tài liệu liên quan (${sources.length} kết quả):`}
         </span>
       </div>
 
@@ -141,16 +181,26 @@ export const SourcesList: React.FC<SourcesListProps> = ({ sources, totalFound })
                       </button>
 
                       <div className="sources-page-numbers">
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                          <button
-                            type="button"
-                            key={p}
-                            className={`sources-page-btn num-btn ${p === currentPage ? 'active' : ''}`}
-                            onClick={() => setPage(dtName, p)}
-                          >
-                            {p}
-                          </button>
-                        ))}
+                        {getVisiblePages(currentPage, totalPages).map((p, idx) => {
+                          if (p === '...') {
+                            return (
+                              <span key={`dots-${idx}`} className="sources-page-dots">
+                                ...
+                              </span>
+                            );
+                          }
+                          const pageNum = p as number;
+                          return (
+                            <button
+                              type="button"
+                              key={pageNum}
+                              className={`sources-page-btn num-btn ${pageNum === currentPage ? 'active' : ''}`}
+                              onClick={() => setPage(dtName, pageNum)}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
                       </div>
 
                       <button

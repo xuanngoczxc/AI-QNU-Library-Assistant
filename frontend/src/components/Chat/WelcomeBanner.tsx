@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Sparkles,
+  BookOpen,
   Bot,
   TrendingUp,
   Code2,
@@ -35,7 +35,7 @@ export const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ onSelectTopic }) =
   return (
     <div className="welcome-banner">
       <div className="welcome-title">
-        <Sparkles size={20} className="text-primary" />
+        <BookOpen size={20} className="text-primary" />
         <span>Xin chào! Mình có thể giúp gì cho bạn?</span>
       </div>
       <p className="welcome-desc">

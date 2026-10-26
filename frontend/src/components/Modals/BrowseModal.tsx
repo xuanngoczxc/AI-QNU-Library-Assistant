@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { BookSource } from '../../types';
 import { fetchBrowseDocuments, searchDocuments } from '../../services/api';
 import { BookCard } from '../Chat/BookCard';
-import { X } from 'lucide-react';
+import { X, BookOpen } from 'lucide-react';
 
 interface BrowseModalProps {
   isOpen: boolean;
@@ -75,7 +75,10 @@ export const BrowseModal: React.FC<BrowseModalProps> = ({ isOpen, onClose }) => 
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>📚 Danh mục Tài liệu Thư viện ({total} tài liệu)</h3>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <BookOpen size={20} color="var(--primary)" />
+            <span>Danh mục Tài liệu Thư viện ({total} tài liệu)</span>
+          </h3>
           <button type="button" className="modal-close-btn" onClick={onClose}>
             <X size={18} />
           </button>

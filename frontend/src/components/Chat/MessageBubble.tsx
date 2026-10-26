@@ -54,13 +54,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </>
           )}
 
-          {/* Render Book Sources list with pagination */}
-          {message.sources && message.sources.length > 0 && (
-            <SourcesList
-              sources={message.sources}
-              totalFound={message.totalFound}
-            />
-          )}
+          {/* Render Book Sources list with pagination (suppressed if no info found) */}
+          {!Boolean(
+            message.text &&
+              /(tài liệu không cung cấp thông tin|chưa tìm thấy|không tìm thấy|không có thông tin|không lưu trữ|chưa có tài liệu)/i.test(
+                message.text
+              )
+          ) &&
+            message.sources &&
+            message.sources.length > 0 && (
+              <SourcesList
+                sources={message.sources}
+                totalFound={message.totalFound}
+              />
+            )}
 
           {/* Render Follow-up suggestions */}
           {message.followUps && message.followUps.length > 0 && (

@@ -155,3 +155,37 @@
   background: var(--success-container);
   color: var(--success);
 }
+
+@media (max-width: 768px) {
+  .modal-backdrop {
+    padding: 10px;
+  }
+  .modal-dialog {
+    max-height: 94vh;
+    border-radius: var(--round-lg);
+  }
+  .modal-header {
+    padding: 12px 14px;
+  }
+  .modal-search-bar {
+    padding: 10px 14px;
+  }
+  .modal-search-input {
+    font-size: 16px !important;
+    padding: 8px 14px;
+  }
+  .modal-body {
+    padding: 12px 14px;
+  }
+  .modal-footer {
+    padding: 10px 14px;
+  }
+  .toast-msg {
+    max-width: 90vw;
+    white-space: normal;
+    text-align: center;
+    padding: 10px 18px;
+    font-size: 12px;
+  }
+}
+

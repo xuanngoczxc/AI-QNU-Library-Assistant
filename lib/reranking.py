@@ -4,7 +4,7 @@ lib/reranking.py — Search result reranking, author/publisher matching, PDF col
 
 import re
 from typing import Optional
-from .text_utils import normalize_text
+from .text_utils import normalize_text, clean_author_candidate
 from .catalog import (
     get_query_topic_terms, get_doc_topic_text, contains_normalized_phrase,
     VIETNAMESE_STOP_WORDS,
@@ -41,11 +41,19 @@ def detect_author_query(query: str) -> bool:
         "nong", "kinh", "tai", "chinh", "ngan", "giao", "duc",
         "tam", "ly", "xa", "hoi", "tri", "tue", "nhan", "tao",
         "may", "tinh", "phan", "mem", "dien", "tu", "vien",
-        "thong", "bao", "chi", "truyen", "sinh", "y", "duoc",
+        "thong", "bao", "truyen", "sinh", "y", "duoc",
         "ky", "thuat", "nganh", "chu", "de", "linh", "vuc",
+        "lap", "trinh", "python", "java", "web", "ai", "data", "sql",
+        "co", "ban", "nang", "cao", "ung", "dung", "he", "thong",
     }
 
     words = q.split()
+
+    # Nếu câu có từ "về" (về chủ đề...) thì không phải là tìm kiếm theo tác giả
+    if "ve" in words:
+        # Trừ khi có từ khóa "tác giả" rõ ràng
+        if not any(re.search(p, q) for p in author_markers):
+            return False
 
     # ── Pattern 2: "sách của <họ tên>", "tài liệu của <họ tên>" ──
     cua_patterns = [
@@ -76,27 +84,20 @@ def detect_author_query(query: str) -> bool:
     if 2 <= len(words) <= 6 and words[0] in VIETNAMESE_SURNAMES:
         # Kiểm tra từ cuối cùng (tên chính) không phải từ chủ đề
         # Bỏ qua tên đệm (vd "văn", "thị", "xuân") vì là thành phần tên người
-        if words[-1] not in topic_words:
+        if words[-1] not in topic_words and not any(w in topic_words for w in words[1:]):
             return True
 
     # ── Pattern 5: Phát hiện tác giả ở cuối câu dạng "tìm sách <họ> ..." ──
-    # Một họ Việt Nam xuất hiện ở cuối, các từ trước là hành động/mục tiêu
-    if len(words) >= 3:
+    # Một họ Việt Nam xuất hiện ở cuối, các từ trước là hành động/mục tiêu (KHÔNG có từ "về" / topic marker)
+    if len(words) >= 3 and not any(w in {"ve", "chu", "de", "nganh"} for w in words):
         for idx, w in enumerate(words):
             if w in VIETNAMESE_SURNAMES and idx >= 1:
-                # Từ ngay trước họ phải là action/catalog word hoặc tên đệm
                 preceding = words[:idx]
                 name_part = words[idx:]
-                # Điều kiện: từ trước họ là "sach", "tai lieu", "giao trinh", hoặc từ đệm
-                # và các từ sau họ tạo thành tên hợp lý (2-4 tokens, không có topic words)
-                if len(name_part) >= 2 and len(name_part) <= 5:
-                    if not any(t in topic_words for t in name_part[1:]):
-                        # Từ liền trước họ là action/target word → có thể là "tìm sách <họ>"
-                        is_author_tail = False
-                        # Kiểm tra nếu phần còn lại có vẻ là tên người
-                        if len(name_part) >= 2:
-                            is_author_tail = True
-                        if is_author_tail:
+                # Từ ngay trước họ phải là catalog noun ("sach", "lieu", "cuon", "quyen")
+                if preceding[-1] in {"sach", "lieu", "cuon", "quyen"}:
+                    if len(name_part) >= 2 and len(name_part) <= 4:
+                        if not any(t in topic_words for t in name_part[1:]):
                             return True
 
     return False
@@ -133,8 +134,10 @@ def extract_author_name(query: str) -> str:
         "nong", "kinh", "tai", "chinh", "ngan", "giao", "duc",
         "tam", "ly", "xa", "hoi", "tri", "tue", "nhan", "tao",
         "may", "tinh", "phan", "mem", "dien", "tu", "vien",
-        "thong", "bao", "chi", "truyen", "sinh", "y", "duoc",
+        "thong", "bao", "truyen", "sinh", "y", "duoc",
         "ky", "thuat", "nganh", "chu", "de", "linh", "vuc",
+        "lap", "trinh", "python", "java", "web", "ai", "data", "sql",
+        "co", "ban", "nang", "cao", "ung", "dung", "he", "thong",
     }
     patterns = [
         r"(?:sach|cua|tai lieu|giao trinh)\s+tac gia\s+(.+)",
@@ -143,26 +146,27 @@ def extract_author_name(query: str) -> str:
     for pattern in patterns:
         match = re.search(pattern, q)
         if match:
-            name = match.group(1).strip().rstrip(",. ")
-            name = re.sub(r"\s+(?:khong|ko|lam on|hay|vui long|toi|minh|xin|cho|gui)\b.*$", "", name)
-            name = name.strip().rstrip(",. ")
+            name = clean_author_candidate(match.group(1))
             if len(re.findall(r'\w+', name)) >= 2 and len(name) >= 5:
                 return name
 
+    # Nếu câu có từ "về" (về chủ đề...) thì không phải là tìm theo tác giả
+    words = q.split()
+    if "ve" in words:
+        return ""
+
     name_ref_patterns = [
-        r"(?:sach|tai lieu|giao trinh|bai bao|bai)\s+cua\s+(.+?)(?:\s+khong|\s+ko|\s+ne|\s+nha|\?)?$",
-        r"cua\s+(.+?)(?:\s+khong|\s+ko|\?)?$",
+        r"(?:sach|tai lieu|giao trinh|bai bao|bai)\s+cua\s+(.+)",
+        r"cua\s+(.+)",
     ]
     for pattern in name_ref_patterns:
         match = re.search(pattern, q)
         if match:
-            name = match.group(1).strip().rstrip(",. ")
-            name = re.sub(r"\s+(?:khong|ko|lam on|hay|vui long|toi|minh|xin|cho|gui)\b.*$", "", name)
-            name = name.strip().rstrip(",. ?")
+            name = clean_author_candidate(match.group(1))
             name_tokens = name.split()
             if len(name_tokens) >= 2 and name_tokens[0] in VIETNAMESE_SURNAMES:
-                # KHÔNG kiểm tra topic_words ở tên đệm => "Văn", "Thị", "Xuân" là tên hợp lệ
-                return name
+                if not any(t in topic_words for t in name_tokens[1:]):
+                    return name
 
     # ── Pattern 5: "sách <họ> ...", "tìm sách <họ> ..." (không có "của") ──
     # Xoá các từ chủ ngữ (toi/minh/em...) và action/target ở đầu để lộ tên tác giả
@@ -184,11 +188,12 @@ def extract_author_name(query: str) -> str:
     if q_stripped and q_stripped != q:
         name_tokens = q_stripped.split()
         if 2 <= len(name_tokens) <= 5 and name_tokens[0] in VIETNAMESE_SURNAMES:
-            return q_stripped
+            if not any(t in topic_words for t in name_tokens[1:]):
+                return q_stripped
 
-    words = q.split()
     if 2 <= len(words) <= 6 and words[0] in VIETNAMESE_SURNAMES:
-        return q
+        if not any(w in topic_words for w in words[1:]):
+            return q
     if 2 <= len(words) <= 6:
         if ',' in q:
             parts = [p.strip() for p in q.split(',') if p.strip()]
@@ -288,11 +293,9 @@ def merge_search_results(*groups: list[dict]) -> list[dict]:
     for group in groups:
         for result in group or []:
             doc = result.get("doc", {})
-            key = (str(doc.get("title", "")).lower().strip(),
-                   str(doc.get("author", "")).lower().strip(),
-                   str(doc.get("year", "")).lower().strip())
-            if key not in merged or result.get("score", 0.0) > merged[key].get("score", 0.0):
-                merged[key] = result
+            doc_key = doc.get("doc_id") or id(doc)
+            if doc_key not in merged or result.get("score", 0.0) > merged[doc_key].get("score", 0.0):
+                merged[doc_key] = result
     return sorted(merged.values(), key=lambda item: item.get("score", 0.0), reverse=True)
 
 
@@ -344,9 +347,16 @@ def collapse_catalog_pdf_pages(search_results: list[dict], pdf_lookup=None) -> l
     return sorted(collapsed, key=lambda item: item.get("score", 0.0), reverse=True)
 
 
-def rerank_results_for_query(query: str, search_results: list[dict], prefer_strict: bool = False) -> list[dict]:
+def rerank_results_for_query(query: str, search_results: list[dict], prefer_strict: bool = False, target_doc_type: Optional[str] = None) -> list[dict]:
     if not search_results:
         return search_results
+
+    if target_doc_type:
+        from .doc_type_resolver import doc_matches_target_doc_type
+        for result in search_results:
+            doc = result.get("doc", {})
+            if doc_matches_target_doc_type(doc, target_doc_type):
+                result["score"] = result.get("score", 0.0) + 450.0
 
     author_name = extract_author_name(query) if detect_author_query(query) else ""
     publisher_name = extract_publisher_name(query) if detect_publisher_query(query) else ""
@@ -423,15 +433,29 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
     unique_tokens = list(dict.fromkeys(topic_tokens_list))
     matched = []
     unmatched = []
-    min_phrase_length = 4
+    min_phrase_length = 2
     if len(unique_tokens) >= 6:
         strict_threshold = 0.80
+        relaxed_threshold = 0.40
     elif len(unique_tokens) >= 3:
         strict_threshold = 0.65
+        relaxed_threshold = max(0.15, min(0.40, 3.0 / len(unique_tokens)))
+    elif len(unique_tokens) == 2:
+        strict_threshold = 0.90
+        relaxed_threshold = 0.90
     else:
         strict_threshold = 0.50
-    relaxed_threshold = max(0.15, min(0.40, 3.0 / max(len(unique_tokens), 1)))
+        relaxed_threshold = 0.50
     is_single_token = len(unique_tokens) == 1
+
+    # Diacritic awareness
+    from .catalog import VIETNAMESE_STOP_WORDS
+    q_accented_tokens = [
+        t.lower() for t in re.findall(r'[a-zA-Zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ]+', query)
+        if len(t) >= 2 and normalize_text(t) not in VIETNAMESE_STOP_WORDS
+    ]
+    has_accents = any(t != normalize_text(t) for t in q_accented_tokens)
+    accented_phrase = " ".join(q_accented_tokens) if len(q_accented_tokens) >= 2 else ""
 
     for result in search_results:
         doc = result.get("doc", {})
@@ -442,11 +466,12 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
             if len(phrase.split()) >= min_phrase_length
         )
         match_count = sum(1 for t in unique_tokens if re.search(rf"\b{re.escape(t)}\b", normalized_doc))
-        if not match_count and not exact_phrase_hit:
+        is_target_doc_match = bool(target_doc_type and doc_matches_target_doc_type(doc, target_doc_type))
+        if not match_count and not exact_phrase_hit and not is_target_doc_match:
             unmatched.append(result)
             continue
         coverage = match_count / max(len(unique_tokens), 1)
-        if is_single_token:
+        if is_single_token and not is_target_doc_match:
             if not exact_phrase_hit:
                 doc_subject = normalize_text(doc.get("subject", ""))
                 doc_major = normalize_text(doc.get("major", ""))
@@ -455,15 +480,21 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
                 if token not in doc_subject and token not in doc_major and token not in doc_title:
                     unmatched.append(result)
                     continue
-        if prefer_strict and len(unique_tokens) >= 2 and coverage < strict_threshold and not exact_phrase_hit:
-            unmatched.append(result)
-            continue
-        if not prefer_strict and not exact_phrase_hit and coverage < relaxed_threshold:
-            unmatched.append(result)
-            continue
+        if not is_target_doc_match:
+            if prefer_strict and len(unique_tokens) >= 2 and coverage < strict_threshold and not exact_phrase_hit:
+                unmatched.append(result)
+                continue
+            if not prefer_strict and not exact_phrase_hit and coverage < relaxed_threshold:
+                unmatched.append(result)
+                continue
         doc_subject = normalize_text(doc.get("subject", ""))
         doc_major = normalize_text(doc.get("major", ""))
         doc_title = normalize_text(doc.get("title", ""))
+        raw_title = str(doc.get("title", "") or "").lower()
+        raw_subject = str(doc.get("subject", "") or "").lower()
+        raw_abstract = str(doc.get("abstract", "") or "").lower()
+        raw_content = f"{raw_title} {raw_subject} {raw_abstract}"
+
         subject_boost = 0.0
         for t in unique_tokens:
             if doc_subject and t in doc_subject:
@@ -472,16 +503,45 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
                 subject_boost += 20.0
             if doc_title and t in doc_title:
                 subject_boost += 10.0
-        phrase_boost = 20.0 if exact_phrase_hit else 0.0
-        relevance = (match_count * 3.0) + (coverage * 8.0) + phrase_boost + subject_boost
+
+        phrase_boost = 0.0
+        for phrase in topic_phrases:
+            if len(phrase.split()) >= min_phrase_length:
+                if contains_normalized_phrase(doc_title, phrase):
+                    phrase_boost += 250.0
+                    break
+                elif contains_normalized_phrase(doc_subject, phrase):
+                    phrase_boost += 200.0
+                    break
+                elif exact_phrase_hit:
+                    phrase_boost += 100.0
+                    break
+
+        exact_word_boost = 0.0
+        if accented_phrase and re.search(rf"(?<!\w){re.escape(accented_phrase)}(?!\w)", raw_title):
+            exact_word_boost += 350.0
+        elif accented_phrase and re.search(rf"(?<!\w){re.escape(accented_phrase)}(?!\w)", raw_content):
+            exact_word_boost += 150.0
+
+        for at in q_accented_tokens:
+            if re.search(rf"\b{re.escape(at)}\b", raw_title):
+                exact_word_boost += 60.0
+            elif re.search(rf"\b{re.escape(at)}\b", raw_subject):
+                exact_word_boost += 30.0
+            elif re.search(rf"\b{re.escape(at)}\b", raw_abstract):
+                exact_word_boost += 15.0
+
+        relevance = (match_count * 3.0) + (coverage * 8.0) + phrase_boost + subject_boost + exact_word_boost
         matched.append({**result, "score": result.get("score", 0.0) + relevance})
 
     if matched:
         matched.sort(key=lambda x: x.get("score", 0.0), reverse=True)
         if prefer_strict:
             return matched
-        unmatched.sort(key=lambda x: x.get("score", 0.0), reverse=True)
-        return matched + unmatched
+        if len(matched) < 5:
+            unmatched.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+            return matched + unmatched[:max(0, 5 - len(matched))]
+        return matched
     return [] if prefer_strict else search_results
 
 

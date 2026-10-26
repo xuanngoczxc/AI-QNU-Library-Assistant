@@ -20,6 +20,7 @@ Entities detected:
 
 import re
 from typing import Optional
+from .text_utils import extract_author_candidate, clean_author_candidate
 
 VIETNAMESE_STOP_WORDS = {
     "cua", "va", "hoac", "nhung", "ma", "de", "tu", "toi", "boi",
@@ -50,6 +51,7 @@ ACTION_CATALOG = {
 ACTION_CONTENT = {
     "tom tat", "phan tich", "giai thich", "trinh bay", "mo ta",
     "noi dung", "chi tiet", "doc", "trich", "doc file",
+    "noi ve gi", "noi ve cai gi", "viet ve gi", "viet ve cai gi", "ban ve gi",
     "khai niem", "dinh nghia", "vi du", "giai thich ca tu",
     "bo cuc", "cau truc", "muc luc", "layout",
     "phuong phap", "ket qua", "ket luan", "danh gia",
@@ -208,15 +210,13 @@ def extract_entities(query: str) -> QueryEntities:
             break
 
     # ── 3. Detect author ──
-    if re.search(r"(?:tac gia|cua tac gia|sach cua|tai lieu cua|giao trinh cua)", text):
+    is_asking_author_name = bool(re.search(r"\b(?:ai\s+la\s+tac\s+gia|tac\s+gia\s+.*(?:la\s+ai|ten\s+gi|nguoi\s+nao)|ai\s+viet|ai\s+bien\s+soan)\b", text))
+    if not is_asking_author_name and re.search(r"(?:tac gia|cua tac gia|sach cua|tai lieu cua|giao trinh cua)", text):
         ent.has_author_kw = True
         # Extract author name
-        m = re.search(r"(?:tac gia|cua\s*tac\s*gia|sach\s*cua|tai\s*lieu\s*cua|giao\s*trinh\s*cua)\s+(.+?)(?:\s+(?:khong|ko|ne|nha|a|nhi|di|va|hoac)\s*$|$)", text)
-        if m:
-            name = m.group(1).strip()
-            # Remove "tác giả" nếu còn sót
-            name = re.sub(r'^tac\s+gia\s+', '', name).strip()
-            name_tokens = name.split()
+        cand = extract_author_candidate(text)
+        if cand:
+            name_tokens = cand.split()
             # Filter out stop words from name
             name_tokens = [t for t in name_tokens if t not in VIETNAMESE_STOP_WORDS and len(t) >= 2]
             if len(name_tokens) >= 2:

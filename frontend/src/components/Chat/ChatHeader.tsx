@@ -29,7 +29,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
         <div className="header-info">
           <h2 className="header-main-title">Tra cứu Sách QNU</h2>
-          <p className="header-sub-desc">Trung tâm Số và Học liệu · Đại học Quy Nhơn</p>
+          <p className="header-sub-desc">Trung tâm Số và Học liệu · Trường Đại học Quy Nhơn</p>
         </div>
       </div>
 

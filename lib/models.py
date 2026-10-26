@@ -11,6 +11,7 @@ class ChatRequest(BaseModel):
     document_id: str = None
     session_id: str = "default"
     major: str = None
+    doc_type: Optional[str] = None
     client_ip: str = ""
     user_agent: str = ""
 
