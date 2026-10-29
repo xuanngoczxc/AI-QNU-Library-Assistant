@@ -1519,6 +1519,7 @@ function renderGroupedSources(bubble, containerId) {
     'Giáo trình': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">book</span> Loại tài liệu: Giáo trình',
     'Giáo trình chính': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">book</span> Loại tài liệu: Giáo trình chính',
     'Tài liệu tham khảo': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">library_books</span> Loại tài liệu: Tài liệu tham khảo',
+    'Giáo trình / Tài liệu tham khảo': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">collections_bookmark</span> Loại tài liệu: Giáo trình / Tài liệu tham khảo',
     'Tài liệu chính': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">assignment</span> Loại tài liệu: Tài liệu chính',
     'PDF': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">description</span> Loại tài liệu: PDF',
     'Luận văn': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">school</span> Loại tài liệu: Luận văn',
@@ -1527,12 +1528,19 @@ function renderGroupedSources(bubble, containerId) {
     'Khác': '<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:3px;">folder</span> Loại tài liệu: Khác'
   };
   // Map các biến thể viết hoa/thường về canonical name
-  var _NORM = { 'tài liệu tham khảo': 'Tài liệu tham khảo' };
+  var _NORM = {
+    'tài liệu tham khảo': 'Tài liệu tham khảo',
+    'giáo trình/tài liệu tham khảo': 'Giáo trình / Tài liệu tham khảo',
+    'giáo trình / tài liệu tham khảo': 'Giáo trình / Tài liệu tham khảo'
+  };
   for (var i = 0; i < sources.length; i++) {
     var raw = (sources[i].doc_type || '').trim();
     if (!raw || raw === 'N/A' || raw === 'Unknown' || raw === 'nan') raw = 'Khác';
     var low = raw.toLowerCase();
-    var dt = _NORM[low] || raw;
+    if (low.indexOf('giáo trình') !== -1 && low.indexOf('tham khảo') !== -1) {
+      low = 'giáo trình / tài liệu tham khảo';
+    }
+    var dt = _NORM[low] || raw.replace(/\s*\/\s*/g, ' / ');
     if (!groups[dt]) { groups[dt] = []; _dtKeyMap[dt] = dt; }
     groups[dt].push(sources[i]);
   }

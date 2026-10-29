@@ -116,6 +116,12 @@ def extract_facets(
 
         # 2. Loại tài liệu
         dt = _clean(doc.get("doc_type", ""))
+        if dt:
+            dt_low = dt.lower()
+            if "giáo trình" in dt_low and "tham khảo" in dt_low:
+                dt = "Giáo trình / Tài liệu tham khảo"
+            else:
+                dt = re.sub(r"\s*/\s*", " / ", dt)
         if dt and len(dt) >= 2:
             facets["doc_type"][dt] += 1
 

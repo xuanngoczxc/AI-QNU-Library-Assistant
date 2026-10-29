@@ -82,34 +82,42 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
     m = re.search(r'\b(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham)?\s*(?:cua\s+(?:tac\s+gia\s+)?|ve\s+tac\s+gia\s+|tac\s+gia\s+)', q_norm)
     if not m:
         m = re.search(r'\bcua\s+', q_norm)
-    if not m:
-        return None, None, None
-
-    tail = q_norm[m.end():].strip()
-    words = tail.split()
-    if not words:
-        return None, None, None
 
     matched_author = None
     remaining = ""
 
-    # 1. Lexicon maximal matching (5, 4, 3, 2 grams)
-    if author_index and author_index.author_lexicon:
-        for k in range(min(5, len(words)), 1, -1):
-            cand = " ".join(words[:k])
-            if cand in author_index.author_lexicon:
-                matched_author = cand
-                remaining = " ".join(words[k:])
-                break
+    if m:
+        tail = q_norm[m.end():].strip()
+        words = tail.split()
+        if not words:
+            return None, None, None
 
-    # 2. Grammar fallback with slot boundary stripping
-    if not matched_author:
-        cleaned_tail = _SLOT_BOUNDARY_PATTERN.sub('', tail).strip()
-        c_words = cleaned_tail.split()
-        if 2 <= len(c_words) <= 5:
-            cand = " ".join(c_words)
-            matched_author = cand
-            remaining = tail[len(cand):].strip()
+        # 1. Lexicon maximal matching (5, 4, 3, 2 grams)
+        if author_index and author_index.author_lexicon:
+            for k in range(min(5, len(words)), 1, -1):
+                cand = " ".join(words[:k])
+                if cand in author_index.author_lexicon:
+                    matched_author = cand
+                    remaining = " ".join(words[k:])
+                    break
+
+        # 2. Grammar fallback with slot boundary stripping
+        if not matched_author:
+            cleaned_tail = _SLOT_BOUNDARY_PATTERN.sub('', tail).strip()
+            c_words = cleaned_tail.split()
+            if 2 <= len(c_words) <= 5:
+                cand = " ".join(c_words)
+                matched_author = cand
+                remaining = tail[len(cand):].strip()
+    else:
+        # Pattern: "<Tên tác giả> có sách / tài liệu / giáo trình..."
+        m_start = re.match(r'^([a-z\s]{3,35}?)\s+co\s+(?:nhung\s+|cac\s+)?(?:sach|tai\s+lieu|giao\s+trinh|cuon)\b', q_norm)
+        if m_start:
+            cand_head = m_start.group(1).strip()
+            head_words = cand_head.split()
+            if 2 <= len(head_words) <= 5 and (head_words[0] in VIETNAMESE_SURNAMES or (author_index and cand_head in author_index.author_lexicon)):
+                matched_author = cand_head
+                remaining = q_norm[len(cand_head):].strip()
 
     if not matched_author or len(matched_author) < 2:
         return None, None, None
@@ -170,14 +178,35 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
 
     # Step 3: Fetch base documents for this author
     all_author_docs = []
-    if author_index and author_norm in author_index.author_to_docs:
-        all_author_docs = list(author_index.author_to_docs[author_norm])
+    if author_index is not None:
+        if author_norm in author_index.author_to_docs:
+            all_author_docs = list(author_index.author_to_docs[author_norm])
+        else:
+            # Check if author_norm matches any full author name in the index with word boundary
+            seen_titles = set()
+            pattern = r'(?<!\w)' + re.escape(author_norm) + r'(?!\w)'
+            for key, kdocs in author_index.author_to_docs.items():
+                if re.search(pattern, key):
+                    for d in kdocs:
+                        t_k = d.get('title', '').strip().lower()
+                        if t_k not in seen_titles:
+                            seen_titles.add(t_k)
+                            all_author_docs.append(d)
     elif retriever and hasattr(retriever, 'bm25'):
-        # Fallback search if index not yet initialized
+        # Fallback search ONLY if index not yet initialized
         seen = set()
+        pattern = r'(?<!\w)' + re.escape(author_norm) + r'(?!\w)'
         for d in retriever.bm25.documents:
-            raw_a = d.get('author', '') + ' ' + d.get('responsibility', '')
-            if author_norm in normalize_text(raw_a):
+            combined_people = re.split(r'[;,\n/]+', d.get('author', '')) + re.split(r'[;,\n/]+', d.get('responsibility', ''))
+            matched = False
+            for sa in combined_people:
+                sa_clean = re.sub(r'\(.*?\)|\[.*?\]', '', sa).strip()
+                sa_clean = re.sub(r'\b(?:h\.d\.|ch\.b\.|b\.s\.|h\.d|chb|dich|bien\s+soan|chu\s+bien)\b', '', sa_clean, flags=re.I).strip()
+                norm = normalize_text(sa_clean).strip()
+                if re.search(pattern, norm):
+                    matched = True
+                    break
+            if matched:
                 t_k = d.get('title', '').strip().lower()
                 if t_k not in seen:
                     seen.add(t_k)

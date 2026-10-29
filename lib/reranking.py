@@ -4,7 +4,7 @@ lib/reranking.py — Search result reranking, author/publisher matching, PDF col
 
 import re
 from typing import Optional
-from .text_utils import normalize_text, clean_author_candidate
+from .text_utils import normalize_text, clean_author_candidate, check_diacritic_consistency
 from .catalog import (
     get_query_topic_terms, get_doc_topic_text, contains_normalized_phrase,
     VIETNAMESE_STOP_WORDS,
@@ -532,6 +532,11 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
                 exact_word_boost += 15.0
 
         relevance = (match_count * 3.0) + (coverage * 8.0) + phrase_boost + subject_boost + exact_word_boost
+        if has_accents and len(unique_tokens) in (2, 3) and q_accented_tokens:
+            raw_check = (raw_title + " " + raw_subject + " " + raw_abstract).lower()
+            if not check_diacritic_consistency(raw_check, q_accented_tokens):
+                unmatched.append(result)
+                continue
         matched.append({**result, "score": result.get("score", 0.0) + relevance})
 
     if matched:
@@ -539,6 +544,14 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
         if prefer_strict:
             return matched
         if len(matched) < 5:
+            if has_accents and len(unique_tokens) in (2, 3) and q_accented_tokens:
+                unmatched = [
+                    u for u in unmatched
+                    if check_diacritic_consistency(
+                        (str(u.get('doc', {}).get('title', '')) + " " + str(u.get('doc', {}).get('subject', '')) + " " + str(u.get('doc', {}).get('abstract', ''))).lower(),
+                        q_accented_tokens
+                    )
+                ]
             unmatched.sort(key=lambda x: x.get("score", 0.0), reverse=True)
             return matched + unmatched[:max(0, 5 - len(matched))]
         return matched

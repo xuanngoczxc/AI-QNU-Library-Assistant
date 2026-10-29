@@ -169,6 +169,63 @@ TEST_CASES = [
             lambda res: all(int(s.get("year", 0)) == 1991 for s in res.json().get("sources", [])[:10]),
         ],
     },
+    {
+        "id": "NL_11_NONEXISTENT_TOPIC_SIEU_NHAN",
+        "query": "sách chủ đề siêu nhân",
+        "description": "Tìm chủ đề không có trong thư viện: báo không có, không ghép từ sai/lặp 'chủ đề chủ đề'",
+        "checks": [
+            lambda res: res.status_code == 200,
+            lambda res: len(res.json().get("sources", [])) == 0,
+            lambda res: "về chủ đề chủ đề" not in res.json().get("answer", "").lower(),
+            lambda res: "chưa tìm thấy tài liệu nào về chủ đề" in res.json().get("answer", "").lower(),
+            lambda res: "siêu nhân" in res.json().get("answer", "").lower(),
+        ],
+    },
+    {
+        "id": "NL_12_NONEXISTENT_AUTHOR_NGUYEN_LU",
+        "query": "sách của nguyễn lữ",
+        "description": "Tìm tác giả không có trong thư viện: báo không có, không trả về tác giả khác",
+        "checks": [
+            lambda res: res.status_code == 200,
+            lambda res: len(res.json().get("sources", [])) == 0,
+            lambda res: "chưa tìm thấy tài liệu nào của tác giả" in res.json().get("answer", "").lower(),
+            lambda res: "nguyễn lữ" in res.json().get("answer", "").lower(),
+        ],
+    },
+    {
+        "id": "NL_13_FLOWER_BOOKS_DIACRITICS",
+        "query": "sách về các loài hoa",
+        "description": "Tìm sách về các loài hoa: Top 1 phải là 'Sự tích các loài hoa', không nhầm sang luận văn sinh hóa/tiêu hóa/Phú Hòa",
+        "checks": [
+            lambda res: res.status_code == 200,
+            lambda res: len(res.json().get("sources", [])) > 0,
+            # Top 1 source must be 'Sự tích các loài hoa'
+            lambda res: "sự tích các loài hoa" in res.json()["sources"][0].get("title", "").lower(),
+            # No unrelated dissertations with diacritic collisions (tiến hóa, tiêu hóa, Phú Hòa, Copepoda)
+            lambda res: not any(
+                bad in s.get("title", "").lower()
+                for s in res.json().get("sources", [])
+                for bad in ["copepoda", "vi nhựa", "tiêu hóa", "phú hòa", "tiến hóa"]
+            ),
+            # Bot answer must highlight 'Sự tích các loài hoa'
+            lambda res: "sự tích các loài hoa" in res.json().get("answer", "").lower(),
+        ],
+    },
+    {
+        "id": "NL_14_RESEARCH_TOPIC_AGRICULTURE",
+        "query": "Tôi đang cần tìm hiểu về đề tài nghiên cứu khoa học về chủ đề nông nghiệp, bạn hãy gợi ý cho tôi những sách liên quan để giúp tôi có thể hoàn thiện đề tài này.",
+        "description": "Câu hỏi tự nhiên phức hợp: nghiên cứu khoa học về chủ đề nông nghiệp kèm đề nghị gợi ý sách",
+        "checks": [
+            lambda res: res.status_code == 200,
+            lambda res: len(res.json().get("sources", [])) > 0,
+            # Must extract agriculture topic and return agriculture books
+            lambda res: any("nông nghiệp" in (s.get("title", "") + " " + s.get("subject", "")).lower() for s in res.json().get("sources", [])[:5]),
+            # Must not return generic unrelated books
+            lambda res: not any(bad in s.get("title", "").lower() for s in res.json().get("sources", [])[:10] for bad in ["tiếng hoa mỗi ngày", "sách ngoài trời", "cung cấp điện xí nghiệp"]),
+            # Answer must highlight nông nghiệp
+            lambda res: "nông nghiệp" in res.json().get("answer", "").lower(),
+        ],
+    },
 ]
 
 

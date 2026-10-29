@@ -12,7 +12,7 @@ from pathlib import Path
 from collections import Counter
 from typing import Optional
 
-from .text_utils import normalize_text
+from .text_utils import normalize_text, check_diacritic_consistency
 
 logger = logging.getLogger("qnu.library")
 VIETNAMESE_STOP_WORDS = {
@@ -36,7 +36,16 @@ VIETNAMESE_STOP_WORDS = {
     "tram", "nghin", "trieu", "ty",
 }
 
-for compound_term in ("co", "chu", "giao", "hoc", "khi", "may", "quan", "tao", "nam"):
+CONTENT_TERMS_TO_KEEP = (
+    "co", "chu", "giao", "hoc", "khi", "may", "quan", "tao", "nam",
+    "ban", "lam", "nha", "nuoc", "sinh", "tin", "toan", "phap", "kho",
+    "van", "tri", "thanh", "thay", "nguoi", "da", "song", "cau", "tap",
+    "quyen", "cuon", "tai", "lieu", "trinh", "bai", "bao", "dong", "gia",
+    "hoa", "loai", "luat", "moi", "ngay", "phu", "phong", "qua", "ra",
+    "so", "su", "tien", "doc", "thu", "vien", "muon", "de", "den", "nganh",
+    "linh", "vuc", "hop"
+)
+for compound_term in CONTENT_TERMS_TO_KEEP:
     VIETNAMESE_STOP_WORDS.discard(compound_term)
 
 QUERY_INTENT_PATTERNS = [
@@ -62,10 +71,12 @@ QUERY_INTENT_PATTERNS = [
 ]
 
 TOPIC_MARKER_PATTERNS = [
+    r"\b(?:ve\s+)?(?:chu\s+de|linh\s+vuc|chuyen\s+nganh|nganh)\s+([^,.;?]+)",
     r"\b(?:lien quan den|ve|linh vuc|chu de|nganh)\s+(.+)$",
 ]
 
 TOPIC_TRAILING_PATTERNS = [
+    r"\b(?:ban\s+)?(?:hay\s+)?(?:goi\s+y|de\s+xuat|gioi\s+thieu|cho\s+(?:toi|minh|em)\s+xin)\b.*$",
     r"\bgoi y\b.*$",
     r"\bcac\s+(?:linh\s+vuc|chu\s+de|nganh)\s+do.*$",
     r"\bco\s+(?:sach|tai lieu|giao trinh)\s+nao.*$",
@@ -79,6 +90,11 @@ DOMAIN_PHRASE_EXPANSIONS = {
     "y hoc": ["y hoc", "y khoa", "noi khoa", "duoc", "benh", "suc khoe", "sinh ly", "giai phau"],
     "y te": ["y te", "y hoc", "y khoa", "suc khoe", "benh vien", "duoc"],
     "thu y": ["thu y", "veterinary", "chan nuoi", "dong vat", "benh dong vat"],
+    "phat trien ban than": ["ky nang song", "dac nhan tam", "nghe thuat ung xu", "thanh cong", "tam ly ung xu", "ky nang mem"],
+    "hoan thien ban than": ["ky nang song", "dac nhan tam", "nghe thuat ung xu", "thanh cong"],
+    "ky nang song": ["ky nang song", "giao duc ky nang", "ky nang mem", "ung xu"],
+    "lam giau": ["kinh doanh", "quan tri kinh doanh", "tai chinh", "khoi nghiep"],
+    "tai chinh ca nhan": ["tai chinh", "kinh te", "dau tu", "ngan hang"],
 }
 
 CATALOG_FIELD_WEIGHTS = {
@@ -253,8 +269,14 @@ def extract_keywords(text: str) -> str:
         if cm in GENERIC_CATALOG_PHRASES:
             continue
         cleaned_matches.append(cm)
-    selected_topics = cleaned_matches[:2] if cleaned_matches else [q]
+    selected_topics = cleaned_matches[:2] if cleaned_matches else ([q] if q else [])
     expanded_terms = expand_domain_terms(text)
+
+    # Preserve the full topic phrase intact when q was extracted
+    if q and q in selected_topics:
+        combined = [q] + [normalize_topic_text(term) for term in expanded_terms]
+        return " ".join(term for term in dict.fromkeys(combined) if term)
+
     topic_text = " ".join(selected_topics)
     words = topic_text.split()
     protected_short_tokens = {
@@ -274,7 +296,7 @@ def extract_keywords(text: str) -> str:
 def extract_content_search_query(text: str) -> str:
     q = normalize_topic_text(text)
     for pattern in [
-        r"\b(?:ban|ban co biet|toi|minh|em|anh|chi)\b",
+        r"\b(?:ban oi|ban co the|ban co biet|toi|minh|em|anh|chi)\b",
         r"\b(?:hay|vui long)\b",
         r"\b(?:cho toi|cho minh|cho em)\b",
         r"\b(?:khong|ko|k)\b",
@@ -489,6 +511,14 @@ def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int 
         "title": 42.0, "author": 35.0, "subject": 36.0, "major": 34.0,
         "course": 28.0, "publisher": 16.0, "abstract": 12.0, "notes": 10.0, "doc_type": 8.0,
     }
+    has_query_accents = any(c in "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ" for c in query.lower())
+    accented_tokens = []
+    if has_query_accents and len(topic_tokens_list) in (2, 3):
+        accented_tokens = [
+            t.lower() for t in re.findall(r'[a-zA-Zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ]+', query)
+            if len(t) >= 2 and normalize_text(t) not in VIETNAMESE_STOP_WORDS
+        ]
+
     for idx, doc in enumerate(bm25_documents):
         doc_fields = get_doc_topic_fields(doc)
         doc_text = " ".join(f for f in doc_fields.values() if f)
@@ -528,8 +558,16 @@ def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int 
                     continue
                 if len(topic_tokens_list) >= 4 and coverage < 0.45:
                     continue
-        if score > 0:
+
+        if accented_tokens:
+            raw_check = (str(doc.get("title", "")) + " " + str(doc.get("subject", ""))).lower()
+            if not check_diacritic_consistency(raw_check, accented_tokens):
+                continue
+
+        if exact_phrase_hit:
             scored.append({"doc": doc, "score": score + 1000.0, "index": idx})
+        elif score > 0:
+            scored.append({"doc": doc, "score": score + 50.0, "index": idx})
     scored.sort(key=lambda item: item["score"], reverse=True)
     return scored[:top_k]
 
@@ -579,33 +617,59 @@ def search_topic_cache(query: str, bm25_documents: list[dict]) -> list[dict] | N
     q = _normalize_topic_token(query)
     if not q:
         return None
+    matched_indices = None
+    base_score = 100.0
     if q in TOPIC_CACHE:
         exact = set(TOPIC_CACHE[q])
         prefix_key = f"__prefix__{q}"
         if prefix_key in TOPIC_CACHE:
             exact.update(TOPIC_CACHE[prefix_key])
-        return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in list(exact)]
-    prefix_key = f"__prefix__{q}"
-    if prefix_key in TOPIC_CACHE:
-        return [{"doc": bm25_documents[i], "score": 100.0, "index": i} for i in TOPIC_CACHE[prefix_key]]
-    words = q.split()
-    if len(words) >= 2:
-        candidate_sets = []
-        for w in words:
-            w_indices = set()
-            for kw, indices in TOPIC_CACHE.items():
-                if kw.startswith("__prefix__"):
-                    continue
-                if w in kw:
-                    w_indices.update(indices)
-            if not w_indices:
-                return None
-            candidate_sets.append(w_indices)
-        common = candidate_sets[0]
-        for s in candidate_sets[1:]:
-            common = common & s
-        if common:
-            return [{"doc": bm25_documents[i], "score": 80.0, "index": i} for i in list(common)]
+        matched_indices = list(exact)
+    elif f"__prefix__{q}" in TOPIC_CACHE:
+        matched_indices = list(set(TOPIC_CACHE[f"__prefix__{q}"]))
+    else:
+        words = [w for w in q.split() if w not in VIETNAMESE_STOP_WORDS and len(w) >= 2]
+        if len(words) >= 2:
+            candidate_sets = []
+            for w in words:
+                w_indices = set()
+                w_pattern = re.compile(rf"\b{re.escape(w)}\b")
+                for kw, indices in TOPIC_CACHE.items():
+                    if kw.startswith("__prefix__"):
+                        continue
+                    if w_pattern.search(kw):
+                        w_indices.update(indices)
+                if not w_indices:
+                    return None
+                candidate_sets.append(w_indices)
+            common = candidate_sets[0]
+            for s in candidate_sets[1:]:
+                common = common & s
+            if common:
+                matched_indices = list(common)
+                base_score = 80.0
+
+    if not matched_indices:
+        return None
+
+    # Filter with diacritic consistency if query has Vietnamese accents
+    has_query_accents = any(c in "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ" for c in query.lower())
+    if has_query_accents:
+        accented_tokens = [
+            t.lower() for t in re.findall(r'[a-zA-Zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ]+', query)
+            if len(t) >= 2 and normalize_text(t) not in VIETNAMESE_STOP_WORDS
+        ]
+        if accented_tokens:
+            filtered = []
+            for i in matched_indices:
+                doc = bm25_documents[i]
+                raw_check = (str(doc.get("title", "")) + " " + str(doc.get("subject", ""))).lower()
+                if check_diacritic_consistency(raw_check, accented_tokens):
+                    filtered.append(i)
+            matched_indices = filtered
+
+    if matched_indices:
+        return [{"doc": bm25_documents[i], "score": base_score, "index": i} for i in matched_indices]
     return None
 
 # ═══════════════════════════════════════════════════════════════════
@@ -667,25 +731,45 @@ def detect_study_major_query(query: str) -> str | None:
 
 
 _TITLE_CONTAINS_PATTERNS = [
-    r"co\s+chu\s+(\S+)\s+trong\s+ten",
-    r"co\s+(?:sach|tai lieu|giao trinh)\s+(?:nao\s+)?co\s+chu\s+(\S+)",
+    # Quoted string patterns: có chữ "cánh diều", có tên "...", tên chứa "..."
+    r'(?:co\s+chu|chua\s+tu|chua\s+chu|co\s+tu|trong\s+ten\s+co\s+chu|trong\s+ten\s+co)\s+["\']([^"\']+)["\']',
+    r'["\']([^"\']+)["\']\s+trong\s+ten',
+    # Unquoted multi-word patterns: có chữ cánh diều trong tên sách
+    r'(?:co\s+chu|chua\s+tu|chua\s+chu|co\s+tu|co\s+cum\s+tu)\s+(.+?)\s+trong\s+(?:ten|tieu\s+de)',
+    r'trong\s+(?:ten|tieu\s+de)\s+(?:sach\s+)?(?:co\s+chu|co\s+tu|chua\s+tu|chua\s+chu|co)\s+(.+)$',
+    r'co\s+(?:sach|tai lieu|giao trinh)\s+(?:nao\s+)?co\s+chu\s+(.+)$',
+    r'ten\s+(?:sach\s+)?(?:co\s+chu|chua\s+chu|chua\s+tu|co\s+tu|co)\s+(.+)$',
 ]
 
 def detect_title_contains_keyword(query: str) -> str | None:
-    """Phát hiện 'có chữ X trong tên' → trả về keyword (vd 'Python')."""
+    """Phát hiện 'có chữ X trong tên', 'có từ "cánh diều" trong tên sách'..."""
     if not query:
         return None
+
+    # 1. Quoted string check: nếu người dùng bỏ trong ngoặc kép "..." hoặc '...'
+    quoted_match = re.search(r'["\']([^"\']{2,})["\']', query)
+    if quoted_match:
+        quoted_val = quoted_match.group(1).strip()
+        q_norm = normalize_topic_text(query)
+        if any(w in q_norm for w in ("trong ten", "tieu de", "co chu", "co tu", "chua tu", "chua chu", "ten sach", "trong sach")):
+            return quoted_val
+
+    # 2. Pattern check
     q_norm = normalize_topic_text(query)
     for p in _TITLE_CONTAINS_PATTERNS:
         m = re.search(p, q_norm)
         if m:
-            kw = m.group(1).strip()
-            if len(kw) >= 2:
-                # Khôi phục dấu từ query gốc
-                for src in re.findall(r"[A-Za-zÀ-ỹ]+", query):
-                    if normalize_topic_text(src) == kw:
-                        return src
-                return kw
+            raw_kw = m.group(1).strip().strip('"\'')
+            raw_kw = re.sub(r'\s+(?:khong|ko|k|vay|a|nhe|ha|vay\s+ad|khong\s+ad)$', '', raw_kw).strip()
+            if len(raw_kw) >= 2:
+                kw_norm = normalize_topic_text(raw_kw)
+                orig_words = query.split()
+                for i in range(len(orig_words)):
+                    for j in range(i + 1, len(orig_words) + 1):
+                        sub = " ".join(orig_words[i:j]).strip("\"'.,?!;:")
+                        if normalize_topic_text(sub) == kw_norm:
+                            return sub
+                return raw_kw
     return None
 
 
@@ -983,11 +1067,36 @@ def filter_by_year(results: list[dict], year: int, direction: str = 'exact') -> 
 
 
 def detect_generic_request(query: str) -> bool:
-    """Phát hiện 'gợi ý sách hay', 'vài cuốn sách' — generic suggestion."""
+    """
+    Phát hiện câu hỏi gợi ý sách chung chung (generic suggestion) KHÔNG có chủ đề/tác giả/ngành cụ thể.
+    Ví dụ: 'gợi ý vài cuốn sách', 'gợi ý sách hay', 'cho mình vài cuốn sách để đọc', 'gợi ý sách'...
+    Nếu câu có chủ đề (ví dụ 'gợi ý sách nông nghiệp', 'gợi ý sách về AI', 'đề tài nghiên cứu về...'):
+    -> Trả về False để Search Engine tra cứu đúng chủ đề.
+    """
     if not query:
         return False
     q_norm = normalize_topic_text(query)
-    return bool(re.search(
-        r"(?:goi y|vai cuon|mot vai|it cuon)\s*(?:sach)?",
+    has_generic_marker = bool(re.search(
+        r"\b(?:goi\s+y|de\s+xuat|gioi\s+thieu|vai\s+cuon|mot\s+vai|it\s+cuon|sach\s+hay|doc\s+sach|cho\s+(?:minh|em|toi)\s+(?:xin\s+)?sach)\b",
         q_norm
     ))
+    if not has_generic_marker:
+        return False
+
+    stripped = q_norm
+    stopwords_patterns = [
+        r"\b(?:xin\s+chao|chao\s+ban|chao\s+ad|chao\s+bot|ad\s+oi|bot\s+oi|ban\s+oi|em\s+oi)\b",
+        r"\b(?:ban|ad|bot|toi|em|minh|anh|chi|ai|gi|nao)\b",
+        r"\b(?:co\s+the|giup|cho|xin|hay|lam\s+on|vui\s+long|voi|nhe|nha|a|nhi|khong|chua)\b",
+        r"\b(?:goi\s+y|de\s+xuat|gioi\s+thieu|tim|lua|chon|lay|xem|doc|kiem|muon|can|thich|biet|hoi)\b",
+        r"\b(?:sach|tai\s+lieu|cuon|quyen|tap|ban|bai\s+giang|giao\s+trinh|dau\s+sach)\b",
+        r"\b(?:vai|mot\s+vai|it|nhung|cac|mot\s+so|tat\s+ca|nhieu|1|2|3|mot|vai\s+ba)\b",
+        r"\b(?:hay|tot|thu\s+vi|noi\s+tieng|bo\s+ich|pho\s+bien|moi|hot|tieu\s+bieu|de\s+doc|y\s+nghia)\b",
+        r"\b(?:trong\s+thu\s+vien|o\s+thu\s+vien|thu\s+vien|o\s+day|hien\s+co|de\s+doc|de\s+tham\s+khao)\b",
+        r"\b(?:ve|thuoc|lien\s+quan|de)\b",
+    ]
+    for p in stopwords_patterns:
+        stripped = re.sub(p, " ", stripped)
+    stripped = re.sub(r"\s+", " ", stripped).strip()
+
+    return len(stripped) < 3

@@ -147,7 +147,16 @@ def infer_doc_type_from_doc(d: dict) -> str:
     """
     dt = str(d.get("doc_type") or "").strip()
     if dt and dt not in ("N/A", "Unknown", "nan", "Khác", "None", ""):
-        return dt
+        low = dt.lower()
+        if "giáo trình" in low and "tham khảo" in low:
+            return "Giáo trình / Tài liệu tham khảo"
+        if low in ("tài liệu tham khảo", "tài liệu kham khảo", "tham khảo", "sách tham khảo"):
+            return "Tài liệu tham khảo"
+        if low in ("giáo trình", "giáo trình chính"):
+            return "Giáo trình"
+        if low in ("kiểm định", "kiểm định aun"):
+            return "Kiểm định"
+        return re.sub(r"\s*/\s*", " / ", dt)
     t = str(d.get("title") or "").lower()
     loc = str(d.get("location") or "").lower()
     if "luận văn" in loc or "luan van" in loc or "lv" in loc or t.startswith("luận văn"):

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { BookSource } from '../../types';
+import { normalizeDocType } from '../../utils/docType';
 import {
   BookOpen,
   Book,
@@ -76,7 +77,7 @@ export const BookCard: React.FC<BookCardProps> = ({ book }) => {
   const language = cleanVal(book.language);
 
   // 3. Nhóm phân loại & đào tạo
-  const docType = cleanVal(book.doc_type) || cleanVal(book.loai_tai_lieu) || 'Sách';
+  const docType = normalizeDocType(cleanVal(book.doc_type) || cleanVal(book.loai_tai_lieu), book);
   const major = cleanVal(book.major);
   const subject = cleanVal(book.subject);
   const ddc = cleanVal(book.ddc);

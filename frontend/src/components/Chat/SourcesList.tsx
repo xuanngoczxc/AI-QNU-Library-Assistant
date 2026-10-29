@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { BookSource } from '../../types';
 import { BookCard } from './BookCard';
+import { normalizeDocType } from '../../utils/docType';
 import {
   BookOpen,
   Book,
@@ -33,44 +34,6 @@ function getDocTypeIcon(dt: string) {
   if (low.includes('đề tài') || low.includes('nghiên cứu')) return <FlaskConical size={16} />;
   if (low.includes('báo') || low.includes('tạp chí')) return <Newspaper size={16} />;
   return <Folder size={16} />;
-}
-
-function normalizeDocType(raw?: string, book?: BookSource): string {
-  const trimmed = (raw || '').trim();
-  if (trimmed && trimmed !== 'N/A' && trimmed !== 'Unknown' && trimmed !== 'nan' && trimmed !== 'Khác') {
-    const low = trimmed.toLowerCase();
-    if (low === 'tài liệu tham khảo') return 'Tài liệu tham khảo';
-    if (low === 'giáo trình') return 'Giáo trình';
-    if (low === 'sách') return 'Sách';
-    if (low === 'kiểm định') return 'Kiểm định';
-    if (low === 'luận văn') return 'Luận văn';
-    return trimmed;
-  }
-
-  // Suy luận thông minh khi trường doc_type bị trống hoặc ghi 'Khác'
-  if (book) {
-    const loc = (book.location || '').toLowerCase();
-    const t = (book.title || '').toLowerCase();
-    if (loc.includes('luận văn') || loc.includes('luan van') || /\blv\d+/i.test(loc) || t.startsWith('luận văn')) {
-      return 'Luận văn';
-    }
-    if (t.includes('tự đánh giá') || t.includes('kiểm định') || t.includes('minh chứng')) {
-      return 'Kiểm định';
-    }
-    if (t.includes('giáo trình') || t.includes('giao trinh') || loc.includes('giáo trình') || loc.includes('giao trinh')) {
-      return 'Giáo trình';
-    }
-    if (t.includes('bài tập') || t.includes('bai tap')) {
-      return 'Sách bài tập';
-    }
-    if (t.includes('kỷ yếu') || t.includes('ky yeu')) {
-      return 'Kỷ yếu';
-    }
-    if (loc.includes('phòng đọc') || loc.includes('phòng mượn') || loc.includes('kho')) {
-      return 'Sách';
-    }
-  }
-  return 'Sách';
 }
 
 function getVisiblePages(currentPage: number, totalPages: number): (number | string)[] {

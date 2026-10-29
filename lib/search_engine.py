@@ -9,11 +9,12 @@ Hỗ trợ load từ:
 
 import re
 import os
+import math
 import pickle
 import pandas as pd
 from pathlib import Path
 from collections import Counter
-from .text_utils import normalize_text
+from .text_utils import normalize_text, check_diacritic_consistency
 
 DATA_DIR = Path("Data")
 
@@ -60,7 +61,8 @@ class BM25SearchEngine:
         if term in self.idf_cache:
             return self.idf_cache[term]
         doc_freq = sum(1 for tokens in self.tokenized_docs if term in tokens)
-        idf = max(0.1, self.num_docs - doc_freq + 0.5) / (doc_freq + 0.5)
+        # Standard Lucene/BM25 smoothed IDF: ln(1 + (N - DF + 0.5) / (DF + 0.5))
+        idf = math.log(1.0 + (self.num_docs - doc_freq + 0.5) / (doc_freq + 0.5))
         self.idf_cache[term] = idf
         return idf
 
@@ -107,7 +109,7 @@ class BM25SearchEngine:
         return span <= max_gap
 
     def search(self, query, top_k=6, use_regex=True):
-        normalized_query = normalize_text(query)
+        normalized_query = normalize_text(query).strip()
         tokens = self._tokenize(normalized_query)
 
         if not tokens:
@@ -122,9 +124,25 @@ class BM25SearchEngine:
             if not any(pattern.search(normalize_text(d.get('text', ''))) for d in self.documents):
                 return []
 
-        # Dynamic minimum score: stricter for short queries
-        min_score = max(1.0, len(tokens) * 0.4) if len(tokens) >= 3 else 1.0
-        min_coverage = 1.0 if len(tokens) <= 3 else 0.6
+        # Dynamic minimum score & coverage:
+        min_score = max(0.5, len(tokens) * 0.2) if len(tokens) >= 3 else 0.5
+        if len(tokens) <= 3:
+            min_coverage = 1.0
+        elif len(tokens) == 4:
+            min_coverage = 0.75
+        elif len(tokens) <= 6:
+            min_coverage = 0.60
+        else:
+            # Cho các câu dài hoặc truy vấn mở rộng đồng nghĩa (7+ token): yêu cầu tối thiểu 3 token hoặc 25%
+            min_coverage = min(0.25, 3.0 / len(tokens))
+
+        has_query_accents = any(c in "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ" for c in query.lower())
+        accented_query_tokens = []
+        if has_query_accents and len(tokens) in (2, 3):
+            accented_query_tokens = [
+                t.lower() for t in re.findall(r'[a-zA-Zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ]+', query)
+                if len(t) >= 2 and normalize_text(t) not in {'sach', 'tai', 'lieu', 've', 'cac', 'nhung', 'cua', 'va'}
+            ]
 
         scores = []
         for doc_idx in range(len(self.documents)):
@@ -136,20 +154,57 @@ class BM25SearchEngine:
             if coverage < min_coverage:
                 continue
 
+            doc_d = self.documents[doc_idx]
+            doc_title = normalize_text(doc_d.get('title', '')).strip()
+            doc_subj = normalize_text(doc_d.get('subject', '')).strip()
+            doc_text = normalize_text(doc_d.get('text', '') or doc_d.get('flat_text', '')).strip()
+
             # Proximity boost: thưởng điểm khi các từ khóa xuất hiện gần nhau
             proximity_boost = 0.0
             if len(tokens) >= 2 and self._tokens_in_proximity(self.tokenized_docs[doc_idx], tokens, max_gap=6):
                 proximity_boost = 4.0
 
+            # Exact phrase boost (ưu tiên vượt trội khi xuất hiện nguyên cụm từ đi liền nhau)
+            phrase_boost = 0.0
+            has_phrase = False
+            if len(tokens) >= 2 and len(normalized_query) >= 4:
+                phrase_pattern = re.compile(r'(?<!\w)' + re.escape(normalized_query) + r'(?!\w)')
+                if phrase_pattern.search(doc_title):
+                    phrase_boost += 20.0
+                    has_phrase = True
+                elif phrase_pattern.search(doc_subj):
+                    phrase_boost += 12.0
+                    has_phrase = True
+                elif phrase_pattern.search(doc_text):
+                    phrase_boost += 6.0
+                    has_phrase = True
+
+            # Title token coverage boost: nếu tiêu đề chứa đầy đủ các từ khóa
+            title_tokens = set(self._tokenize(doc_title))
+            if tokens and all(t in title_tokens for t in tokens):
+                phrase_boost += 10.0
+
+            # Coherence check for short multi-token queries (2-3 tokens):
+            # Loại bỏ các false positive khi các từ khóa đơn lẻ xuất hiện ngẫu nhiên ở các phần xa nhau trong văn bản
+            if len(tokens) in (2, 3):
+                subj_tokens = set(self._tokenize(doc_subj))
+                has_title_or_subj = (all(t in title_tokens for t in tokens) or all(t in subj_tokens for t in tokens))
+                if not (has_phrase or has_title_or_subj):
+                    continue
+                if accented_query_tokens:
+                    raw_check = (str(doc_d.get('title', '')) + " " + str(doc_d.get('subject', ''))).lower()
+                    if not check_diacritic_consistency(raw_check, accented_query_tokens):
+                        if not has_phrase:
+                            continue
+
             bm25_score = self._bm25_score(tokens, doc_idx)
 
             regex_boost = 0.0
             if use_regex and len(query) > 3:
-                doc_text = normalize_text(self.documents[doc_idx].get('text', ''))
                 if re.search(re.escape(normalized_query), doc_text, re.IGNORECASE):
                     regex_boost = 5.0
 
-            total_score = bm25_score + regex_boost + proximity_boost
+            total_score = bm25_score + regex_boost + proximity_boost + phrase_boost
             if total_score >= min_score:
                 scores.append((doc_idx, total_score))
 
@@ -167,7 +222,7 @@ class BM25SearchEngine:
 
     def count_matching(self, query, use_regex=True):
         """Count ALL documents matching query without top_k limit."""
-        normalized_query = normalize_text(query)
+        normalized_query = normalize_text(query).strip()
         tokens = self._tokenize(normalized_query)
 
         if not tokens:
@@ -182,10 +237,28 @@ class BM25SearchEngine:
                 return 0
 
         # Stricter for short queries: raise min score
-        min_score = max(0.8, len(tokens) * 0.35) if len(tokens) >= 2 else 0.8
+        min_score = max(0.5, len(tokens) * 0.2) if len(tokens) >= 2 else 0.5
 
-        # Require ALL tokens appear for short queries
-        min_coverage = 1.0 if len(tokens) <= 3 else 0.6
+        if len(tokens) <= 3:
+            min_coverage = 1.0
+        elif len(tokens) == 4:
+            min_coverage = 0.75
+        elif len(tokens) <= 6:
+            min_coverage = 0.60
+        else:
+            min_coverage = min(0.25, 3.0 / len(tokens))
+
+        count_phrase_pattern = None
+        if len(tokens) in (2, 3) and len(normalized_query) >= 4:
+            count_phrase_pattern = re.compile(r'(?<!\w)' + re.escape(normalized_query) + r'(?!\w)')
+
+        has_query_accents = any(c in "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ" for c in query.lower())
+        accented_query_tokens = []
+        if has_query_accents and len(tokens) in (2, 3):
+            accented_query_tokens = [
+                t.lower() for t in re.findall(r'[a-zA-Zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ]+', query)
+                if len(t) >= 2 and normalize_text(t) not in {'sach', 'tai', 'lieu', 've', 'cac', 'nhung', 'cua', 'va'}
+            ]
 
         count = 0
         for doc_idx in range(len(self.documents)):
@@ -195,6 +268,23 @@ class BM25SearchEngine:
 
             if coverage < min_coverage:
                 continue
+
+            if len(tokens) in (2, 3):
+                doc_d = self.documents[doc_idx]
+                doc_title = normalize_text(doc_d.get('title', '')).strip()
+                doc_subj = normalize_text(doc_d.get('subject', '')).strip()
+                doc_text = normalize_text(doc_d.get('text', '') or doc_d.get('flat_text', '')).strip()
+                title_tokens = set(self._tokenize(doc_title))
+                subj_tokens = set(self._tokenize(doc_subj))
+                has_phrase = bool(count_phrase_pattern.search(doc_title) or count_phrase_pattern.search(doc_subj) or count_phrase_pattern.search(doc_text)) if count_phrase_pattern else False
+                has_title_or_subj = (all(t in title_tokens for t in tokens) or all(t in subj_tokens for t in tokens))
+                if not (has_phrase or has_title_or_subj):
+                    continue
+                if accented_query_tokens:
+                    raw_check = (str(doc_d.get('title', '')) + " " + str(doc_d.get('subject', ''))).lower()
+                    if not check_diacritic_consistency(raw_check, accented_query_tokens):
+                        if not has_phrase:
+                            continue
 
             bm25_score = self._bm25_score(tokens, doc_idx)
             if bm25_score >= min_score:
@@ -496,6 +586,35 @@ class DocumentIndexer:
         return cleaned
 
     @staticmethod
+    def _normalize_doc_type(val):
+        """Chuẩn hóa loại tài liệu (doc_type) về định dạng chuẩn thống nhất."""
+        if not val or not isinstance(val, str):
+            return ''
+        cleaned = DocumentIndexer._clean_marc_value(val)
+        if not cleaned:
+            return ''
+        low = cleaned.lower().strip()
+        if low in ('tài liệu tham khảo', 'tài liệu kham khảo', 'tham khảo', 'sách tham khảo'):
+            return 'Tài liệu tham khảo'
+        if low in ('giáo trình', 'giáo trình chính'):
+            return 'Giáo trình'
+        if low in ('kiểm định', 'kiểm định aun'):
+            return 'Kiểm định'
+        if 'giáo trình' in low and 'tham khảo' in low:
+            return 'Giáo trình / Tài liệu tham khảo'
+        if low in ('luận văn', 'luận án', 'khóa luận'):
+            return 'Luận văn'
+        if low in ('bài giảng',):
+            return 'Bài giảng'
+        if low in ('sách bài tập',):
+            return 'Sách bài tập'
+        if low in ('tài liệu chính',):
+            return 'Tài liệu chính'
+        if low in ('kỷ yếu',):
+            return 'Kỷ yếu'
+        return re.sub(r'\s*/\s*', ' / ', cleaned)
+
+    @staticmethod
     def _load_xlsx(filepath):
         # Load documents from XLSX file (tailieu_templates_AI.xlsx) with MARC structure
         documents = []
@@ -526,7 +645,7 @@ class DocumentIndexer:
             publisher = cleaner(str(row.get('publisher', ''))) if pd.notna(row.get('publisher')) else ''
             abstract = cleaner(str(row.get('abstract', ''))) if pd.notna(row.get('abstract')) else ''
             major = cleaner(str(row.get('major', ''))) if pd.notna(row.get('major')) else ''
-            doc_type = cleaner(str(row.get('doc_type', 'Sách'))) if pd.notna(row.get('doc_type')) else 'Sách'
+            doc_type = DocumentIndexer._normalize_doc_type(str(row.get('doc_type', 'Sách'))) if pd.notna(row.get('doc_type')) else 'Sách'
             ddc = cleaner(str(row.get('ddc', ''))) if pd.notna(row.get('ddc')) else ''
 
             if not title and not author:
@@ -706,7 +825,7 @@ class DocumentIndexer:
                 publisher = _cell(row, "publisher")
                 subject = _cell(row, "subject")
                 major = _cell(row, "major")
-                doc_type = _cell(row, "doc_type") or "Sách"
+                doc_type = DocumentIndexer._normalize_doc_type(_cell(row, "doc_type")) or "Sách"
                 link = _cell(row, "link")
                 abstract = _cell(row, "abstract")
                 course = _cell(row, "course")
@@ -922,16 +1041,8 @@ class DocumentIndexer:
                 # Chuyên ngành là cột Tên của chương trình(526$a)
                 major = cleaner(_val(row, 'Tên của chương trình(526$a)', '526$a', 'chương trình'))
                 # Loại tài liệu chính là cột Mức độ quan tâm(526$b)
-                doc_type_raw = cleaner(_val(row, 'Mức độ quan tâm(526$b)', '526$b', 'quan tâm', 'Mức độ'))
-                doc_type = doc_type_raw
-                if doc_type:
-                    dt_lower = doc_type.lower()
-                    if dt_lower in ('tài liệu tham khảo', 'tài liệu kham khảo', 'tham khảo', 'sách tham khảo'):
-                        doc_type = 'Tài liệu tham khảo'
-                    elif dt_lower in ('giáo trình', 'giáo trình chính'):
-                        doc_type = 'Giáo trình'
-                    elif dt_lower in ('kiểm định', 'kiểm định aun'):
-                        doc_type = 'Kiểm định'
+                doc_type_raw = _val(row, 'Mức độ quan tâm(526$b)', '526$b', 'quan tâm', 'Mức độ')
+                doc_type = DocumentIndexer._normalize_doc_type(doc_type_raw)
 
                 keywords_raw = cleaner(_val(row, '650$a', 'Từ khóa'))
                 keywords = [k.strip() for k in re.split(r'[,;|]', keywords_raw) if k.strip()] if keywords_raw else []
@@ -1295,6 +1406,33 @@ class HybridSearchEngine:
                     count += 1
                     continue
         return count
+
+    def search_title_match(self, query: str, top_k: int = 100):
+        """
+        Search documents where query appears specifically in the title or subject.
+        Used for title-focused queries like "sách có chữ X trong tên".
+        """
+        if not query or not query.strip():
+            return []
+        q = normalize_text(query).strip()
+        if not q or len(q) <= 1:
+            return []
+        tokens = set(re.findall(r'\w+', q, re.UNICODE))
+        matches = []
+        for doc in self.bm25.documents:
+            title = normalize_text(doc.get('title', '') or '')
+            subj = normalize_text(doc.get('subject', '') or '')
+            score = 0.0
+            if q in title:
+                score = 200.0
+            elif tokens and len(tokens) > 1 and tokens.issubset(set(re.findall(r'\w+', title, re.UNICODE))):
+                score = 150.0
+            elif q in subj:
+                score = 100.0
+            if score > 0:
+                matches.append({"doc": doc, "score": score})
+        matches.sort(key=lambda x: (x["score"], int(x["doc"].get("year", 0)) if str(x["doc"].get("year", 0)).isdigit() else 0), reverse=True)
+        return matches[:top_k]
 
     def search_by_author(self, author, query, top_k=5):
         results = self.bm25.search(query, top_k=top_k*2)

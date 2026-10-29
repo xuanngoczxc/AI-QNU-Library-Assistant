@@ -405,10 +405,12 @@ def extract_author_candidate(query: str) -> str:
 
 
 GENERIC_BOOK_LISTING_PATTERNS = [
-    r"^(?:da\s+)?(?:cho\s+(?:em|minh|toi)\s+(?:hoi|xin|biet)\s+)?(?:thu\s+vien\s+co\s+)?(?:nhung|cac|co\s+(?:nhung|cac)?)\s+(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham|cuon|quyen)(?:\s+nao)?\b",
-    r"^(?:da\s+)?(?:sach|tai\s+lieu|giao\s+trinh|cuon|quyen)\s+nao\b",
+    r"^(?:da\s+)?(?:cho\s+(?:em|minh|toi)\s+(?:hoi|xin|biet)\s+)?(?:thu\s+vien\s+co\s+)?(?:vay\s+(?:thi\s+)?|the\s+(?:thi\s+)?|vay\s+co\s+|the\s+co\s+|vay\s+con\s+|the\s+con\s+)?(?:co\s+)?(?:nhung|cac|co\s+(?:nhung|cac)?)\s+(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham|cuon|quyen)(?:\s+nao)?\b",
+    r"^(?:da\s+)?(?:vay\s+|the\s+)?(?:sach|tai\s+lieu|giao\s+trinh|cuon|quyen)\s+nao\b",
     r"^(?:liet\s+ke|danh\s+sach|tim\s+(?:cac|nhung)?)\s*(?:sach|tai\s+lieu|giao\s+trinh)\b",
     r"^(?:sach|tai\s+lieu|giao\s+trinh)\s+(?:xuat\s+ban|nam\s+\d{4}|tu\s+nam|sau\s+nam)\b",
+    r"\bco\s+(?:nhung\s+|cac\s+)?(?:sach|tai\s+lieu|giao\s+trinh|cuon|quyen|an\s+pham)\b.*(?:\bkhong|\bko|\?|$)",
+    r"\b(?:sach|tai\s+lieu|giao\s+trinh|cuon|quyen|an\s+pham)\s+nao\b",
 ]
 
 GENERIC_TITLES = {
@@ -424,7 +426,8 @@ GENERIC_TITLES = {
 def is_generic_book_listing_query(query: str) -> bool:
     """
     Returns True if the query is asking to list or search books in general
-    (e.g., 'những sách nào xuất bản năm 1991', 'sách nào xuất bản năm 2020')
+    (e.g., 'những sách nào xuất bản năm 1991', 'sách nào xuất bản năm 2020',
+    'vậy có sách nào thuộc ngành này xuất bản năm 2024 không')
     rather than asking about the attributes of a single specific book.
     """
     if not query:
@@ -434,6 +437,32 @@ def is_generic_book_listing_query(query: str) -> bool:
         if re.search(pat, qn):
             return True
     return False
+
+
+def check_diacritic_consistency(raw_text: str, query_tokens: list[str]) -> bool:
+    """
+    Kiểm tra tính nhất quán dấu tiếng Việt giữa query_tokens và raw_text.
+    Ngăn chặn việc bỏ dấu làm sai lệch ý nghĩa (vd: 'hoa' khớp với 'tiến hóa', 'Phú Hòa', 'tiêu hóa').
+    Nếu raw_text có chứa các từ ứng với normalized token nhưng toàn bộ đều mang dấu khác
+    (conflict) thì trả về False.
+    """
+    if not raw_text or not query_tokens:
+        return True
+    raw_lower = raw_text.lower()
+    for qt in query_tokens:
+        norm_qt = normalize_text(qt)
+        words = re.findall(r'[a-zA-Zàáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúũụưừứửữựỳýỷỹỵđ]+', raw_lower)
+        matching_words = [w for w in words if normalize_text(w) == norm_qt]
+        if not matching_words:
+            return False
+        # Chấp nhận loài / loại là biến thể tương đương của nhau
+        if norm_qt == "loai":
+            valid = any(w in ("loài", "loại", "loai") for w in matching_words)
+        else:
+            valid = any(w == qt or w == norm_qt for w in matching_words)
+        if not valid:
+            return False
+    return True
 
 
 if __name__ == "__main__":
