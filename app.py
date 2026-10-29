@@ -113,6 +113,7 @@ from lib.conversation_resolver import (
     detect_exhaustion_query as detect_exhaustion_query_resolved,
     is_follow_up_filter,
     is_follow_up_refinement,
+    is_broad_book_request,
     is_singular_book_request,
     get_inherited_context,
     detect_recency_preference,
@@ -2548,6 +2549,10 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         # ── Enhanced detection (chạy trước intent checks) ──
         _detected_doc_type = getattr(req, "doc_type", None) or detect_doc_type_from_query(req.query)
+        _is_broad_book = is_broad_book_request(req.query)
+        if _is_broad_book:
+            _detected_doc_type = None
+
         _canonical_major_match = resolve_canonical_major_from_query(req.query)
         if _canonical_major_match:
             _canonical_major_name, _matched_alias = _canonical_major_match
@@ -2581,11 +2586,11 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             _year_dir_now = _pure_yr_dir
         _title_kw_now = detect_title_contains_keyword(req.query)
 
-        # Kế thừa doc_type từ ngữ cảnh trước nếu câu hiện tại là câu lọc tiếp nối (theo ngành, năm, hoặc filter)
-        if not _detected_doc_type and inherited_ctx.get("doc_type"):
-            if _canonical_major_match or _study_major_now or _year_filter_now or is_follow_up_filter(req.query):
+        # Kế thừa doc_type từ ngữ cảnh trước CHỈ KHI đây là câu tinh chỉnh hoặc lọc tiếp nối (và không phải yêu cầu tìm sách chung)
+        if not _detected_doc_type and not _is_broad_book and inherited_ctx.get("doc_type"):
+            if _is_refine_now or is_follow_up_filter(req.query):
                 _detected_doc_type = inherited_ctx["doc_type"]
-                logger.info("Inherited doc_type '%s' from previous turn for query %r", _detected_doc_type, req.query)
+                logger.info("Inherited doc_type '%s' from previous turn for refinement query %r", _detected_doc_type, req.query)
         _generic_now = detect_generic_request(req.query) and not req.query.startswith(list_topic_marker) and not (
             bool(_study_major_now) or bool(_detected_doc_type) or bool(_year_filter_now) or bool(_title_kw_now) or bool(_canonical_major_match)
         )
@@ -3151,7 +3156,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         )
 
         search_query = parsed_q.search_query
-        _detected_doc_type = parsed_q.doc_type or _detected_doc_type
+        _detected_doc_type = parsed_q.doc_type
         if parsed_q.major:
             req.major = parsed_q.major
         _extracted_author = parsed_q.author_name
@@ -3587,7 +3592,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             "topic": topic,
             "doc_type": _detected_doc_type,
             "major": getattr(req, "major", None) or _study_major_now,
-            "author": _extracted_author or (sources[0].get("author") if sources else ""),
+            "author": _extracted_author if parsed_q.is_author_query else "",
             "source_count": len(sources),
             "shown_titles": [s.get("title", "") for s in sources[:20]],
             "sources": sources[:10],

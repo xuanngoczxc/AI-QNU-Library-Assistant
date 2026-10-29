@@ -630,6 +630,23 @@ def is_follow_up_refinement(query: str) -> bool:
     return len(s) < 3
 
 
+def is_broad_book_request(query: str) -> bool:
+    """
+    Kiểm tra xem câu hỏi có chứa các từ chỉ tài liệu chung như 'sách', 'tài liệu', 'cuốn sách'
+    mà KHÔNG chỉ định một loại tài liệu thu hẹp (như 'giáo trình', 'luận văn', 'bài giảng', 'kiểm định').
+    Khi trả về True, đây là tín hiệu người dùng muốn tìm rộng trong toàn bộ kho (Reset doc_type = None).
+    """
+    if not query:
+        return False
+    q = normalize_text(query).strip().lower()
+    has_broad_term = bool(re.search(r"\b(?:sach|tai\s+lieu|dau\s+sach)\b", q))
+    has_narrow_type = bool(re.search(
+        r"\b(?:giao\s+trinh|sach\s+giao\s+trinh|luan\s+van|luan\s+an|khoa\s+luan|do\s+an|bai\s+giang|kiem\s+dinh|sach\s+bai\s+tap|ky\s+yeu)\b",
+        q
+    ))
+    return has_broad_term and not has_narrow_type
+
+
 def is_singular_book_request(query: str) -> bool:
     """
     Kiểm tra câu hỏi có hướng tới 1 tài liệu đơn lẻ cụ thể không:
@@ -649,14 +666,19 @@ def is_singular_book_request(query: str) -> bool:
 
 def get_inherited_context(history: list) -> dict:
     """
-    Trích xuất ngữ cảnh kế thừa từ lịch sử hội thoại gần nhất:
-    - doc_type (ví dụ 'Kiểm định')
+    Trích xuất ngữ cảnh kế thừa từ lượt tìm kiếm gần nhất trong lịch sử hội thoại:
+    - doc_type (ví dụ 'Kiểm định', 'Giáo trình', 'Luận văn'...)
     - major (ví dụ 'Công nghệ thông tin')
     - author (ví dụ 'Nguyễn Nhật Ánh')
     - topic
     - search_query
     - last_sources (danh sách các sách vừa hiển thị ở turn gần nhất)
     - list_sources (danh sách các sách ở turn hiển thị danh sách > 1 cuốn)
+
+    NGUYÊN LÝ DIALOGUE STATE TRACKING:
+    Ngữ cảnh kế thừa phải lấy từ lượt tra cứu (catalog search turn) GẦN NHẤT.
+    Nếu lượt tra cứu gần nhất không có doc_type (hoặc người dùng đã reset về tìm sách chung),
+    hệ thống TUYỆT ĐỐI KHÔNG được nhảy ngược về quá khứ xa xưa để lôi lại doc_type cũ!
     """
     ctx = {
         "doc_type": None,
@@ -670,24 +692,30 @@ def get_inherited_context(history: list) -> dict:
     if not history:
         return ctx
 
+    # Tìm lượt tìm kiếm (catalog turn) gần nhất
+    last_search_entry = None
     for entry in reversed(history):
         if not isinstance(entry, dict):
             continue
-        if not ctx["doc_type"] and entry.get("doc_type"):
-            ctx["doc_type"] = entry.get("doc_type")
-        if not ctx["major"] and entry.get("major"):
-            ctx["major"] = entry.get("major")
-        if not ctx["author"] and entry.get("author"):
-            ctx["author"] = entry.get("author")
-        if not ctx["topic"] and entry.get("topic"):
-            ctx["topic"] = entry.get("topic")
-        if not ctx["search_query"] and entry.get("search_query"):
-            ctx["search_query"] = entry.get("search_query")
+        if entry.get("search_query") or entry.get("sources") or entry.get("topic"):
+            last_search_entry = entry
+            break
 
+    if last_search_entry:
+        ctx["doc_type"] = last_search_entry.get("doc_type")
+        ctx["major"] = last_search_entry.get("major")
+        ctx["author"] = last_search_entry.get("author")
+        ctx["topic"] = last_search_entry.get("topic")
+        ctx["search_query"] = last_search_entry.get("search_query")
+        ctx["last_sources"] = last_search_entry.get("sources") or []
+
+    # Thu thập list_sources nếu lượt gần nhất chỉ có 1 cuốn
+    for entry in reversed(history):
+        if not isinstance(entry, dict):
+            continue
         srcs = entry.get("sources") or []
-        if not ctx["last_sources"] and srcs:
-            ctx["last_sources"] = srcs
         if not ctx["list_sources"] and len(srcs) > 1:
             ctx["list_sources"] = srcs
+            break
 
     return ctx

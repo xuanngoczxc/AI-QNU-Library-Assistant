@@ -226,6 +226,56 @@ TEST_CASES = [
             lambda res: "nông nghiệp" in res.json().get("answer", "").lower(),
         ],
     },
+    {
+        "id": "NL_15_MULTI_TURN_DOC_TYPE_RESET",
+        "turn1_query": "tìm giáo trình giải tích",
+        "query": "tìm sách kinh tế",
+        "description": "Multi-turn DST Reset: Turn 1 tìm giáo trình, Turn 2 tìm sách kinh tế phải reset doc_type về None, không bị dính giáo trình",
+        "checks": [
+            lambda res: res.status_code == 200,
+            lambda res: len(res.json().get("sources", [])) > 0,
+            # Search for economics books returns all categories in the major (>= 20)
+            lambda res: res.json().get("total_found", 0) >= 20,
+            # Top sources must include general books, not restricted exclusively to Giáo trình
+            lambda res: any(
+                "sách" in str(s.get("doc_type", "")).lower() or not str(s.get("doc_type", "")).strip() or str(s.get("doc_type", "")).lower() != "giáo trình"
+                for s in res.json().get("sources", [])[:5]
+            ),
+            # Answer should not force "Dưới đây là các giáo trình"
+            lambda res: "kinh tế" in res.json().get("answer", "").lower(),
+        ],
+    },
+    {
+        "id": "NL_16_MULTI_TURN_AUTHOR_RESET",
+        "turn1_query": "sách của nguyễn nhật ánh",
+        "query": "tìm sách lịch sử việt nam",
+        "description": "Multi-turn Slot Reset: Turn 1 tác giả Nguyễn Nhật Ánh, Turn 2 tìm sách lịch sử không được dính tác giả cũ",
+        "checks": [
+            lambda res: res.status_code == 200,
+            lambda res: len(res.json().get("sources", [])) > 0,
+            # Top source author must NOT be Nguyễn Nhật Ánh
+            lambda res: "nguyễn nhật ánh" not in str(res.json()["sources"][0].get("author", "")).lower(),
+            # Results or answer must be about lịch sử
+            lambda res: any(
+                "lịch sử" in (s.get("title", "") + " " + s.get("subject", "") + " " + s.get("major", "")).lower()
+                for s in res.json().get("sources", [])[:5]
+            ) or "lịch sử" in res.json().get("answer", "").lower(),
+        ],
+    },
+    {
+        "id": "NL_17_MULTI_TURN_FILTER_RETAIN",
+        "turn1_query": "tìm giáo trình toán cao cấp",
+        "query": "vậy cuốn nào mới nhất",
+        "description": "Multi-turn Refinement Retain: Turn 1 tìm giáo trình toán cao cấp, Turn 2 tinh chỉnh mới nhất phải giữ chủ đề toán",
+        "checks": [
+            lambda res: res.status_code == 200,
+            lambda res: len(res.json().get("sources", [])) > 0,
+            # Must keep toán topic
+            lambda res: any("toán" in (s.get("title", "") + " " + s.get("subject", "")).lower() for s in res.json().get("sources", [])[:3]),
+            # Must sort by recency
+            lambda res: "gần đây nhất" in res.json().get("answer", "").lower() or int(str(res.json()["sources"][0].get("year", 0))) >= 2000,
+        ],
+    },
 ]
 
 

@@ -191,7 +191,7 @@ class BM25SearchEngine:
                 has_title_or_subj = (all(t in title_tokens for t in tokens) or all(t in subj_tokens for t in tokens))
                 if not (has_phrase or has_title_or_subj):
                     continue
-                if accented_query_tokens:
+                if accented_query_tokens: 
                     raw_check = (str(doc_d.get('title', '')) + " " + str(doc_d.get('subject', ''))).lower()
                     if not check_diacritic_consistency(raw_check, accented_query_tokens):
                         if not has_phrase:

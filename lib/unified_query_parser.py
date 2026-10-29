@@ -28,6 +28,8 @@ from .conversation_resolver import (
     strip_temporal_sorting_phrases,
     clean_conversational_query,
     is_follow_up_refinement,
+    is_follow_up_filter,
+    is_broad_book_request,
     get_inherited_context,
 )
 from .catalog import (
@@ -71,7 +73,7 @@ def parse_catalog_query(
 ) -> ParsedCatalogQuery:
     """
     Phân tích câu truy vấn tự nhiên thành một cấu trúc ParsedCatalogQuery duy nhất,
-    đầy đủ và nhất quán. Loại bỏ sự phân mảnh giữa nhiều hàm bóc tách độc lập.
+    đầy đủ và nhất quán với Dialogue State Tracker (DST) đa lượt chuẩn mực.
     """
     q_raw = (query or "").strip()
     history = history or []
@@ -84,26 +86,49 @@ def parse_catalog_query(
     year_val, year_dir = detect_year_constraint(q_raw)
     is_pure_year, pure_year_val, pure_year_dir = is_pure_year_query(q_raw)
 
-    # 3. Phát hiện loại tài liệu (Doc Type)
-    doc_type = detect_doc_type_from_query(q_raw)
+    # 3. Phát hiện tín hiệu hội thoại & Ngữ cảnh kế thừa (Dialogue State Tracking)
+    is_refine = is_follow_up_refinement(q_raw)
+    is_filter = is_follow_up_filter(q_raw)
+    is_broad = is_broad_book_request(q_raw)
+    inherited = get_inherited_context(history) if history else {}
 
-    # 4. Phát hiện ngành đào tạo (Major)
+    # 4. State Machine cho Loại tài liệu (Doc Type Slot Resolution):
+    # - Nếu người dùng chỉ định cụ thể ('giáo trình', 'luận văn', 'kiểm định'...) -> lấy theo truy vấn hiện tại.
+    # - Nếu người dùng yêu cầu 'sách', 'tài liệu' chung (is_broad) -> RESET doc_type = None để tìm toàn bộ kho.
+    # - Nếu là câu tinh chỉnh hoặc lọc tiếp nối (is_refine / is_filter) -> kế thừa từ lượt tìm kiếm gần nhất.
+    # - Ngược lại (truy vấn độc lập mới) -> doc_type = None.
+    raw_doc_type = detect_doc_type_from_query(q_raw)
+    if raw_doc_type:
+        doc_type = raw_doc_type
+    elif is_broad:
+        doc_type = None
+    elif (is_refine or is_filter) and inherited.get("doc_type"):
+        doc_type = inherited["doc_type"]
+    else:
+        doc_type = None
+
+    # 5. State Machine cho Ngành đào tạo (Major Slot Resolution):
     canonical_major = explicit_major
     if not canonical_major:
         maj_match = resolve_canonical_major_from_query(q_raw)
         if maj_match:
             canonical_major = maj_match[0]
+        elif (is_refine or is_filter) and not is_broad and inherited.get("major"):
+            canonical_major = inherited["major"]
 
-    # 5. Phát hiện Tác giả / Nhà xuất bản
+    # 6. State Machine cho Tác giả / Nhà xuất bản (Author & Publisher Slot Resolution):
     q_no_temporal = strip_temporal_sorting_phrases(q_raw)
     is_author = detect_author_query(q_no_temporal)
     author_name = extract_author_name(q_no_temporal) if is_author else ""
+    if not is_author and (is_refine or is_filter) and not is_broad and inherited.get("author"):
+        is_author = True
+        author_name = inherited["author"]
 
     is_publisher = detect_publisher_query(q_no_temporal)
     publisher_name = extract_publisher_name(q_no_temporal) if is_publisher else ""
-
-    # 6. Phát hiện ngữ cảnh kế thừa (Multi-turn Refinement)
-    is_refine = is_follow_up_refinement(q_raw)
+    if not is_publisher and (is_refine or is_filter) and not is_broad and inherited.get("publisher"):
+        is_publisher = True
+        publisher_name = inherited["publisher"]
 
     # 7. Bóc tách chủ đề cốt lõi sạch (Clean Topic)
     if is_author:
@@ -139,8 +164,7 @@ def parse_catalog_query(
                 clean_topic = ""
 
         # Nếu là câu tinh chỉnh tiếp nối và không có topic mới -> kế thừa từ lịch sử
-        if is_refine and history:
-            inherited = get_inherited_context(history)
+        if (is_refine or is_filter) and history and not clean_topic:
             inherited_topic = inherited.get("topic") or inherited.get("search_query") or ""
             if inherited_topic:
                 clean_topic = inherited_topic
