@@ -47,6 +47,7 @@ ACTION_CATALOG = {
     "tim", "tra cuu", "liet ke", "search", "browse", "xem",
     "co sach nao", "co tai lieu nao", "co cuon nao",
     "goi y", "de xuat", "gioi thieu",
+    "muon hoc", "hoc", "tim hieu", "muon tim", "can tim",
 }
 ACTION_CONTENT = {
     "tom tat", "phan tich", "giai thich", "trinh bay", "mo ta",

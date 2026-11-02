@@ -2732,7 +2732,7 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
         _skip_existence = bool(_study_major_now) or bool(_year_filter_now) or bool(_detected_doc_type) or _recency_sort_now or _oldest_sort_now or _is_refine_now
 
         # Nếu intent "unknown" mà có enhanced signals hoặc chủ đề kỹ thuật hoặc yêu cầu độ mới hoặc câu tinh chỉnh tiếp nối → treat as catalog
-        _is_tech_topic = bool(re.search(r'\b(python|java|javascript|c\+\+|sql|html|css|ai|ml|machine|deep|data|web|lap trinh|kinh te|tri tue nhan tao|lich su|quan tri|kinh doanh)\b', normalize_text(req.query)))
+        _is_tech_topic = bool(re.search(r'\b(python|java|javascript|c\+\+|sql|html|css|ai|ml|machine|deep|data|web|lap trinh|kinh te|tri tue nhan tao|lich su|quan tri|kinh doanh|khoa hoc may tinh|may tinh|cntt|cong nghe thong tin|tin hoc|toan|ly|hoa|sinh|ke toan|tai chinh|ngan hang|luat|su pham|du lich)\b', normalize_text(req.query)))
         if intent == "unknown" and (_is_pure_yr or _study_major_now or _lang_filter_now or _year_filter_now or _detected_doc_type or _is_tech_topic or _recency_sort_now or _oldest_sort_now or _is_refine_now or is_follow_up_filter(req.query)):
             intent = "catalog"
 

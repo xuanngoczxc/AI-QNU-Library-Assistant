@@ -186,7 +186,7 @@ def clean_conversational_query(query: str) -> str:
         r"^(?:không\s+phải|ko\s+phải)\s+[^,]+,\s*(?:tôi|mình|em)?\s*(?:chỉ\s+)?(?:quan\s+tâm|muốn|cần|tìm)\s+(?:đến|về)?\s*",
         r"^(?:dạ\s+)?(?:tôi|em|mình)\s+(?:quan\s+tâm|thích)\s+(?:đến|về)\s*",
         r"^(?:loại\s+)",
-        r"^(?:dạ\s+)?(?:tôi|em|mình)\s+(?:đang\s+)?(?:cần|muốn|chuẩn\s+bị|phải)?\s*(?:tìm\s+hiểu|tìm|tra\s+cứu|nghiên\s+cứu|làm|viết|thực\s+hiện|hoàn\s+thành|tham\s+khảo|đọc|xem|học)(?:\s+thêm)?(?:\s+về)?\s*",
+        r"^(?:dạ\s+|da\s+)?(?:tôi|toi|em|mình|minh)\s+(?:đang|dang\s+)?(?:cần|can|muốn|muon|chuẩn\s+bị|chuan\s+bi|phải|phai)?\s*(?:tìm\s+hiểu|tim\s+hieu|tìm|tim|tra\s+cứu|tra\s+cuu|nghiên\s+cứu|nghien\s+cuu|làm|lam|viết|viet|thực\s+hiện|thuc\s+hien|hoàn\s+thành|hoan\s+thanh|tham\s+khảo|tham\s+khao|đọc|doc|xem|học|hoc)(?:\s+thêm|\s+them)?(?:\s+về|\s+ve)?\s*",
         r"^(?:hãy\s+)?(?:đưa\s+ra|tìm|lấy\s+ra|cho\s+tôi|gợi\s+ý)\s*(?:\d+\s+)?(?:tài\s+liệu|sách)\s+(?:về)?\s*",
         r"^(?:đề\s+tài\s+(?:nghiên\s+cứu\s+(?:khoa\s+học\s+)?)?|chuyên\s+đề|luận\s+văn|khóa\s+luận|bài\s+tập\s+lớn|đồ\s+án(?:\s+tốt\s+nghiệp)?)\s*(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về)?\s*",
         r"^(?:vậy\s+(?:thì\s+)?|thế\s+(?:thì\s+)?|vậy\s+còn\s+|thế\s+còn\s+)?(?:lựa\s+(?:ra\s+)?|chọn\s+(?:ra\s+)?|lọc\s+(?:ra\s+)?|lấy\s+(?:ra\s+)?|chỉ\s+(?:lấy|xem|chọn)\s+|xem\s+|cho\s+(?:xem|mình\s+xem|tôi\s+xem)\s+|tìm\s+(?:ra\s+)?)(?:những\s+|các\s+|một\s+|1\s+|vài\s+|mấy\s+)?(?:quyển|cuốn|sách|tài\s+liệu|tập|bản)?\s*",

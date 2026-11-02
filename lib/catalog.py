@@ -983,6 +983,9 @@ def detect_course_name(query: str) -> str | None:
 
 # Common typos for technical terms
 _TYPO_CORRECTIONS = {
+    "khoaa": "khoa", "khoahoc": "khoa học", "maytinh": "máy tính",
+    "hocmay": "học máy", "tinhoc": "tin học", "laptrinh": "lập trình",
+    "toann": "toán", "hoaa": "hóa",
     "pythn": "python", "pithon": "python", "pyhton": "python",
     "jave": "java", "jav": "java",
     "javascrip": "javascript", "javasript": "javascript",
@@ -998,19 +1001,33 @@ _TYPO_CORRECTIONS = {
 }
 
 def apply_fuzzy_corrections(query: str) -> str:
-    """Sửa lỗi chính tả phổ biến. Trả về query đã sửa, hoặc '' nếu không cần."""
+    """Sửa lỗi chính tả phổ biến và lỗi gõ phím Telex (vd: 'khoaa' -> 'khoa'). Trả về query đã sửa, hoặc '' nếu không cần."""
     if not query:
         return ""
-    q_lower = query.lower().strip()
-    tokens = q_lower.split()
+    q = query.strip()
+    # 1. Sửa lỗi lặp phím Telex tiếng Việt phổ biến (vd: khoaa -> khoa, toann -> toan)
+    telex_patterns = [
+        (r'\b([a-zA-Z]+)aa\b', r'\1a'),
+        (r'\b([a-zA-Z]+)ee\b', r'\1e'),
+        (r'\b([a-zA-Z]+)oo\b', r'\1o'),
+        (r'\b([a-zA-Z]+)uu\b', r'\1u'),
+        (r'\b([a-zA-Z]+)nn\b', r'\1n'),
+        (r'\b([a-zA-Z]+)hh\b', r'\1h'),
+    ]
+    for pat, repl in telex_patterns:
+        q = re.sub(pat, repl, q, flags=re.IGNORECASE)
+
+    tokens = q.split()
     changed = False
     for i, t in enumerate(tokens):
-        t_clean = t.strip(".,!?;:\"'()[]{}")
+        t_clean = t.strip(".,!?;:\"'()[]{}").lower()
         if t_clean in _TYPO_CORRECTIONS:
-            tokens[i] = tokens[i].replace(t_clean, _TYPO_CORRECTIONS[t_clean])
+            tokens[i] = _TYPO_CORRECTIONS[t_clean]
             changed = True
     if changed:
         return " ".join(tokens)
+    if q != query.strip():
+        return q
     return ""
 
 
