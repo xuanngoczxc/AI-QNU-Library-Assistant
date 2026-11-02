@@ -107,6 +107,18 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
                         remaining = remaining[len(extra_words):].strip()
                     break
 
+        # 1.5. Fuzzy author lexicon fallback (khi người dùng gõ sai 1-2 ký tự tên tác giả)
+        if not matched_author and author_index and author_index.author_lexicon:
+            import difflib
+            for k in range(min(4, len(words)), 1, -1):
+                cand = " ".join(words[:k])
+                if len(cand) >= 6:
+                    close = difflib.get_close_matches(cand, author_index.author_lexicon.keys(), n=1, cutoff=0.88)
+                    if close:
+                        matched_author = close[0]
+                        remaining = " ".join(words[k:])
+                        break
+
         # 2. Grammar fallback with slot boundary stripping
         if not matched_author:
             cleaned_tail = _SLOT_BOUNDARY_PATTERN.sub('', tail).strip()

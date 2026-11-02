@@ -1004,26 +1004,34 @@ def apply_fuzzy_corrections(query: str) -> str:
     """Sửa lỗi chính tả phổ biến và lỗi gõ phím Telex (vd: 'khoaa' -> 'khoa'). Trả về query đã sửa, hoặc '' nếu không cần."""
     if not query:
         return ""
-    q = query.strip()
-    # 1. Sửa lỗi lặp phím Telex tiếng Việt phổ biến (vd: khoaa -> khoa, toann -> toan)
-    telex_patterns = [
-        (r'\b([a-zA-Z]+)aa\b', r'\1a'),
-        (r'\b([a-zA-Z]+)ee\b', r'\1e'),
-        (r'\b([a-zA-Z]+)oo\b', r'\1o'),
-        (r'\b([a-zA-Z]+)uu\b', r'\1u'),
-        (r'\b([a-zA-Z]+)nn\b', r'\1n'),
-        (r'\b([a-zA-Z]+)hh\b', r'\1h'),
-    ]
-    for pat, repl in telex_patterns:
-        q = re.sub(pat, repl, q, flags=re.IGNORECASE)
+    from lib.text_utils import generalized_telex_cleanup, WHITELISTED_SHORT_ACRONYMS
+    import difflib
+
+    q = generalized_telex_cleanup(query.strip())
+
+    # Tập hợp các danh từ kỹ thuật chuẩn để so khớp mờ tự động (Dynamic Vocabulary)
+    canonical_tech_terms = {
+        "python", "javascript", "tensorflow", "pytorch", "react", "django",
+        "flask", "pandas", "numpy", "matplotlib", "scikit-learn", "nodejs",
+        "machine learning", "deep learning", "khoa", "toan", "lap trinh"
+    }
 
     tokens = q.split()
     changed = False
     for i, t in enumerate(tokens):
         t_clean = t.strip(".,!?;:\"'()[]{}").lower()
+        if t_clean in WHITELISTED_SHORT_ACRONYMS:
+            continue
         if t_clean in _TYPO_CORRECTIONS:
             tokens[i] = _TYPO_CORRECTIONS[t_clean]
             changed = True
+        elif len(t_clean) >= 5:
+            # Fuzzy match token nếu sai lệch 1 ký tự so với từ điển kỹ thuật
+            close = difflib.get_close_matches(t_clean, canonical_tech_terms, n=1, cutoff=0.82)
+            if close:
+                tokens[i] = close[0]
+                changed = True
+
     if changed:
         return " ".join(tokens)
     if q != query.strip():

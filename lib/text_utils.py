@@ -465,6 +465,78 @@ def check_diacritic_consistency(raw_text: str, query_tokens: list[str]) -> bool:
     return True
 
 
+
+
+WHITELISTED_SHORT_ACRONYMS = {
+    "ai", "it", "cs", "sql", "c++", "c#", "cntt", "ktpm", "qtkd", "tcnh",
+    "ctxh", "qlnn", "khdl", "khmt", "khtn", "sp", "clc", "acca", "toán", "tin"
+}
+
+
+def generalized_telex_cleanup(text: str) -> str:
+    """
+    Chuẩn hóa tự động các lỗi lặp phím Telex và lỗi nhả phím thường gặp trong tiếng Việt.
+    Ví dụ: 'khoaa' -> 'khoa', 'toann' -> 'toan', 'lap trinhh' -> 'lap trinh'.
+    """
+    if not text:
+        return ""
+    q = text
+    telex_doubled = [
+        (r'\b([a-zA-Z]+)aa\b', r'\1a'),
+        (r'\b([a-zA-Z]+)ee\b', r'\1e'),
+        (r'\b([a-zA-Z]+)oo\b', r'\1o'),
+        (r'\b([a-zA-Z]+)uu\b', r'\1u'),
+        (r'\b([a-zA-Z]+)nn\b', r'\1n'),
+        (r'\b([a-zA-Z]+)hh\b', r'\1h'),
+        (r'\b([a-zA-Z]+)tt\b', r'\1t'),
+        (r'\b([a-zA-Z]+)cc\b', r'\1c'),
+        (r'\b([a-zA-Z]+)mm\b', r'\1m'),
+        (r'\b([a-zA-Z]+)gg\b', r'\1g'),
+    ]
+    for pat, repl in telex_doubled:
+        q = re.sub(pat, repl, q, flags=re.IGNORECASE)
+    return q
+
+
+def fuzzy_match_phrase(
+    query_phrase: str,
+    candidates,
+    cutoff: float = 0.80,
+    min_len: int = 4
+) -> Optional[str]:
+    """
+    So khớp mờ xấp xỉ tổng quát một cụm từ với tập danh từ chuẩn (Lexicon) bằng difflib.
+    - Áp dụng nguyên tắc Guardrails:
+      1. Bỏ qua các từ ngắn (len < min_len) và từ trong whitelist viết tắt.
+      2. Nếu từ đã khớp chính xác, trả về ngay lập tức (0ms overhead).
+      3. Chỉ chấp nhận độ tương đồng >= cutoff (mặc định 0.80).
+    """
+    if not query_phrase:
+        return None
+    q_norm = normalize_text(query_phrase).strip().lower()
+    if len(q_norm) < min_len or q_norm in WHITELISTED_SHORT_ACRONYMS:
+        return None
+
+    for cand in candidates:
+        cand_norm = normalize_text(cand).strip().lower()
+        if cand_norm == q_norm:
+            return cand
+
+    import difflib
+    best_cand = None
+    best_ratio = 0.0
+    for cand in candidates:
+        cand_norm = normalize_text(cand).strip().lower()
+        if len(cand_norm) < min_len:
+            continue
+        ratio = difflib.SequenceMatcher(None, q_norm, cand_norm).ratio()
+        if ratio >= cutoff and ratio > best_ratio:
+            best_ratio = ratio
+            best_cand = cand
+
+    return best_cand
+
+
 if __name__ == "__main__":
     # Test
     test_text = "Kỹ Năng Lãnh Đạo Hiệu Quả"

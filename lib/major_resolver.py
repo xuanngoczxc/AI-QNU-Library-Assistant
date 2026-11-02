@@ -225,6 +225,14 @@ CANONICAL_MAJORS_CATALOG = {
         "công nghệ thông tin", "ngành công nghệ thông tin", "công nghề thông tin",
         "cntt", "it", "ngành it", "ngành cntt"
     ],
+    "Kỹ thuật phần mềm": [
+        "kỹ thuật phần mềm", "ngành kỹ thuật phần mềm", "ktpm",
+        "software engineering", "phần mềm", "công nghệ phần mềm"
+    ],
+    "Trí tuệ nhân tạo": [
+        "trí tuệ nhân tạo", "ngành trí tuệ nhân tạo", "ttnt",
+        "artificial intelligence", "ai", "khoa học trí tuệ nhân tạo"
+    ],
 
     # ── Khoa Giáo dục Tiểu học và Mầm non ──
     "Giáo dục Tiểu học": [
@@ -325,6 +333,36 @@ def resolve_canonical_major_from_query(query: str) -> tuple[str, str] | None:
                 if len(alias) > best_len:
                     best_match = (major_name, alias)
                     best_len = len(alias)
+
+    # 4. Fuzzy candidate fallback khi người dùng gõ sai chính tả (khoaa, meem, taoo, etc.)
+    # Áp dụng Guardrails: chỉ chạy khi exact match không có, alias >= 5 ký tự, cutoff >= 0.80
+    if not best_match:
+        import difflib
+        from lib.text_utils import generalized_telex_cleanup
+        cleaned_clean = generalized_telex_cleanup(cleaned)
+        tokens = cleaned_clean.split()
+        best_ratio = 0.0
+        fuzzy_match = None
+        for major_name, aliases in _NORMALIZED_ALIASES_MAP.items():
+            if major_name == "Kỹ thuật xây dựng" and is_software_context:
+                continue
+            for alias in aliases:
+                if len(alias) < 5:
+                    continue
+                alias_tok_count = len(alias.split())
+                if len(tokens) >= alias_tok_count:
+                    for i in range(len(tokens) - alias_tok_count + 1):
+                        sub = " ".join(tokens[i:i + alias_tok_count])
+                        ratio = difflib.SequenceMatcher(None, sub, alias).ratio()
+                        if ratio >= 0.80 and ratio > best_ratio:
+                            best_ratio = ratio
+                            fuzzy_match = (major_name, alias)
+                ratio_whole = difflib.SequenceMatcher(None, cleaned_clean, alias).ratio()
+                if ratio_whole >= 0.80 and ratio_whole > best_ratio:
+                    best_ratio = ratio_whole
+                    fuzzy_match = (major_name, alias)
+        if fuzzy_match:
+            best_match = fuzzy_match
 
     return best_match
 
