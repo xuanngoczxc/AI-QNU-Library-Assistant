@@ -806,36 +806,48 @@ def detect_language_preference(query: str) -> str | None:
 
 
 def detect_year_constraint(query: str) -> tuple[int | None, str | None]:
-    """Phát hiện 'từ năm 2023', 'xuất bản sau 2022' ...
+    """Phát hiện 'từ năm 2023', 'xuất bản sau 2022', 'năm 2020 trở lại đây', '5 năm gần đây' ...
     Trả về (year, direction) với direction: 'after' | 'before' | 'exact'.
     """
     if not query:
         return None, None
     q_norm = normalize_topic_text(query)
     q_lower = query.lower()
+
+    # Nhận diện "khoảng X năm gần đây / trở lại đây" (VD: 5 năm gần đây -> >= 2021)
+    m_rel = re.search(r'\b(?:trong\s+(?:khoang|vong)?\s*|khoang\s*)?(\d{1,2})\s*nam\s*(?:gan\s+day|tro\s+lai\s+day|gan\s+nhat)\b', q_norm)
+    if m_rel:
+        try:
+            delta = int(m_rel.group(1))
+            cur_year = 2026
+            return cur_year - delta, "after"
+        except Exception:
+            pass
+
     patterns = [
-        (r"(?:tu|từ)\s+(?:nam|năm)?\s*(\d{4})", "after"),
+        (r"(?:tu|từ)\s+(?:nam|năm)?\s*(\d{4})\s*(?:tro\s+lai\s+day|trở\s+lại\s+đây)?", "after"),
         (r"(?:sau|sau nam|sau năm)\s+(\d{4})", "after"),
         (r"(?:truoc|trước|truoc nam|trước năm)\s+(\d{4})", "before"),
-        (r"(?:nam|năm)\s+(\d{4})\s+(?:tro di|trở đi|tro len|trở lên)", "after"),
+        (r"(?:nam|năm)\s+(\d{4})\s+(?:tro di|trở đi|tro len|trở lên|tro lai day|trở lại đây)", "after"),
         (r"(?:nam|năm)\s+(\d{4})\s+(?:tro ve|trở về|ve truoc|về trước)", "before"),
+        (r"(?:xuat ban|xuất bản)\s+(?:tu|từ|sau)\s+(?:nam|năm)?\s*(\d{4})", "after"),
         (r"(?:xuat ban|xuất bản)\s+(?:nam|năm)?\s*(\d{4})", "exact"),
-        (r"(?:xuat ban|xuất bản)\s+(?:tu|từ|sau)\s+(\d{4})", "after"),
+        (r"(?:nam|năm)\s*(\d{4})", "exact"),
     ]
     for pattern, direction in patterns:
         m = re.search(pattern, q_norm)
         if m:
             try:
                 year = int(m.group(1))
-                if 1900 <= year <= 2030:
+                if 1800 <= year <= 2035:
                     return year, direction
             except ValueError:
                 pass
-    years_in_query = re.findall(r'\b(19\d{2}|20\d{2})\b', q_lower)
+    years_in_query = re.findall(r'\b(18\d{2}|19\d{2}|20\d{2})\b', q_lower)
     if len(years_in_query) == 1:
         year = int(years_in_query[0])
-        if 1900 <= year <= 2030:
-            if any(w in q_norm for w in ["tu", "sau", "tro di", "tro len"]):
+        if 1800 <= year <= 2035:
+            if any(w in q_norm for w in ["tu", "sau", "tro di", "tro len", "tro lai day", "tro ve day", "gan day"]):
                 return year, "after"
             elif any(w in q_norm for w in ["truoc", "ve truoc", "tro ve"]):
                 return year, "before"

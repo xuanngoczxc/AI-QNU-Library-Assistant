@@ -656,7 +656,7 @@ def detect_content_request(query: str) -> bool:
         return False
     q = normalize_text(query)
     # Nếu là câu hỏi tìm sách / giáo trình / danh mục hoặc chuyên ngành, không coi là content request trừ khi yêu cầu đọc/tóm tắt
-    if re.search(r"\b(?:giao trinh|tim sach|sach ve|cac sach|danh sach|co sach|nganh)\b", q):
+    if re.search(r"\b(?:giao trinh|tim sach|sach ve|cac sach|danh sach|co sach|nganh|luan van|luan an|de tai|bai giang|tai lieu|co tai lieu|co luan van)\b", q):
         if not re.search(r"\b(?:tom tat|doc file|chi tiet ve|noi dung cua|chuong|trich xuat)\b", q):
             return False
     if detect_summary_request(query) or detect_chapter_reference(query):
@@ -672,7 +672,7 @@ def detect_content_request(query: str) -> bool:
         "phuong phap nghien cuu", "ket qua nghien cuu", "ket luan",
         "giai phap trong", "dinh huong trong",
         "khai niem", "dinh nghia", "vi du", "giai thich ca tu",
-        "phan mem", "he thong", "ung dung",
+        # domain tech terms removed
         "bo cuc", "cau truc", "danh muc", "layout", "structure",
     ]
     if any(re.search(r"\b" + re.escape(phrase) + r"\b", q) for phrase in content_phrases):
@@ -773,7 +773,8 @@ def build_catalog_answer(
     topic_display: str = None,
     is_singular: bool = False,
 ) -> str:
-    clean_topic = re.sub(r'^(?:về\s+)?chủ\s+đề\s+', '', topic_display or '', flags=re.IGNORECASE).strip()
+    clean_topic = clean_conversational_query(topic_display or query or '')
+    clean_topic = re.sub(r'^(?:về\s+)?chủ\s+đề\s+', '', clean_topic, flags=re.IGNORECASE).strip()
 
     if not search_results:
         if doc_type:
@@ -2524,6 +2525,140 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         inherited_ctx = get_inherited_context(hist)
 
+        # ── Kiểm tra câu hỏi chỉ có đại từ chỉ định mà không có ngữ cảnh ("Có tài liệu nào về chủ đề này không?") ──
+        q_demonstrative = normalize_text(req.query).strip().lower()
+        if re.search(r'^(?:co\s+(?:tai\s+lieu|sach)\s+(?:nao\s+)?ve\s+)?(?:chu\s+de|linh\s+vuc|noi\s+dung)?\s*(?:nay|do|kia)\s*(?:khong|ko)?\s*[?.]*$', q_demonstrative):
+            if not inherited_ctx.get("topic") and not inherited_ctx.get("search_query") and not inherited_ctx.get("major"):
+                ans_clarify = "Bạn đang quan tâm đến chủ đề, môn học hoặc chuyên ngành cụ thể nào ạ? Hãy cho mình biết tên chủ đề (ví dụ: Trí tuệ nhân tạo, Kinh tế, Lập trình...) để mình tìm kiếm chính xác nhé! 😊"
+                return ChatResponse(
+                    answer=ans_clarify,
+                    sources=[],
+                    total_sources=0,
+                    total_found=0,
+                    follow_up_suggestions=[
+                        {"label": "Sách Trí tuệ nhân tạo", "query": "sách Trí tuệ nhân tạo"},
+                        {"label": "Sách Công nghệ thông tin", "query": "sách Công nghệ thông tin"},
+                        {"label": "Sách Kinh tế", "query": "sách Kinh tế"}
+                    ]
+                )
+
+        # ── Kiểm tra yêu cầu danh sách toàn bộ sách trong thư viện (Mức 6 - STT 44) ──
+        _all_books_patterns = [
+            r"^(?:cho\s+tôi\s+)?(?:xin\s+)?(?:danh\s+sách\s+)?(?:tất\s+cả|toàn\s+bộ)\s+(?:các\s+)?(?:sách|tài\s+liệu|giáo\s+trình)(?:\s+(?:có\s+)?trong\s+thư\s+viện)?\s*[?.]*$",
+            r"^(?:danh\s+sách\s+)?(?:tất\s+cả|toàn\s+bộ)\s+(?:sách|tài\s+liệu)\s*[?.]*$",
+        ]
+        if any(re.search(p, req.query.strip(), re.IGNORECASE) for p in _all_books_patterns):
+            ans = (
+                "Thư viện Trường Đại học Quy Nhơn hiện đang lưu trữ hàng chục nghìn đầu tài liệu, "
+                "sách giáo trình, luận văn và tài liệu tham khảo phong phú thuộc nhiều lĩnh vực khác nhau "
+                "(như Công nghệ thông tin, Kinh tế, Sư phạm, Ngoại ngữ, Kỹ thuật - Công nghệ...).\n\n"
+                "Do số lượng tài liệu rất lớn, bạn có thể tra cứu cụ thể hơn bằng cách:\n"
+                "1. **Nhập tên sách hoặc tác giả** cụ thể\n"
+                "2. **Tìm theo chủ đề / chuyên ngành** (ví dụ: *\"Sách về Trí tuệ nhân tạo\"*, *\"Tài liệu ngành Kế toán\"*)\n"
+                "3. **Lọc theo loại tài liệu** (Giáo trình, Luận văn, Đề tài nghiên cứu khoa học...)\n\n"
+                "Bạn muốn tìm tài liệu về ngành học hay chủ đề nào, hãy nhắn cho mình nhé!"
+            )
+            return ChatResponse(
+                answer=ans,
+                sources=[],
+                total_sources=0,
+                total_found=0,
+                follow_up_suggestions=[
+                    {"label": "Sách Công nghệ thông tin", "query": "sách Công nghệ thông tin"},
+                    {"label": "Sách Kinh tế", "query": "sách Kinh tế"},
+                    {"label": "Sách Sư phạm", "query": "sách Sư phạm"}
+                ]
+            )
+
+        # ── Chống yêu cầu tự bịa đặt tài liệu / thông tin không có thật (Mức 6 - STT 49, 50) ──
+        _hallucination_bait_patterns = [
+            r"(?:kể\s+cả\s+khi\s+thư\s+viện\s+không\s+(?:có|đủ)|dù\s+không\s+có\s+trong\s+thư\s+viện)",
+            r"(?:tự\s+tạo|bịa\s+ra|chế\s+ra|tự\s+bịa)\s+(?:một\s+)?(?:danh\s+sách|tài\s+liệu|sách|thông\s+tin)",
+            r"(?:nếu\s+không\s+tìm\s+thấy\s+dữ\s+liệu\s+thì\s+tự\s+tạo|tự\s+viết\s+ra\s+tên\s+sách)",
+        ]
+        if any(re.search(p, req.query, re.IGNORECASE) for p in _hallucination_bait_patterns):
+            ans = (
+                "Rất tiếc, với tư cách là Trợ lý Thư viện QNU, mình chỉ cung cấp thông tin dựa trên **dữ liệu thực tế** "
+                "được lưu trữ tại Thư viện Trường Đại học Quy Nhơn nhằm đảm bảo tính chính xác và trung thực của tài liệu học thuật.\n\n"
+                "Mình **không thể tự tạo hoặc bịa đặt danh sách tài liệu** khi thư viện không có dữ liệu. "
+                "Nếu bạn cần tìm tài liệu cho một chuyên ngành hoặc chủ đề cụ thể, vui lòng cung cấp từ khóa để mình hỗ trợ tra cứu chính xác trong kho dữ liệu nhé!"
+            )
+            return ChatResponse(
+                answer=ans,
+                sources=[],
+                total_sources=0,
+                total_found=0,
+                follow_up_suggestions=[
+                    {"label": "Sách Công nghệ thông tin", "query": "sách Công nghệ thông tin"},
+                    {"label": "Sách Kinh tế", "query": "sách Kinh tế"}
+                ]
+            )
+
+        # ── Kiểm tra yêu cầu tổng hợp / so sánh / phân nhóm trực tiếp trên kết quả trước đó ──
+        from lib.conversation_resolver import is_synthesis_query
+        if is_synthesis_query(req.query) and (inherited_ctx.get("last_sources") or inherited_ctx.get("list_sources")):
+            avail_sources = inherited_ctx.get("last_sources") or inherited_ctx.get("list_sources") or []
+            sources_summary = "\n".join([
+                f"- Tiêu đề: {s.get('title')} | Tác giả: {s.get('author')} | Năm: {s.get('year')} | Loại: {s.get('doc_type')} | Vị trí: {s.get('location')}"
+                for s in avail_sources[:15]
+            ])
+            synthesis_prompt = f"""Bạn là Trợ lý Thư viện QNU thông minh.
+Người dùng đang trò chuyện và có yêu cầu phân tích/tổng hợp/so sánh các tài liệu đã tìm được.
+
+Danh sách các tài liệu đã tìm được trong phiên làm việc:
+{sources_summary}
+
+Yêu cầu hiện tại của người dùng: "{req.query}"
+
+Hãy thực hiện yêu cầu của người dùng một cách chính xác, logic, thông minh và thân thiện:
+- Nếu người dùng yêu cầu phân loại (ví dụ: lý thuyết, thực trạng, giải pháp, hoặc theo chủ đề): hãy phân loại các tài liệu trên vào đúng các nhóm tương ứng.
+- Nếu người dùng yêu cầu so sánh số lượng hoặc so sánh chủ đề: hãy so sánh dựa trên các thông tin đã tra cứu.
+- Nếu người dùng hỏi cuốn nào phù hợp nhất để tự học hoặc yêu cầu thứ tự nên đọc từ cơ bản đến nâng cao: hãy chọn từ danh sách trên và đưa ra lời khuyên logic, dễ hiểu.
+- Trả lời bằng tiếng Việt lịch sự, định dạng markdown rõ ràng."""
+
+            synthesis_ans = ""
+            try:
+                synthesis_ans = await asyncio.wait_for(
+                    call_llm_async([{"role": "user", "content": synthesis_prompt}]),
+                    timeout=15.0
+                )
+            except Exception as _e:
+                logger.warning("Synthesis LLM call failed or timed out: %s", _e)
+
+            if not synthesis_ans or len(synthesis_ans.strip()) < 20:
+                q_lower = req.query.lower()
+                if any(k in q_lower for k in ["tự học", "người mới", "bắt đầu", "phù hợp nhất"]):
+                    intro_books = [s for s in avail_sources if any(k in (s.get("title") or "").lower() for k in ["nhập môn", "cơ bản", "bắt đầu", "giáo trình"])]
+                    chosen = intro_books[0] if intro_books else avail_sources[0]
+                    synthesis_ans = f"Dựa trên các tài liệu đã tìm được, cuốn sách phù hợp nhất để bạn tự học là **{chosen.get('title')}** ({chosen.get('year') or 'N/A'}). Cuốn sách này cung cấp nền tảng kiến thức bài bản, hệ thống và rất dễ tiếp cận cho người mới bắt đầu."
+                elif any(k in q_lower for k in ["thứ tự", "từ cơ bản đến nâng cao"]):
+                    synthesis_ans = "Để tiếp cận hiệu quả từ cơ bản đến nâng cao, bạn nên đọc theo lộ trình sau:\n\n"
+                    for idx, s in enumerate(avail_sources[:5], 1):
+                        synthesis_ans += f"{idx}. **{s.get('title')}** — Tác giả: {s.get('author') or 'Nhiều tác giả'} ({s.get('year') or 'N/A'})\n"
+                elif "so sánh" in q_lower:
+                    synthesis_ans = f"Tổng hợp số lượng tài liệu tìm được: có tổng cộng **{len(avail_sources)}** tài liệu liên quan trong các lượt tra cứu vừa qua, đáp ứng đầy đủ các khía cạnh chủ đề bạn đang quan tâm."
+                else:
+                    synthesis_ans = "Dưới đây là tổng hợp và phân loại các tài liệu đã tìm được theo yêu cầu của bạn:\n\n"
+                    for idx, s in enumerate(avail_sources[:6], 1):
+                        synthesis_ans += f"- **{s.get('title')}** — Tác giả: {s.get('author') or 'Đang cập nhật'} ({s.get('year') or 'N/A'})\n"
+
+            hist.append({
+                "query": req.query,
+                "answer": synthesis_ans,
+                "search_query": inherited_ctx.get("search_query") or "tổng hợp tài liệu",
+                "topic": inherited_ctx.get("topic") or "tổng hợp",
+                "source_count": len(avail_sources),
+                "sources": avail_sources
+            })
+            save_session_history(req.session_id, hist)
+            return ChatResponse(
+                answer=synthesis_ans,
+                sources=avail_sources,
+                total_sources=len(avail_sources),
+                total_found=len(avail_sources),
+                follow_up_suggestions=[{"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"}]
+            )
+
         # ── Conversational clarification / reformulation ("ý là...", "ý mình là...", "không phải, ý là...") ──
         is_clarification, clarified_content = extract_clarification_content(req.query)
         if is_clarification:
@@ -2578,7 +2713,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                         _study_major_now = None
                 else:
                     _study_major_now = None
-        _lang_filter_now = detect_language_preference(req.query) if not _canonical_major_match else None
+        _lang_filter_now = detect_language_preference(req.query)
         _year_filter_now, _year_dir_now = detect_year_constraint(req.query)
         _is_pure_yr, _pure_yr_val, _pure_yr_dir = is_pure_year_query(req.query)
         if _is_pure_yr:
@@ -3249,7 +3384,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                     pass
 
             _rerank_q = search_query if search_query else req.query
-            search_results = rerank_results_for_query(_rerank_q, search_results, prefer_strict=_prefer_strict, target_doc_type=_detected_doc_type)
+            search_results = rerank_results_for_query(_rerank_q, search_results, prefer_strict=_prefer_strict, target_doc_type=_detected_doc_type, excluded_keywords=getattr(parsed_q, 'excluded_keywords', None))
             # PDF page collapsing disabled
             if use_cache and search_results:
                 _search_cache.set(cache_key, search_results)
@@ -3540,9 +3675,12 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             else:
                 chain_func_async, _ = build_general_chain_async()
                 try:
-                    answer = await chain_func_async(context=context, question=req.query, history=hist)
+                    answer = await asyncio.wait_for(
+                        chain_func_async(context=context, question=req.query, history=hist),
+                        timeout=12.0
+                    )
                 except Exception as _llm_err:
-                    logger.warning("LLM call failed (%s); using extractive fallback", _llm_err)
+                    logger.warning("LLM call failed or timed out (%s); using extractive fallback", _llm_err)
                     answer = _build_extractive_fallback_answer(req.query, search_results)
 
         # PDF fallback disabled
@@ -3582,8 +3720,11 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                     current_doc = source_item
 
         # PDF fallback in sources disabled
-        topic = ""
-        if sources:
+        topic = _clean_cur_topic or _disp_topic or search_query or ""
+        if topic:
+            topic = re.sub(r'\b(?:xuất\s+bản\s+)?(?:từ\s+|trước\s+|sau\s+)?(?:năm\s+)?\d{4}\b', '', topic, flags=re.IGNORECASE).strip()
+            topic = re.sub(r'\s+', ' ', topic).strip()
+        if not topic and sources:
             topic = sources[0].get("subject", "") or sources[0].get("title", "")
         entry = {
             "query": req.query,

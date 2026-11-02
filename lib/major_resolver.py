@@ -72,7 +72,7 @@ CANONICAL_MAJORS_CATALOG = {
         "ngành kỹ thuật điện", "lý thuyết mạch", "điện dân dụng", "điện công nghiệp"
     ],
     "Kỹ thuật xây dựng": [
-        "kỹ thuật xây dựng", "ngành xây dựng", "xây dựng", "kỹ thuật công trình xây dựng"
+        "kỹ thuật xây dựng", "ngành xây dựng", "kỹ thuật công trình xây dựng", "xây dựng công trình", "xây dựng dân dụng"
     ],
     "Kỹ thuật Điện tử - Viễn thông": [
         "kỹ thuật điện tử - viễn thông", "kỹ thuật điện tử viễn thông",
@@ -310,7 +310,10 @@ def resolve_canonical_major_from_query(query: str) -> tuple[str, str] | None:
     # 3. Ưu tiên khớp chính xác hoặc có cụm từ alias
     best_match = None
     best_len = 0
+    is_software_context = bool(re.search(r"\b(website|web|app|ung dung|phan mem|he thong|mo hinh|chatbot|co so du lieu)\b", q_norm))
     for major_name, aliases in _NORMALIZED_ALIASES_MAP.items():
+        if major_name == "Kỹ thuật xây dựng" and is_software_context:
+            continue
         for alias in aliases:
             # Từ ngắn <= 3 ký tự (vd "it", "cs") cần ranh giới từ chính xác
             pat = r"\b" + re.escape(alias) + r"\b"

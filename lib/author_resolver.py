@@ -99,6 +99,12 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
                 if cand in author_index.author_lexicon:
                     matched_author = cand
                     remaining = " ".join(words[k:])
+                    # Kiểm tra xem có từ thừa (như XYZ) đứng trước mốc thời gian/hành vi không
+                    slot_b = re.search(r'\b(?:xuat\s+ban|nam\s+\d{4}|\d{4}|phat\s+hanh|tai\s+ban|co\s+khong|khong|o\s+dau|phong|kho)\b', remaining)
+                    extra_words = remaining[:slot_b.start()].strip() if slot_b else ""
+                    if extra_words and len(extra_words.split()) <= 2:
+                        matched_author = f"{matched_author} {extra_words}"
+                        remaining = remaining[len(extra_words):].strip()
                     break
 
         # 2. Grammar fallback with slot boundary stripping
@@ -211,6 +217,20 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
                 if t_k not in seen:
                     seen.add(t_k)
                     all_author_docs.append(d)
+
+    # Step 3.5: Kiểm tra tính nhất quán dấu tiếng Việt (VD: Nguyễn Nhật Ánh vs Nguyễn Nhật Anh)
+    if all_author_docs:
+        m_a = re.search(r'\b(?:tác\s+giả\s+|của\s+(?:tác\s+giả\s+)?)([A-Za-zÀ-ỹ\s]+?)(?:\s+(?:xuất\s+bản|năm|ở|thuộc|không|chưa)|\?|$)', query, re.IGNORECASE)
+        if m_a:
+            u_author = m_a.group(1).strip()
+            u_words = u_author.lower().split()
+            r_words = author_display.lower().split()
+            if len(u_words) == len(r_words):
+                for uw, rw in zip(u_words, r_words):
+                    if any(ord(c) > 127 for c in uw) and uw != rw:
+                        all_author_docs = []
+                        author_display = u_author.title()
+                        break
 
     # Step 4: Handle Author NOT FOUND in Library
     if not all_author_docs:

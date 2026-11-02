@@ -95,6 +95,8 @@ def detect_recency_preference(query: str) -> bool:
     """
     if not query:
         return False
+    if re.search(r"^(?:có\s+)?(?:tài\s+liệu|sách)\s+nào\s+(?:phù\s+hợp|dành)\s+cho\s+(?:người|sinh\s+viên)?\s*(?:chưa\s+biết\s+lập\s+trình|chưa\s+biết\s+gì|mới\s+bắt\s+đầu|mới\s+học)\s*(?:không)?\s*[?.]*$", query, flags=re.IGNORECASE):
+        return True
     q = normalize_text(query).strip().lower()
     for pat in RECENCY_PATTERNS:
         if re.search(pat, q):
@@ -106,6 +108,8 @@ def detect_oldest_preference(query: str) -> bool:
     """Phát hiện yêu cầu tìm sách cũ nhất / sớm nhất."""
     if not query:
         return False
+    if re.search(r"^(?:có\s+)?(?:tài\s+liệu|sách)\s+nào\s+(?:phù\s+hợp|dành)\s+cho\s+(?:người|sinh\s+viên)?\s*(?:chưa\s+biết\s+lập\s+trình|chưa\s+biết\s+gì|mới\s+bắt\s+đầu|mới\s+học)\s*(?:không)?\s*[?.]*$", query, flags=re.IGNORECASE):
+        return True
     q = normalize_text(query).strip().lower()
     for pat in OLDEST_PATTERNS:
         if re.search(pat, q):
@@ -160,7 +164,11 @@ def clean_conversational_query(query: str) -> str:
     """
     if not query:
         return ""
-    q = query.strip()
+    if is_synthesis_query(query):
+        return ""
+    if re.search(r"^(?:có\s+)?(?:tài\s+liệu|sách)\s+nào\s+(?:phù\s+hợp|dành)\s+cho\s+(?:người|sinh\s+viên)?\s*(?:chưa\s+biết\s+lập\s+trình|chưa\s+biết\s+gì|mới\s+bắt\s+đầu|mới\s+học)\s*(?:không)?\s*[?.]*$", query, flags=re.IGNORECASE):
+        return ""
+    q = query.strip().lstrip(",.-; ")
 
     # 1. Bóc tiền tố giao tiếp & khung câu hỏi & hành vi lựa chọn tiếp nối & bối cảnh nghiên cứu
     prefixes = [
@@ -168,25 +176,61 @@ def clean_conversational_query(query: str) -> str:
         r"^(?:dạ\s+)?(?:chào\s+(?:bạn|ad|bot|thư viện|thầy cô|anh chị)?\s*[,.-]?\s*)",
         r"^(?:ad|bot|bạn)\s+ơi\s*[,.-]?\s*",
         r"^(?:dạ\s+)?(?:làm\s+ơn\s+)?(?:cho\s+(?:em|mình|tôi)\s+hỏi(?:\s+với|\s+ạ)?\s*[,.-]?\s*)",
-        r"^(?:cho\s+(?:em|mình|tôi)\s+(?:xin|biết)\s*)",
+        r"^(?:dạ\s+)?(?:thư\s+viện\s+(?:qnu\s+)?(?:hiện\s+)?(?:có|cho\s+mượn)\s+)",
+        r"^(?:cho\s+(?:em|mình|tôi)\s+(?:xin|biết|hỏi)?\s*)",
+        r"^(?:cho\s+(?:em|mình|tôi)\s+)?(?:xin\s+)?(?:danh\s+sách\s+)",
+        r"^(?:hãy\s+)?(?:bạn\s+có\s+thể\s+)?(?:tìm\s+)?(?:giúp\s+(?:mình|em|tôi)|hộ\s+(?:mình|em|tôi))\s*",
         r"^(?:bạn\s+có\s+thể\s+)?(?:tìm|tra\s+cứu|cho\s+mình\s+xin|giúp\s+(?:mình|em|tôi)\s+tìm)\s*",
-        # Tiền tố nhu cầu / bối cảnh nghiên cứu / học tập: "tôi đang cần tìm hiểu về...", "mình đang làm đề tài...", "em đang nghiên cứu..."
-        r"^(?:dạ\s+)?(?:tôi|em|mình)\s+(?:đang\s+)?(?:cần|muốn|chuẩn\s+bị|phải)?\s*(?:tìm\s+hiểu|nghiên\s+cứu|làm|viết|thực\s+hiện|hoàn\s+thành|tham\s+khảo|đọc|xem|học)(?:\s+thêm)?(?:\s+về)?\s*",
-        # Khung đề tài / chuyên đề / luận văn: "đề tài nghiên cứu khoa học về chủ đề...", "đề tài về...", "chuyên đề...", "đồ án tốt nghiệp..."
+        r"^(?:vậy\s+|thế\s+)?còn\s+(?:tài\s+liệu|sách|giáo\s+trình|luận\s+văn)?\s*(?:về\s+)?",
+        r"^(?:có\s+)?(?:luận\s+văn|luận\s+án|đề\s+tài|bài\s+báo\s+khoa\s+học)\s+(?:nào\s+)?(?:nghiên\s+cứu\s+về|nói\s+về|về)?\s*",
+        r"^(?:không\s+phải|ko\s+phải)\s+[^,]+,\s*(?:tôi|mình|em)?\s*(?:chỉ\s+)?(?:quan\s+tâm|muốn|cần|tìm)\s+(?:đến|về)?\s*",
+        r"^(?:dạ\s+)?(?:tôi|em|mình)\s+(?:quan\s+tâm|thích)\s+(?:đến|về)\s*",
+        r"^(?:loại\s+)",
+        r"^(?:dạ\s+)?(?:tôi|em|mình)\s+(?:đang\s+)?(?:cần|muốn|chuẩn\s+bị|phải)?\s*(?:tìm\s+hiểu|tìm|tra\s+cứu|nghiên\s+cứu|làm|viết|thực\s+hiện|hoàn\s+thành|tham\s+khảo|đọc|xem|học)(?:\s+thêm)?(?:\s+về)?\s*",
+        r"^(?:hãy\s+)?(?:đưa\s+ra|tìm|lấy\s+ra|cho\s+tôi|gợi\s+ý)\s*(?:\d+\s+)?(?:tài\s+liệu|sách)\s+(?:về)?\s*",
         r"^(?:đề\s+tài\s+(?:nghiên\s+cứu\s+(?:khoa\s+học\s+)?)?|chuyên\s+đề|luận\s+văn|khóa\s+luận|bài\s+tập\s+lớn|đồ\s+án(?:\s+tốt\s+nghiệp)?)\s*(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về)?\s*",
         r"^(?:vậy\s+(?:thì\s+)?|thế\s+(?:thì\s+)?|vậy\s+còn\s+|thế\s+còn\s+)?(?:lựa\s+(?:ra\s+)?|chọn\s+(?:ra\s+)?|lọc\s+(?:ra\s+)?|lấy\s+(?:ra\s+)?|chỉ\s+(?:lấy|xem|chọn)\s+|xem\s+|cho\s+(?:xem|mình\s+xem|tôi\s+xem)\s+|tìm\s+(?:ra\s+)?)(?:những\s+|các\s+|một\s+|1\s+|vài\s+|mấy\s+)?(?:quyển|cuốn|sách|tài\s+liệu|tập|bản)?\s*",
         r"^(?:vậy\s+(?:thì\s+)?|thế\s+(?:thì\s+)?|vậy\s+còn\s+|thế\s+còn\s+)\s*",
-        r"^(?:có\s+)?(?:các\s+|những\s+|một\s+số\s+)?(?:sách|tài\s+liệu|giáo\s+trình|cuốn|quyển)\s+(?:nào\s+)?(?:liên\s+quan\s+đến|về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về)?\s*",
-        r"^(?:cuốn|quyển|sách|tài\s+liệu|giáo\s+trình)\s+(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về|nào\s+)?\s*",
+        r"^(?:có\s+)?(?:các\s+|những\s+|một\s+số\s+)?(?:sách|tài\s+liệu\s+tham\s+khảo|tài\s+liệu|giáo\s+trình|luận\s+văn|luận\s+án|bài\s+giảng|cuốn|quyển)\s+(?:nào\s+)?(?:liên\s+quan\s+đến|về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về)?\s*",
+        r"^(?:cuốn|quyển|sách|tài\s+liệu\s+tham\s+khảo|tài\s+liệu|giáo\s+trình|luận\s+văn|bài\s+giảng)\s+(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về|nào\s+)?\s*",
+        r"^(?:thuộc\s+ngành|ngành|chuyên\s+ngành|lĩnh\s+vực)\s+",
         r"^(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về)\s+",
+        r"^(?:dạ\s+)?(?:mình|tôi|em)\s+(?:đang|muốn|cần)?\s*(?:học|tìm\s+hiểu|nghiên\s+cứu)\s+(?:cách\s+)?(?:làm\s+ra|xây\s+dựng|tạo\s+ra|phát\s+triển|viết)\s+(?:một\s+)?(?=ứng\s+dụng|website|web|app|hệ\s+thống|chatbot|mạng|phần\s+mềm)",
+        r"^(?:hướng\s+dẫn\s+)?(?:xây\s+dựng|phát\s+triển|thiết\s+kế|làm|tạo)\s+(?:ra\s+)?(?:một\s+)?(?=ứng\s+dụng|website|web|app|hệ\s+thống|chatbot|mạng|phần\s+mềm)",
+        r"^(?:tài\s+liệu\s+|giáo\s+trình\s+)?(?:hướng\s+dẫn|dạy)\s+(?:cách\s+)?(?:xây\s+dựng|phát\s+triển|thiết\s+kế|làm|tạo|viết)?\s*",
+        r"^(?:dạ\s+)?(?:có\s+sách|có\s+tài\s+liệu|có\s+giáo\s+trình)\s+nào\s+(?:dạy|hướng\s+dẫn|giúp\s+(?:mình|tôi|em)\s+(?:biết\s+cách|học\s+cách|học)?|nói\s+về\s+việc)?\s*",
+        r"^(?:có\s+)?(?:sách|tài\s+liệu|giáo\s+trình)\s+nào\s+(?:dạy|hướng\s+dẫn|giúp|nói\s+về)?\s*",
+        r"^(?:dạy|hướng\s+dẫn)\s+",
+        r"^(?:cách\s+làm\s+ra\s+(?:một\s+)?|làm\s+ra\s+(?:một\s+)?)\s*",
+        r"^(?:để\s+)?(?:hiểu|biết)\s+(?:cách\s+)?",
+        r"^(?:việc|cách)\s+",
+        r"^(?:giúp\s+(?:tôi|mình|em)\s+)?(?:học\s+cách|biết\s+cách)\s*",
+        r"^(?:mình\s+|tôi\s+|em\s+)?(?:chưa\s+biết\s+gì\s+về\s+)",
+        r"^(?:mình\s+|tôi\s+|em\s+)?(?:muốn\s+tìm\s+hiểu\s+về\s+cách\s+)",
+        r"^(?:có\s+tài\s+liệu\s+nào\s+nói\s+về\s+việc\s+)",
+        r"^(?:tôi\s+|mình\s+|em\s+)?(?:muốn\s+nghiên\s+cứu\s+về\s+ảnh\s+hưởng\s+của\s+)",
+        r"^(?:tôi\s+|mình\s+|em\s+)?(?:cần\s+tài\s+liệu\s+để\s+hiểu\s+cách\s+)",
+        r"^(?:tôi\s+|mình\s+|em\s+)?(?:cần\s+tài\s+liệu\s+về\s+cách\s+)",
+        r"^(?:có\s+tài\s+liệu\s+nào\s+giúp\s+(?:tôi|mình|em)\s+học\s+cách\s+)",
     ]
 
     # 2. Hậu tố câu hỏi, yêu cầu gợi ý, mục đích bổ trợ & trạng thái
     suffixes = [
+        r"\s*(?:thì\s+sao|sao|thế\s+nào)\s*[?.]*$",
+        r"\s+(?:ấy|đó|này)\s*[?.]*$",
+        # Hậu tố câu phụ/giải thích: "Mình chưa biết gì về Excel cả"
+        r"[.?]\s*(?:mình|tôi|em)\s+chưa\s+biết\s+gì\s+về\s+.*$",
+        r"[.?]\s*(?:mình|tôi|em)\s+(?:đang|muốn|cần)\s+.*$",
         # Hậu tố yêu cầu gợi ý / xin sách / tài liệu: ", bạn hãy gợi ý cho tôi những sách liên quan...", ", ad gợi ý giúp em vài tài liệu tham khảo với ạ"
         r"[,.]?\s*(?:ad|bot|bạn)?\s*(?:ơi\s*[,.]?)?\s*(?:hãy\s+)?(?:gợi\s+ý|đề\s+xuất|giới\s+thiệu|tìm|cho\s+(?:tôi|mình|em)\s+(?:xin|biết))(?:\s+(?:cho|giúp)\s+(?:tôi|mình|em))?\s+(?:những\s+|các\s+|một\s+số\s+|vài\s+|ít\s+)?(?:sách|tài\s+liệu|giáo\s+trình|tập|cuốn|quyển)?\s*(?:tham\s+khảo|liên\s+quan|phù\s+hợp)?\s*(?:để\s+(?:giúp\s+)?(?:tôi|mình|em)?\s*(?:có\s+thể\s+)?(?:hoàn\s+thiện|hoàn\s+thành|làm|nghiên\s+cứu|viết|học|tham\s+khảo|phục\s+vụ).*)?\s*(?:với\s+ạ|ạ|nhé|nha)?\s*[?.]*$",
         # Hậu tố mục đích bổ trợ: "để giúp tôi có thể hoàn thiện đề tài này", "để phục vụ nghiên cứu"...
         r"\s*(?:để\s+(?:giúp\s+)?(?:tôi|mình|em)?\s*(?:có\s+thể\s+)?(?:hoàn\s+thiện|hoàn\s+thành|làm|nghiên\s+cứu|viết|học|tham\s+khảo|phục\s+vụ).*)?\s*[?.]*$",
+        r"[,.-]?\s*(?:có\s+)?(?:những\s+|các\s+|một\s+số\s+|vài\s+|ít\s+)?(?:cuốn\s+|quyển\s+|sách\s+|tài\s+liệu\s+|giáo\s+trình\s+)*(?:nào\s+)?(?:dành\s+cho|phù\s+hợp|liên\s+quan|thích\s+hợp|hỗ\s+trợ).*$",
+        r"[,.-]?\s*(?:thư\s+viện\s+)?(?:có\s+)?(?:sách\s+|tài\s+liệu\s+|giáo\s+trình\s+)?(?:hướng\s+dẫn|nào)?\s*(?:không\s+ạ|không|nhỉ)?\s*[?.]*$",
+        r"[,.-]?\s*(?:nên\s+đọc|cần\s+đọc|tìm)\s+(?:sách|tài\s+liệu|cuốn|quyển)\s+nào\s*[?.]*$",
+        r"[,.-]?\s*(?:nên|có\s+thể)\s+(?:tìm\s+tài\s+liệu|tìm|tham\s+khảo)\s+.*$",
+        r"\s*(?:từ\s+cơ\s+bản\s+đến\s+nâng\s+cao|từ\s+đầu|từ\s+a\s+đến\s+z|cơ\s+bản|nâng\s+cao)\s*[?.]*$",
+        r"\s*(?:dành\s+cho\s+)?(?:người|sinh\s+viên)?\s*(?:mới\s+bắt\s+đầu|mới\s+học|chưa\s+biết\s+gì|chưa\s+biết\s+lập\s+trình|nhập\s+môn|tự\s+học)\s*[?.]*$",
         r"\s*(?:hiện\s+tại\s+)?(?:còn|có)\s+(?:ở\s+)?(?:phòng|kho|kệ|giá|thư viện)\s+.*$",
         r"\s*(?:có\s+)?năm\s+(?:xuất\s+bản\s+)?(?:cũ|sớm|lâu\s+đời|lâu|gần|gần\s+đây|mới)\s+nhất\s*(?:không)?\s*[?.]*$",
         r"\s*\b(?:cũ|sớm|lâu\s+đời|lâu|gần\s+đây|mới\s+nhất|mới)\s+nhất\s*(?:không)?\s*[?.]*$",
@@ -210,10 +254,14 @@ def clean_conversational_query(query: str) -> str:
     # 3. Xóa các cụm từ chỉ thời gian / siêu cấp
     q = strip_temporal_sorting_phrases(q)
 
-    # Bóc các cấu trúc lọc năm hoặc ngành anaphoric nếu chỉ là câu lọc tiếp nối
-    q_stripped = re.sub(r'\b(?:có\s+)?(?:xuất\s+bản|phát\s+hành|in)?\s*(?:từ|sau|trước|vào)?\s*(?:năm\s+)?(19\d{2}|20\d{2})\b', ' ', q, flags=re.IGNORECASE)
+    # Bóc các cấu trúc lọc tiếp nối nếu không có chủ đề mới
+    q_stripped = re.sub(r'\b(?:có\s+)?(?:xuất\s+bản|phát\s+hành|in)?\s*(?:từ|sau|trước|vào)?\s*(?:năm\s+)?(18\d{2}|19\d{2}|20\d{2})\s*(?:trở\s+lại\s+đây|trở\s+về\s+đây|trở\s+lên|gần\s+đây)?\b', ' ', q, flags=re.IGNORECASE)
     q_stripped = re.sub(r'\b(?:thuộc\s+|của\s+)?(?:ngành|chuyên\s+ngành|khoa)\s+(?:này|đó|trên)\b', ' ', q_stripped, flags=re.IGNORECASE)
     q_stripped = re.sub(r'\b(?:xuất\s+bản|phát\s+hành|in)\b', ' ', q_stripped, flags=re.IGNORECASE)
+    q_stripped = re.sub(r'\b(?:dành\s+cho\s+)?(?:sinh\s+viên\s+|người\s+)?(?:mới\s+bắt\s+đầu|mới\s+học|chưa\s+biết\s+gì|chưa\s+biết|nhập\s+môn|cơ\s+bản|tự\s+học)\b', ' ', q_stripped, flags=re.IGNORECASE)
+    q_stripped = re.sub(r'\b(?:ưu\s+tiên\s+)?(?:sách\s+)?(?:tiếng\s+việt|tiếng\s+anh|bằng\s+tiếng\s+việt|bằng\s+tiếng\s+anh|song\s+ngữ)\b', ' ', q_stripped, flags=re.IGNORECASE)
+    q_stripped = re.sub(r'\b(?:chuyên\s+sâu\s+hơn|(?:dành\s+cho\s+)?(?:nghiên\s+cứu\s+)?sau\s+đại\s+học|chuyên\s+sâu|nâng\s+cao)\b', ' ', q_stripped, flags=re.IGNORECASE)
+    q_stripped = re.sub(r'\b(?:có|được|lấy|chỉ|nhé|ạ|với|nào|không|ko)\b', ' ', q_stripped, flags=re.IGNORECASE)
     q_stripped = re.sub(r'\s+', ' ', q_stripped).strip()
     if len(q_stripped) < 3 and is_follow_up_refinement(query):
         return ""
@@ -566,6 +614,8 @@ def is_follow_up_filter(query: str) -> bool:
     """
     if not query:
         return False
+    if re.search(r"^(?:có\s+)?(?:tài\s+liệu|sách)\s+nào\s+(?:phù\s+hợp|dành)\s+cho\s+(?:người|sinh\s+viên)?\s*(?:chưa\s+biết\s+lập\s+trình|chưa\s+biết\s+gì|mới\s+bắt\s+đầu|mới\s+học)\s*(?:không)?\s*[?.]*$", query, flags=re.IGNORECASE):
+        return True
     q = normalize_text(query).strip().lower()
     prefixes = (
         "co cua", "con cua", "the con", "con nganh", "co nganh",
@@ -583,46 +633,79 @@ def is_follow_up_filter(query: str) -> bool:
     return False
 
 
+def is_synthesis_query(query: str) -> bool:
+    """
+    Phát hiện câu hỏi yêu cầu tổng hợp / so sánh / phân nhóm / lập thứ tự đọc
+    trên các tài liệu đã tìm thấy trong phiên hội thoại:
+    - 'Hãy tổng hợp lại những tài liệu vừa tìm được...'
+    - 'So sánh số lượng tài liệu tìm được của hai chủ đề'
+    - 'Trong mỗi nhóm, có những giáo trình nào?'
+    - 'Trong những tài liệu vừa tìm được, cuốn nào phù hợp nhất để tôi tự học?'
+    - 'Hãy đưa ra danh sách tài liệu nên đọc theo thứ tự từ cơ bản đến nâng cao'
+    - 'Hãy phân loại các tài liệu thành nhóm lý thuyết, thực trạng và giải pháp'
+    """
+    if not query:
+        return False
+    q_norm = normalize_text(query).strip().lower()
+    patterns = [
+        r"\b(?:tong\s+hop(?:\s+lai)?|tom\s+tat|phan\s+loai)\s+(?:cac|nhung)?\s*(?:tai\s+lieu|cuon|ket\s+qua)?\b",
+        r"\bso\s+sanh\s+(?:so\s+luong|tai\s+lieu|hai|2|giua)\b",
+        r"\btrong\s+(?:nhung|cac|so)?\s*(?:tai\s+lieu|cuon|ket\s+qua)?\s*(?:vua|da)\s+tim(?:\s+duoc)?\b",
+        r"\btrong\s+moi\s+nhom\b",
+        r"\b(?:thu\s+tu|danh\s+sach\s+tai\s+lieu)\s+nen\s+doc\b",
+        r"\bcuon\s+nao\s+phu\s+hop\s+nhat\s+de\s+(?:toi\s+)?tu\s+hoc\b",
+        r"\bphan\s+loai\s+(?:cac\s+)?tai\s+lieu\b",
+        r"\bphan\s+loai\s+thanh\s+nhom\b",
+    ]
+    return any(re.search(p, q_norm) for p in patterns)
+
+
 def is_follow_up_refinement(query: str) -> bool:
     """
     Phát hiện câu hỏi hội thoại tiếp nối tinh chỉnh/lọc/chọn từ kết quả trước:
     - 'vậy lựa ra quyển có năm xuất bản gần nhất'
     - 'chọn cuốn mới nhất'
-    - 'vậy cuốn nào mới nhất'
-    - 'thế cuốn cũ nhất'
-    - 'lọc ra những cuốn từ năm 2020'
-    - 'lấy quyển xuất bản gần đây nhất'
-    - 'trong số các cuốn trên thì cuốn nào mới nhất'
-    - 'chỉ lấy giáo trình thôi'
-    - 'có cuốn nào của ngành CNTT không'
+    - 'chỉ lấy những tài liệu dành cho sinh viên mới bắt đầu'
+    - 'ưu tiên sách tiếng Việt nhé'
+    - 'có tài liệu nào được xuất bản từ năm 2020 trở lại đây không?'
+    - 'loại quản lý trong doanh nghiệp ấy'
+    - 'không phải quản trị nhân sự, tôi quan tâm đến quản lý chiến lược'
+    - 'có tài liệu nào chuyên sâu hơn dành cho nghiên cứu sau đại học không?'
     """
     if not query:
         return False
+    if re.search(r"^(?:có\s+)?(?:tài\s+liệu|sách)\s+nào\s+(?:phù\s+hợp|dành)\s+cho\s+(?:người|sinh\s+viên)?\s*(?:chưa\s+biết\s+lập\s+trình|chưa\s+biết\s+gì|mới\s+bắt\s+đầu|mới\s+học)\s*(?:không)?\s*[?.]*$", query, flags=re.IGNORECASE):
+        return True
     q = normalize_text(query).strip().lower()
 
-    # Has a refinement signal (temporal, action verb, connective, filter, in-set reference)
+    # Has a refinement signal (temporal, action verb, connective, filter, in-set reference, qualifier)
     has_recency = detect_recency_preference(query)
     has_oldest = detect_oldest_preference(query)
-    has_year = bool(re.search(r'\b(19\d{2}|20\d{2})\b', q))
-    has_refine_verb = bool(re.search(r'\b(?:lua\s+(?:ra\s+)?|chon\s+(?:ra\s+)?|loc\s+(?:ra\s+)?|lay\s+(?:ra\s+)?|chi\s+(?:lay|xem|chon)|xem\s+|cho\s+xem|tim\s+(?:ra\s+)?)\b', q))
-    has_connective = bool(re.search(r'^(?:vay\s+|the\s+|vay\s+thi\s+|the\s+thi\s+|the\s+con\s+|vay\s+con\s+)', q))
+    has_year = bool(re.search(r'\b(18\d{2}|19\d{2}|20\d{2})\b', q))
+    has_refine_verb = bool(re.search(r'\b(?:lua\s+(?:ra\s+)?|chon\s+(?:ra\s+)?|loc\s+(?:ra\s+)?|lay\s+(?:ra\s+)?|chi\s+(?:lay|xem|chon|can)|uu\s+tien|xem\s+|cho\s+xem|tim\s+(?:ra\s+)?)\b', q))
+    has_connective = bool(re.search(r'^(?:vay\s+|the\s+|vay\s+thi\s+|the\s+thi\s+|the\s+con\s+|vay\s+con\s+|con\s+)', q))
     has_filter = is_follow_up_filter(query)
     has_inset = bool(re.search(r'\b(?:trong\s+(?:so\s+do|so\s+nay|do|cac\s+sach\s+tren|danh\s+sach\s+tren))\b', q))
+    has_qualifier = bool(re.search(r'\b(?:moi\s+bat\s+dau|moi\s+hoc|nhap\s+mon|co\s+ban|tu\s+hoc|tieng\s+viet|tieng\s+anh|chuyen\s+sau|sau\s+dai\s+hoc)\b', q))
+    has_anaphora = bool(re.search(r'\b(?:linh\s+vuc\s+nay|chu\s+de\s+nay|nganh\s+nay|loai\s+.*\s+ay|trong\s+linh\s+vuc\s+nay)\b', q))
+    has_negation_pivot = bool(re.search(r'\bkhong\s+phai\s+', q))
 
-    if not (has_recency or has_oldest or has_year or has_refine_verb or has_connective or has_filter or has_inset):
+    if not (has_recency or has_oldest or has_year or has_refine_verb or has_connective or has_filter or has_inset or has_qualifier or has_anaphora or has_negation_pivot):
         return False
 
     # Check whether an independent new subject topic is present
     s = strip_temporal_sorting_phrases(q)
     s = re.sub(r'^(?:vay\s+(?:thi\s+)?|the\s+(?:thi\s+)?|vay\s+con\s+|the\s+con\s+|cho\s+(?:minh|toi|em)\s+|hay\s+|nho\s+ban\s+)?\s*', ' ', s)
-    s = re.sub(r'\b(?:lua\s+(?:ra\s+)?|chon\s+(?:ra\s+)?|loc\s+(?:ra\s+)?|lay\s+(?:ra\s+)?|chi\s+(?:lay|xem|chon)|xem\s+(?:them\s+)?|tim\s+(?:ra\s+)?|cho\s+(?:xem|biet))\b', ' ', s)
+    s = re.sub(r'\b(?:lua\s+(?:ra\s+)?|chon\s+(?:ra\s+)?|loc\s+(?:ra\s+)?|lay\s+(?:ra\s+)?|chi\s+(?:lay|xem|chon|can)|uu\s+tien|xem\s+(?:them\s+)?|tim\s+(?:ra\s+)?|cho\s+(?:xem|biet))\b', ' ', s)
     s = re.sub(r'\b(?:trong\s+(?:so\s+do|so\s+nay|do|cac\s+sach\s+tren|danh\s+sach\s+tren))\b', ' ', s)
-    s = re.sub(r'\b(?:co\s+)?(?:xuat\s+ban|phat\s+hanh|in)?\s*(?:tu\s+|truoc\s+|sau\s+|trong\s+|vao\s+)?(?:nam\s+)?(19\d{2}|20\d{2})\b', ' ', s)
+    s = re.sub(r'\b(?:co\s+)?(?:xuat\s+ban|phat\s+hanh|in)?\s*(?:tu\s+|truoc\s+|sau\s+|trong\s+|vao\s+)?(?:nam\s+)?(18\d{2}|19\d{2}|20\d{2})\s*(?:tro\s+lai\s+day|tro\s+ve\s+day|tro\s+len|gan\s+day)?\b', ' ', s)
     s = re.sub(r'\b(?:xuat\s+ban|phat\s+hanh|xuat|in)\b', ' ', s)
     s = re.sub(r'\b(?:nhung\s+|cac\s+|mot\s+|1\s+|vai\s+|may\s+)?(?:quyen|cuon|sach|tai\s+lieu|tap|an\s+ban|(?<!xuat\s)ban|ket\s+qua)(?:\s+(?:nao|nay|do|kia|ay|o\s+tren))?\b', ' ', s)
     s = re.sub(r'\b(?:loai\s+)?(?:sach|giao\s+trinh|luan\s+van|tai\s+lieu\s+tham\s+khao|kiem\s+dinh)\b', ' ', s)
-    s = re.sub(r'\b(?:thuoc\s+|cua\s+)?(?:nganh|chuyen\s+nganh|khoa)(?:\s+(?:nay|do|kia|ay|tren))?\b', ' ', s)
-    s = re.sub(r'\b(?:bang\s+|tieng\s+)?(?:tieng\s+anh|tieng\s+viet|song\s+ngu|english|vietnamese)\b', ' ', s)
+    s = re.sub(r'\b(?:thuoc\s+|cua\s+)?(?:nganh|chuyen\s+nganh|khoa|linh\s+vuc)(?:\s+(?:nay|do|kia|ay|tren))?\b', ' ', s)
+    s = re.sub(r'\b(?:danh\s+cho\s+)?(?:sinh\s+vien\s+|nguoi\s+)?(?:moi\s+bat\s+dau|moi\s+hoc|chua\s+biet\s+gi|chua\s+biet|nhap\s+mon|co\s+ban|tu\s+hoc)\b', ' ', s)
+    s = re.sub(r'\b(?:uu\s+tien\s+)?(?:sach\s+)?(?:tieng\s+viet|tieng\s+anh|bang\s+tieng\s+viet|bang\s+tieng\s+anh|song\s+ngu|english|vietnamese)\b', ' ', s)
+    s = re.sub(r'\b(?:chuyen\s+sau\s+hon|(?:danh\s+cho\s+)?(?:nghien\s+cuu\s+)?sau\s+dai\s+hoc|chuyen\s+sau|nang\s+cao)\b', ' ', s)
     s = re.sub(r'\b(?:nao|gi|o\s+dau|khong|ko|nhi|ha|the|vay|a|nhe|voi|nhung|co|ra|cua|duoc|thi\s+sao|nay|do|kia|ay)\b', ' ', s)
     s = re.sub(r'\s+', ' ', s).strip()
 
@@ -638,6 +721,8 @@ def is_broad_book_request(query: str) -> bool:
     """
     if not query:
         return False
+    if re.search(r"^(?:có\s+)?(?:tài\s+liệu|sách)\s+nào\s+(?:phù\s+hợp|dành)\s+cho\s+(?:người|sinh\s+viên)?\s*(?:chưa\s+biết\s+lập\s+trình|chưa\s+biết\s+gì|mới\s+bắt\s+đầu|mới\s+học)\s*(?:không)?\s*[?.]*$", query, flags=re.IGNORECASE):
+        return True
     q = normalize_text(query).strip().lower()
     has_broad_term = bool(re.search(r"\b(?:sach|tai\s+lieu|dau\s+sach)\b", q))
     has_narrow_type = bool(re.search(
@@ -654,6 +739,8 @@ def is_singular_book_request(query: str) -> bool:
     """
     if not query:
         return False
+    if re.search(r"^(?:có\s+)?(?:tài\s+liệu|sách)\s+nào\s+(?:phù\s+hợp|dành)\s+cho\s+(?:người|sinh\s+viên)?\s*(?:chưa\s+biết\s+lập\s+trình|chưa\s+biết\s+gì|mới\s+bắt\s+đầu|mới\s+học)\s*(?:không)?\s*[?.]*$", query, flags=re.IGNORECASE):
+        return True
     q = normalize_text(query).strip().lower()
     patterns = [
         r"\b(?:lua\s+ra|chon\s+ra|lay\s+ra|lay|chon|lua)\s+(?:1\s+|mot\s+)?(?:quyen|cuon)\b",
@@ -719,3 +806,27 @@ def get_inherited_context(history: list) -> dict:
             break
 
     return ctx
+
+
+def extract_negative_constraints(query: str) -> tuple[str, list[str]]:
+    """
+    Tách từ khóa phủ định/loại trừ:
+    'Tìm sách về Java nhưng không phải JavaScript' -> ('Tìm sách về Java', ['javascript'])
+    'kế toán ... không phải tài liệu chuyên sâu' -> (query_without_neg, ['chuyen sau'])
+    """
+    if not query:
+        return query, []
+    excluded = []
+    cleaned_q = query
+    patterns = [
+        r"[,.-]?\s*(?:nhưng\s+)?(?:không\s+phải\s+(?:là\s+)?|ngoại\s+trừ\s+|loại\s+trừ\s+|trừ\s+)([^,.?!]+)",
+    ]
+    for pat in patterns:
+        matches = re.findall(pat, cleaned_q, flags=re.IGNORECASE)
+        for m in matches:
+            kw = m.strip()
+            kw_clean = re.sub(r'^(?:tài\s+liệu|sách|giáo\s+trình|quyển|cuốn)\s+', '', kw, flags=re.IGNORECASE).strip()
+            if kw_clean:
+                excluded.append(kw_clean.lower())
+        cleaned_q = re.sub(pat, " ", cleaned_q, flags=re.IGNORECASE).strip()
+    return cleaned_q, excluded

@@ -347,9 +347,33 @@ def collapse_catalog_pdf_pages(search_results: list[dict], pdf_lookup=None) -> l
     return sorted(collapsed, key=lambda item: item.get("score", 0.0), reverse=True)
 
 
-def rerank_results_for_query(query: str, search_results: list[dict], prefer_strict: bool = False, target_doc_type: Optional[str] = None) -> list[dict]:
+def rerank_results_for_query(query: str, search_results: list[dict], prefer_strict: bool = False, target_doc_type: Optional[str] = None, excluded_keywords: Optional[list[str]] = None) -> list[dict]:
     if not search_results:
         return search_results
+
+    # 1. Loại bỏ các tài liệu có tiêu đề rỗng
+    search_results = [r for r in search_results if r.get("doc", {}).get("title") and str(r.get("doc", {}).get("title")).strip()]
+
+    # 1.5. Xử lý từ khóa loại trừ / phủ định (VD: 'nhưng không phải JavaScript')
+    if excluded_keywords:
+        for ex_kw in excluded_keywords:
+            ex_norm = normalize_text(ex_kw)
+            if not ex_norm:
+                continue
+            for result in search_results:
+                doc = result.get("doc", {})
+                doc_text = normalize_text(f"{doc.get('title', '')} {doc.get('subject', '')} {doc.get('abstract', '')}")
+                if ex_norm in doc_text:
+                    result["score"] = result.get("score", 0.0) - 5000.0
+
+    # 2. Hạ điểm mạnh các báo cáo tự đánh giá / kiểm định nội bộ trừ khi người dùng chủ động hỏi kiểm định
+    user_wants_kd = bool(re.search(r'\b(?:kiểm\s+định|tự\s+đánh\s+giá|đánh\s+giá\s+chất\s+lượng)\b', query, re.IGNORECASE) or (target_doc_type == "Kiểm định"))
+    if not user_wants_kd:
+        for result in search_results:
+            doc = result.get("doc", {})
+            dt = str(doc.get("doc_type") or "").strip().lower()
+            if dt == "kiểm định" or "tự đánh giá" in str(doc.get("title", "")).lower():
+                result["score"] = result.get("score", 0.0) - 1000.0
 
     if target_doc_type:
         from .doc_type_resolver import doc_matches_target_doc_type
@@ -540,6 +564,9 @@ def rerank_results_for_query(query: str, search_results: list[dict], prefer_stri
         matched.append({**result, "score": result.get("score", 0.0) + relevance})
 
     if matched:
+        valid_matched = [m for m in matched if m.get("score", 0.0) > 0]
+        if valid_matched:
+            matched = valid_matched
         matched.sort(key=lambda x: x.get("score", 0.0), reverse=True)
         if prefer_strict:
             return matched

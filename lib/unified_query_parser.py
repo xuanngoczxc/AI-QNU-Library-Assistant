@@ -5,7 +5,7 @@ entities (author, topic, title), and constraints (facets, sorting, refinement).
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
 from .text_utils import normalize_text
@@ -27,7 +27,9 @@ from .conversation_resolver import (
     detect_oldest_preference,
     strip_temporal_sorting_phrases,
     clean_conversational_query,
+    extract_negative_constraints,
     is_follow_up_refinement,
+    is_synthesis_query,
     is_follow_up_filter,
     is_broad_book_request,
     get_inherited_context,
@@ -59,9 +61,11 @@ class ParsedCatalogQuery:
     recency_sort: bool = False
     oldest_sort: bool = False
     is_refinement: bool = False
+    is_synthesis: bool = False
     is_singular: bool = False
     teaching_subject: Optional[str] = None
     course_name: Optional[str] = None
+    excluded_keywords: List[str] = field(default_factory=list)
 
 
 def parse_catalog_query(
@@ -77,6 +81,15 @@ def parse_catalog_query(
     """
     q_raw = (query or "").strip()
     history = history or []
+    inherited = get_inherited_context(history) if history else {}
+    inherited_topic = inherited.get("topic") or inherited.get("search_query") or ""
+
+    # Anaphora resolution: "trong lĩnh vực này", "chủ đề này" -> replace with inherited topic
+    if inherited_topic:
+        anaphora_pat = r'\b(?:trong\s+)?(?:lĩnh\s+vực|chủ\s+đề|ngành|chuyên\s+ngành)\s+(?:này|đó|trên|ấy)\b'
+        q_raw = re.sub(anaphora_pat, inherited_topic, q_raw, flags=re.IGNORECASE)
+
+    q_positive, excluded_keywords = extract_negative_constraints(q_raw)
 
     # 1. Phát hiện các yêu cầu sắp xếp thời gian (Mới nhất / Cũ nhất)
     is_recency = detect_recency_preference(q_raw)
@@ -146,7 +159,7 @@ def parse_catalog_query(
             clean_topic = f"xuất bản năm {pure_year_val}"
         search_q = str(pure_year_val)
     else:
-        clean_topic = clean_conversational_query(q_raw)
+        clean_topic = clean_conversational_query(q_positive)
         # Khử lặp các tiền tố "chủ đề", "về chủ đề"
         clean_topic = re.sub(r'^(?:về\s+)?chủ\s+đề\s+', '', clean_topic, flags=re.IGNORECASE).strip()
         # Loại bỏ các từ chỉ số lượng / mạo từ đầu topic: "các", "những", "một số"
@@ -163,11 +176,15 @@ def parse_catalog_query(
             if len(rem) < 3:
                 clean_topic = ""
 
-        # Nếu là câu tinh chỉnh tiếp nối và không có topic mới -> kế thừa từ lịch sử
-        if (is_refine or is_filter) and history and not clean_topic:
+        # Nếu là câu tinh chỉnh tiếp nối: kế thừa hoặc kết hợp với chủ đề từ lịch sử
+        if (is_refine or is_filter) and history:
             inherited_topic = inherited.get("topic") or inherited.get("search_query") or ""
             if inherited_topic:
-                clean_topic = inherited_topic
+                if not clean_topic or clean_topic == inherited_topic:
+                    clean_topic = inherited_topic
+                elif clean_topic and not any(t in clean_topic.lower() for t in inherited_topic.lower().split()):
+                    # Kết hợp chủ đề cũ với tiêu chí mới (VD: "trí tuệ nhân tạo" + "dành cho sinh viên mới bắt đầu")
+                    clean_topic = f"{inherited_topic} {clean_topic}" 
 
         # 8. Xác định Search Query chính cho Search Engine
         search_q = clean_topic or extract_primary_topic_text(q_raw) or q_raw
@@ -213,7 +230,9 @@ def parse_catalog_query(
         recency_sort=is_recency,
         oldest_sort=is_oldest,
         is_refinement=is_refine,
+        is_synthesis=is_synthesis_query(q_raw),
         is_singular=is_singular,
         teaching_subject=teaching_subject,
         course_name=course_name,
+        excluded_keywords=excluded_keywords,
     )
