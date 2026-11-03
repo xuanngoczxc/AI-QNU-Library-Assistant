@@ -1,6 +1,6 @@
 # ==============================================================
 # AI-QNU-Library-Assistant — Core Production Requirements
-# Nhẹ, tải nhanh, tối ưu hóa thời gian build Docker & Railway (< 1 phút)
+# Nhẹ, tải nhanh, tối ưu hóa thời gian build Docker & Railway (< 1-2 phút)
 # ==============================================================
 
 # Web Framework & Server
@@ -13,7 +13,8 @@ pandas
 openpyxl
 pydantic
 
-# PDF Processing (bản thuần Python nhẹ)
+# PDF Processing
+markitdown[pdf]>=0.1.6
 pypdf>=3.0
 
 # Network & Utilities
@@ -24,5 +25,5 @@ numpy
 typing-extensions
 python-multipart
 
-# Ghi chú: Các gói nặng Giai đoạn 3 (Voice Whisper, OCR, Markitdown)
-# đã được chuyển sang requirements-optional.txt để tránh tải 800MB khi build production.
+# Ghi chú: Các gói nặng Giai đoạn 3 (Voice Whisper, OCR)
+# đã được chuyển sang requirements-optional.txt để tránh kéo theo CTranslate2/PyTorch khi build production.
