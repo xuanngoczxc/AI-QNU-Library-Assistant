@@ -3,6 +3,7 @@ lib/llm_client.py — OpenRouter LLM client with async support, true SSE streami
 """
 
 import time
+import re
 import json
 import asyncio
 import httpx
@@ -104,11 +105,26 @@ async def call_llm_async(messages: list, temperature: float = 0.3) -> str:
         for model_idx, model_name in enumerate(model_chain):
             for attempt in range(max_retries):
                 try:
+                    req_payload = {
+                        "model": model_name,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "max_tokens": 1500,
+                        "chat_template_kwargs": {"enable_thinking": False},
+                    }
                     response = await client.post(
                         f"{OPENROUTER_BASE_URL}/chat/completions",
                         headers=_get_headers(),
-                        json={"model": model_name, "messages": messages, "temperature": temperature},
+                        json=req_payload,
                     )
+                    if response.status_code == 400:
+                        # Fallback for models not supporting chat_template_kwargs
+                        req_payload.pop("chat_template_kwargs", None)
+                        response = await client.post(
+                            f"{OPENROUTER_BASE_URL}/chat/completions",
+                            headers=_get_headers(),
+                            json=req_payload,
+                        )
 
                     if response.status_code == 429 and attempt < max_retries - 1:
                         wait = 2 ** (attempt + 1)
@@ -139,6 +155,8 @@ async def call_llm_async(messages: list, temperature: float = 0.3) -> str:
                         raw_clean = response.text.split("data: [DONE]")[0].strip()
                         payload = json.loads(raw_clean)
                     content = payload["choices"][0]["message"].get("content", "") or ""
+                    if "<think>" in content:
+                        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
                     elapsed = time.time() - request_start
                     tag = "primary" if model_idx == 0 else f"fallback#{model_idx}"
                     _on_llm_success(model_name, elapsed, tag, len(content))
@@ -181,16 +199,19 @@ async def stream_llm_async(messages: list, temperature: float = 0.3) -> AsyncGen
     for model_idx, model_name in enumerate(model_chain):
         try:
             async with httpx.AsyncClient(timeout=timeout_config) as client:
+                stream_payload = {
+                    "model": model_name,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": 1500,
+                    "stream": True,
+                    "chat_template_kwargs": {"enable_thinking": False},
+                }
                 async with client.stream(
                     "POST",
                     f"{OPENROUTER_BASE_URL}/chat/completions",
                     headers=_get_headers(),
-                    json={
-                        "model": model_name,
-                        "messages": messages,
-                        "temperature": temperature,
-                        "stream": True,
-                    },
+                    json=stream_payload,
                 ) as response:
                     if response.status_code != 200:
                         err_body = await response.aread()
@@ -199,8 +220,10 @@ async def stream_llm_async(messages: list, temperature: float = 0.3) -> AsyncGen
                         record_llm_failure(last_error)
                         continue
 
-                    # Stream succeeded, yield chunks
+                    # Stream succeeded, yield chunks with real-time <think> filtering
                     streamed_total = 0
+                    inside_think = False
+                    think_buf = ""
                     async for line in response.aiter_lines():
                         line = line.strip()
                         if not line:
@@ -218,8 +241,34 @@ async def stream_llm_async(messages: list, temperature: float = 0.3) -> AsyncGen
                                     delta = choices[0].get("delta", {})
                                     text_chunk = delta.get("content", "")
                                     if text_chunk:
-                                        streamed_total += len(text_chunk)
-                                        yield text_chunk
+                                        if inside_think:
+                                            think_buf += text_chunk
+                                            if "</think>" in think_buf:
+                                                inside_think = False
+                                                after = think_buf.split("</think>", 1)[1]
+                                                think_buf = ""
+                                                if after:
+                                                    streamed_total += len(after)
+                                                    yield after
+                                            continue
+                                        elif "<think>" in text_chunk:
+                                            inside_think = True
+                                            before, after = text_chunk.split("<think>", 1)
+                                            if before:
+                                                streamed_total += len(before)
+                                                yield before
+                                            think_buf = after
+                                            if "</think>" in think_buf:
+                                                inside_think = False
+                                                post = think_buf.split("</think>", 1)[1]
+                                                think_buf = ""
+                                                if post:
+                                                    streamed_total += len(post)
+                                                    yield post
+                                            continue
+                                        else:
+                                            streamed_total += len(text_chunk)
+                                            yield text_chunk
                             except Exception:
                                 continue
 

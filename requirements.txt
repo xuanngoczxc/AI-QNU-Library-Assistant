@@ -1,8 +1,11 @@
-# Web Framework
+# ==============================================================
+# AI-QNU-Library-Assistant — Core Production Requirements
+# Nhẹ, tải nhanh, tối ưu hóa thời gian build Docker & Railway (< 1 phút)
+# ==============================================================
+
+# Web Framework & Server
 fastapi
 starlette
-
-# ASGI server for production
 uvicorn
 
 # Data Processing
@@ -10,11 +13,10 @@ pandas
 openpyxl
 pydantic
 
-# PDF Processing
-markitdown[pdf]>=0.1.6
+# PDF Processing (bản thuần Python nhẹ)
 pypdf>=3.0
 
-# Utilities
+# Network & Utilities
 python-dotenv
 requests
 httpx>=0.27.0
@@ -22,14 +24,5 @@ numpy
 typing-extensions
 python-multipart
 
-# Giai đoạn 3 — OCR (PDF scan)
-pytesseract
-pdf2image
-
-# Giai đoạn 3 — Semantic search (multilingual)
-# Cài riêng vì torch rất nặng:
-#   pip install sentence-transformers torch --index-url https://download.pytorch.org/whl/cpu
-# (Comment out nếu không dùng để giữ image nhỏ)
-
-# Giai đoạn 3 — Voice input (Whisper)
-faster-whisper
+# Ghi chú: Các gói nặng Giai đoạn 3 (Voice Whisper, OCR, Markitdown)
+# đã được chuyển sang requirements-optional.txt để tránh tải 800MB khi build production.

@@ -2395,7 +2395,7 @@ def handle_library_policy_inquiry(query: str):
 
     # 2. Quy định mượn / trả / gia hạn sách / số lượng sách được mượn
     borrow_patterns = [
-        r"\b(?:muon\s+toi\s+da\s+may\s+cuon|muon\s+duoc\s+may\s+cuon|duoc\s+muon\s+bao\s+nhieu\s+cuon|so\s+luong\s+sach\s+duoc\s+muon|quy\s+dinh\s+muon\s+tra|thoi\s+han\s+muon\s+sach|muon\s+sach\s+duoc\s+bao\s+lau|muon\s+sach\s+bao\s+nhieu\s+ngay|gia\s+han\s+sach|tra\s+sach\s+qua\s+han|phi\s+phat\s+tra\s+muon)\b",
+        r"\b(?:muon\s+toi\s+da\s+may\s+cuon|muon\s+duoc\s+may\s+cuon|duoc\s+muon\s+bao\s+nhieu\s+cuon|so\s+luong\s+sach\s+duoc\s+muon|quy\s+dinh\s+muon\s+tra|noi\s+quy\s+muon\s+tra|noi\s+quy\s+thu\s+vien|quy\s+dinh\s+thu\s+vien|thoi\s+han\s+muon\s+sach|muon\s+sach\s+duoc\s+bao\s+lau|muon\s+sach\s+bao\s+nhieu\s+ngay|gia\s+han\s+sach|tra\s+sach\s+qua\s+han|phi\s+phat\s+tra\s+muon)\b",
         r"\b(?:sinh\s+vien\s+duoc\s+muon\s+.*(?:sach|ve\s+nha)|muon\s+ve\s+nha\s+toi\s+da)\b",
         r"\b(?:duoc\s+muon\s+toi\s+da|muon\s+toi\s+da)\s+(?:bao\s+nhieu|may)\b",
         r"\bmuon\s+(?:duoc\s+)?(?:sach\s+)?(?:trong\s+)?bao\s+lau\b",

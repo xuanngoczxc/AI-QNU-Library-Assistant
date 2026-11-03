@@ -1,0 +1,19 @@
+# ==============================================================
+# Giai đoạn 3 — Optional Heavy Packages (OCR, Voice, PDF Extra)
+# Cài đặt thêm nếu cần dùng tính năng nâng cao:
+#   pip install -r requirements-optional.txt
+# ==============================================================
+
+# PDF Processing với mô hình AI phát hiện tài liệu (magika, mammoth...)
+markitdown[pdf]>=0.1.6
+
+# OCR cho file PDF scan (yêu cầu thêm tesseract-ocr hệ thống)
+pytesseract
+pdf2image
+
+# Voice input (nhận diện giọng nói Whisper - kéo theo ctranslate2 & onnxruntime ~500MB)
+faster-whisper
+
+# Semantic Search (Sentence Transformers & PyTorch CPU)
+# Cài riêng nếu cần:
+#   pip install sentence-transformers torch --index-url https://download.pytorch.org/whl/cpu

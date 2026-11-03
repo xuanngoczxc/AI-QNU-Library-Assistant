@@ -1,10 +1,11 @@
 [phases.setup]
-nixPkgs = ["python311", "nodejs_20", "ffmpeg", "gcc"]
+nixPkgs = ["python311", "nodejs_20", "curl"]
 
 [phases.install]
 cmds = [
   "python -m venv --copies /opt/venv && . /opt/venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt",
-  "cd frontend && npm ci && npm run build && cd .."
+  "cd frontend && npm ci && npm run build && cd ..",
+  ". /opt/venv/bin/activate && python -c \"from lib.search_engine import DocumentIndexer; DocumentIndexer.load_from_data('Data')\""
 ]
 
 [start]

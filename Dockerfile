@@ -5,11 +5,12 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Copy package files and install dependencies
+# Tận dụng cache npm để các lần build tiếp theo chỉ mất vài giây
 COPY frontend/package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit
 
-# Copy frontend source and build static bundle
+# Copy mã nguồn frontend và build bundle tĩnh
 COPY frontend/ ./
 RUN npm run build
 
@@ -20,36 +21,38 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
     PORT=8000
 
 WORKDIR /code
 
-# Install system dependencies (build-essential, ffmpeg for voice input, curl for healthcheck)
+# Chỉ cài đặt curl cho Healthcheck (loại bỏ gcc/build-essential và ffmpeg để tối ưu dung lượng)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    ffmpeg \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Tận dụng pip cache mount để tránh tải lại wheels
 COPY requirements.txt /code/requirements.txt
-RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r /code/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip \
+    && pip install -r /code/requirements.txt
 
-# Copy backend source code and datasets
+# Copy toàn bộ mã nguồn backend và dữ liệu
 COPY . /code
 
-# Copy built frontend from Stage 1 into /code/frontend/dist
+# Pre-generate file cache pickle ngay trong lúc build image (Container khởi động <0.5s, pass healthcheck ngay)
+RUN python -c "from lib.search_engine import DocumentIndexer; DocumentIndexer.load_from_data('Data')"
+
+# Copy static bundle từ Stage 1 sang backend
 COPY --from=frontend-builder /app/frontend/dist /code/frontend/dist
 
-# Create necessary runtime directories with write permissions
+# Phân quyền thư mục runtime
 RUN mkdir -p /code/Data /code/usage-logs /data/.cache \
     && chmod -R 777 /code/Data /code/usage-logs /data
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+# Healthcheck start-period rút ngắn từ 40s xuống 15s vì đã có cache pickle sẵn
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]
