@@ -53,7 +53,7 @@ def _get_model():
             print(f"Failed to load semantic model: {e}")
             return None
 
-
+ 
 def is_available() -> bool:
     """Check semantic search có khả dụng không."""
     return _get_model() is not None

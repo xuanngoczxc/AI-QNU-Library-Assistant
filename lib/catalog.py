@@ -120,7 +120,7 @@ AI_QUERY_PATTERNS = [
     r"\btri tue nhan tao\b",
     r"\bartificial intelligence\b",
     r"\bmachine learning\b",
-    r"\bhoc may\b",
+    r"(?<!khoa\s)\bhoc may(?! tinh)\b",
     r"\bdeep learning\b",
     r"\b(?:linh vuc|chu de|de tai|cong nghe|ung dung|nganh|tai lieu|sach|giao trinh|nghien cuu|lien quan den)\s+(?:\w+\s+){0,3}ai\b",
     r"\bai\s+(?:trong|cho|ve|ung dung|giao duc|day hoc|may tinh|du lieu|ngon ngu|network|xam nhap)\b",

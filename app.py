@@ -776,6 +776,19 @@ def build_catalog_answer(
     clean_topic = clean_conversational_query(topic_display or query or '')
     clean_topic = re.sub(r'^(?:về\s+)?chủ\s+đề\s+', '', clean_topic, flags=re.IGNORECASE).strip()
 
+    # Khử lặp khi clean_topic quá dài (trên 7 từ / 60 ký tự) -> trích xuất chủ đề cốt lõi
+    if clean_topic and (len(clean_topic.split()) > 7 or len(clean_topic) > 60):
+        extracted = extract_primary_topic_text(clean_topic)
+        if extracted and len(extracted.split()) <= 7:
+            clean_topic = extracted
+
+    # Khử trùng lặp giữa chủ đề và ngành: nếu topic trùng hoặc là tập con của ngành thì không lặp lại
+    if major and clean_topic:
+        m_norm = normalize_text(major).strip()
+        t_norm = normalize_text(clean_topic).strip()
+        if m_norm == t_norm or m_norm in t_norm or t_norm in m_norm:
+            clean_topic = ""
+
     if not search_results:
         if doc_type:
             if major:
@@ -836,8 +849,10 @@ def build_catalog_answer(
         else:
             t_phrase = f" về chủ đề **{clean_topic}**"
     else:
-        t_phrase = " liên quan"
+        t_phrase = ""
     m_phrase = f" thuộc ngành **{major}**" if major else ""
+    if not t_phrase and not m_phrase:
+        t_phrase = " liên quan"
 
     variant = (abs(hash(query)) % 3) if query else 0
     if variant == 0:
@@ -3631,7 +3646,7 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 _topic_clean = re.sub(r'\b(?:thuoc\s+|cua\s+)?(?:nganh|chuyen\s+nganh|khoa)\b', '', _topic_clean, flags=re.IGNORECASE)
                 _topic_clean = re.sub(r'\b(?:xuat\s+ban\s+)?(?:nam\s+)?\d{4}\b', '', _topic_clean, flags=re.IGNORECASE)
                 _topic_clean = re.sub(r'\b(?:xuat\s+ban|phat\s+hanh|in)\b', '', _topic_clean, flags=re.IGNORECASE).strip()
-                if len(_topic_clean) < 3:
+                if len(_topic_clean) < 3 or _topic_norm == _clean_maj_norm or _clean_maj_norm in _topic_norm or _topic_norm in _clean_maj_norm:
                     _clean_cur_topic = ""
 
             if _is_pure_yr and _pure_yr_val:
@@ -3648,6 +3663,9 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 _base = re.sub(r'\b(?:xuat\s+ban\s+)?(?:nam\s+)?\d{4}\b', '', _base, flags=re.IGNORECASE)
                 _base = re.sub(r'\b(?:thuoc\s+|cua\s+)?(?:nganh|chuyen\s+nganh|khoa)(?:\s+(?:nay|do|tren|[a-zA-Z\s]+))?\b', '', _base, flags=re.IGNORECASE).strip()
                 _disp_topic = f"{_base} xuất bản {yr_str}".strip() if _base and len(_base) >= 3 else f"xuất bản {yr_str}"
+            elif req.major and not _clean_cur_topic and not _refine_topic:
+                # Nếu câu hỏi thuần túy về ngành, không tạo lại topic từ search_query để tránh lặp (về chủ đề X thuộc ngành X)
+                _disp_topic = ""
             else:
                 _disp_topic = _refine_topic or (_clean_cur_topic if _clean_cur_topic and len(_clean_cur_topic) >= 3 else "") or ("Trí tuệ nhân tạo" if detect_ai_domain(req.query) else (_restore_topic_diacritics(search_query, req.query) or clean_suggestion_topic(search_query, max_words=5) or search_query))
             answer = build_catalog_answer(
