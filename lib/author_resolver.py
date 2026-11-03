@@ -100,9 +100,9 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
                     matched_author = cand
                     remaining = " ".join(words[k:])
                     # Kiểm tra xem có từ thừa (như XYZ) đứng trước mốc thời gian/hành vi không
-                    slot_b = re.search(r'\b(?:xuat\s+ban|nam\s+\d{4}|\d{4}|phat\s+hanh|tai\s+ban|co\s+khong|khong|o\s+dau|phong|kho)\b', remaining)
+                    slot_b = re.search(r'\b(?:moi\s+nhat|gan\s+day\s+nhat|gan\s+nhat|cu\s+nhat|lau\s+doi\s+nhat|som\s+nhat|xuat\s+ban|nam\s+\d{4}|\d{4}|phat\s+hanh|tai\s+ban|co\s+khong|khong|o\s+dau|phong|kho)\b', remaining)
                     extra_words = remaining[:slot_b.start()].strip() if slot_b else ""
-                    if extra_words and len(extra_words.split()) <= 2:
+                    if extra_words and len(extra_words.split()) <= 2 and not re.search(r'\b(?:moi|gan|cu|lau|som|nhat)\b', extra_words):
                         matched_author = f"{matched_author} {extra_words}"
                         remaining = remaining[len(extra_words):].strip()
                     break

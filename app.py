@@ -786,11 +786,49 @@ def build_catalog_answer(
     clean_topic = clean_conversational_query(topic_display or query or '')
     clean_topic = re.sub(r'^(?:về\s+)?chủ\s+đề\s+', '', clean_topic, flags=re.IGNORECASE).strip()
 
-    # Khử lặp khi clean_topic quá dài (trên 7 từ / 60 ký tự) -> trích xuất chủ đề cốt lõi
-    if clean_topic and (len(clean_topic.split()) > 7 or len(clean_topic) > 60):
+    # Bóc bỏ triệt để tiền tố định lượng / loại sách còn sót lại trong clean_topic
+    clean_topic = re.sub(
+        r'^(?:một\s+|1\s+|các\s+|những\s+|một\s+số\s+|vài\s+|mấy\s+)?\s*'
+        r'(?:cuốn\s+sách|quyển\s+sách|cuốn|quyển|tập|bản)?\s*'
+        r'(?:tài\s+liệu\s+tham\s+khảo|tài\s+liệu|sách|giáo\s+trình|luận\s+văn|khóa\s+luận|đề\s+tài|bài\s+báo)?\s*'
+        r'(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về|liên\s+quan\s+đến)\s*',
+        '',
+        clean_topic,
+        flags=re.IGNORECASE
+    ).strip()
+
+    # Bóc bỏ các hậu tố quên tên / không nhớ rõ tên còn sót
+    clean_topic = re.sub(
+        r'[,.-]?\s*(?:nhưng\s+|mà\s+)?(?:tôi\s+|mình\s+|em\s+)?(?:không|chẳng|chưa|quên)\s+(?:nhớ|biết|rõ|chắc|mất)?(?:\s+rõ)?(?:\s+(?:tên|nhan\s+đề|tiêu\s+đề|tác\s+giả|năm|cuốn\s+sách|quyển\s+sách|nữa))?.*$',
+        '',
+        clean_topic,
+        flags=re.IGNORECASE
+    ).strip()
+    clean_topic = re.sub(
+        r'[,.-]?\s*(?:không\s+nhớ\s+rõ\s+tên|không\s+nhớ\s+tên|không\s+rõ\s+tên|chưa\s+nhớ\s+tên|quên\s+tên|không\s+nhớ\s+tác\s+giả|quên\s+tác\s+giả).*$',
+        '',
+        clean_topic,
+        flags=re.IGNORECASE
+    ).strip()
+    clean_topic = re.sub(
+        r'\s*(?:không\s+vậy\s+ạ|không\s+ạ|không\s+nhỉ|được\s+không|với\s+ạ|không|ạ|nhé|nha|\?)+$',
+        '',
+        clean_topic,
+        flags=re.IGNORECASE
+    ).strip()
+
+    # Khử lặp khi clean_topic quá dài (trên 6 từ / 50 ký tự) -> trích xuất chủ đề cốt lõi
+    if clean_topic and (len(clean_topic.split()) > 6 or len(clean_topic) > 50):
         extracted = extract_primary_topic_text(clean_topic)
-        if extracted and len(extracted.split()) <= 7:
+        if extracted and 1 <= len(extracted.split()) <= 6:
             clean_topic = extracted
+
+    # Khử trùng lặp với doc_type: nếu doc_type đã có (ví dụ "giáo trình"), không lặp lại "giáo trình" ở đầu clean_topic
+    if doc_type and clean_topic:
+        dt_norm = normalize_text(doc_type).lower().strip()
+        clean_topic = re.sub(r'^(?:' + re.escape(dt_norm) + r'|' + re.escape(doc_type.lower()) + r')\s*(?:về\s+)?', '', clean_topic, flags=re.IGNORECASE).strip()
+        if normalize_text(clean_topic).lower().strip() == dt_norm or clean_topic.lower() in ("sách", "giáo trình", "tài liệu", "luận văn", "tài liệu tham khảo"):
+            clean_topic = ""
 
     # Khử trùng lặp giữa chủ đề và ngành: nếu topic trùng hoặc là tập con của ngành thì không lặp lại
     if major and clean_topic:
@@ -798,6 +836,9 @@ def build_catalog_answer(
         t_norm = normalize_text(clean_topic).strip()
         if m_norm == t_norm or m_norm in t_norm or t_norm in m_norm:
             clean_topic = ""
+
+    if clean_topic:
+        clean_topic = clean_topic[0].upper() + clean_topic[1:]
 
     if not search_results:
         if doc_type:
@@ -850,7 +891,14 @@ def build_catalog_answer(
         dt_label = doc_type.lower()
         t_part = f" về **{clean_topic}**" if clean_topic else ""
         m_part = f" thuộc ngành **{major}**" if major else ""
-        return f"Thư viện QNU tìm thấy **{total} {dt_label}**{t_part}{m_part}.{highlight_str}\n\nMời bạn xem chi tiết danh sách tài liệu bên dưới để tra cứu vị trí phòng đọc và mã xếp giá nhé:"
+        variant = (abs(hash(query)) % 3) if query else 0
+        if variant == 0:
+            lead = f"Thư viện QNU hiện có **{total} {dt_label}**{t_part}{m_part}.{highlight_str}"
+        elif variant == 1:
+            lead = f"Dạ, mình tìm thấy **{total} {dt_label}**{t_part}{m_part} trong kho lưu trữ của thư viện.{highlight_str}"
+        else:
+            lead = f"Chào bạn, thư viện có **{total} {dt_label}**{t_part}{m_part} phù hợp.{highlight_str}"
+        return f"{lead}\n\nMời bạn xem chi tiết danh sách tài liệu bên dưới để tra cứu vị trí phòng đọc và mã xếp giá nhé:"
 
     # ── Natural, Conversational Phrasing for General Catalog Search ──
     if clean_topic:

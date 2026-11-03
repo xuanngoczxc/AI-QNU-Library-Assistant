@@ -186,7 +186,7 @@ def clean_conversational_query(query: str) -> str:
         r"^(?:không\s+phải|ko\s+phải)\s+[^,]+,\s*(?:tôi|mình|em)?\s*(?:chỉ\s+)?(?:quan\s+tâm|muốn|cần|tìm)\s+(?:đến|về)?\s*",
         r"^(?:dạ\s+)?(?:tôi|em|mình)\s+(?:quan\s+tâm|thích)\s+(?:đến|về)\s*",
         r"^(?:loại\s+)",
-        r"^(?:dạ\s+|da\s+)?(?:tôi|toi|em|mình|minh)\s+(?:đang|dang\s+)?(?:cần|can|muốn|muon|chuẩn\s+bị|chuan\s+bi|phải|phai)?\s*(?:tìm\s+kiếm|tìm\s+hiểu|tim\s+hieu|tìm|tim|tra\s+cứu|tra\s+cuu|nghiên\s+cứu|nghien\s+cuu|làm|lam|viết|viet|thực\s+hiện|thuc\s+hien|hoàn\s+thành|hoan\s+thanh|tham\s+khảo|tham\s+khao|đọc|doc|xem|học|hoc)?\s*(?:các\s+|những\s+|một\s+số\s+)?(?:tài\s+liệu|sách|giáo\s+trình|luận\s+văn|khóa\s+luận|đề\s+tài|bài\s+báo|cuốn\s+sách|quyển\s+sách|cuốn|quyển)?\s*(?:nghiên\s+cứu|tham\s+khảo|khoa\s+học|chuyên\s+ngành)?\s*(?:có\s+tiêu\s+đề\s*(?:là|về|liên\s+quan\s+đến)?|tiêu\s+đề\s*(?:là|về|liên\s+quan\s+đến)?|nói\s+về|về|liên\s+quan\s+đến)?\s*",
+        r"^(?:dạ\s+|da\s+)?(?:tôi|toi|em|mình|minh)?\s*(?:đang|dang\s+)?(?:cần|can|muốn|muon|chuẩn\s+bị|chuan\s+bi|phải|phai)?\s*(?:tìm\s+kiếm|tìm\s+hiểu|tim\s+hieu|tìm|tim|tra\s+cứu|tra\s+cuu|nghiên\s+cứu|nghien\s+cuu|làm|lam|viết|viet|thực\s+hiện|thuc\s+hien|hoàn\s+thành|hoan\s+thanh|tham\s+khảo|tham\s+khao|đọc|doc|xem|học|hoc)?\s*(?:các\s+|những\s+|một\s+số\s+|một\s+|1\s+|vài\s+|mấy\s+)?\s*(?:cuốn\s+sách|quyển\s+sách|cuốn|quyển|tập|bản)?\s*(?:tài\s+liệu|sách|giáo\s+trình|luận\s+văn|khóa\s+luận|đề\s+tài|bài\s+báo|bài\s+giảng|tài\s+liệu\s+tham\s+khảo)?\s*(?:nghiên\s+cứu|tham\s+khảo|khoa\s+học|chuyên\s+ngành)?\s*(?:có\s+tiêu\s+đề\s*(?:là|về|liên\s+quan\s+đến)?|tiêu\s+đề\s*(?:là|về|liên\s+quan\s+đến)?|nói\s+về|về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|liên\s+quan\s+đến)?\s*",
         r"^(?:tôi|mình|em)\s+(?:đang\s+)?(?:chuẩn\s+bị|chuan\s+bi|làm|lam|viết|viet)\s+(?:khóa\s+luận|khoa\s+luan|luận\s+văn|luan\s+van|đề\s+tài|de\s+tai|tiểu\s+luận|tieu\s+luan|đồ\s+án|do\s+an)(?:\s+tốt\s+nghiệp|\s+tot\s+nghiep)?\s*(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về)?\s*",
         r"^(?:chuẩn\s+bị|chuan\s+bi|làm|lam|viết|viet)\s+(?:khóa\s+luận|khoa\s+luan|luận\s+văn|luan\s+van|đề\s+tài|de\s+tai|tiểu\s+luận|tieu\s+luan|đồ\s+án|do\s+an)(?:\s+tốt\s+nghiệp|\s+tot\s+nghiep)?\s*(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về)?\s*",
         r"^(?:tôi|mình|em)\s+học\s+",
@@ -194,7 +194,7 @@ def clean_conversational_query(query: str) -> str:
         r"^(?:đề\s+tài\s+(?:nghiên\s+cứu\s+(?:khoa\s+học\s+)?)?|chuyên\s+đề|luận\s+văn|khóa\s+luận|bài\s+tập\s+lớn|đồ\s+án(?:\s+tốt\s+nghiệp)?)\s*(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về)?\s*",
         r"^(?:vậy\s+(?:thì\s+)?|thế\s+(?:thì\s+)?|vậy\s+còn\s+|thế\s+còn\s+)?(?:lựa\s+(?:ra\s+)?|chọn\s+(?:ra\s+)?|lọc\s+(?:ra\s+)?|lấy\s+(?:ra\s+)?|chỉ\s+(?:lấy|xem|chọn)\s+|xem\s+|cho\s+(?:xem|mình\s+xem|tôi\s+xem)\s+|tìm\s+(?:ra\s+)?)(?:những\s+|các\s+|một\s+|1\s+|vài\s+|mấy\s+)?(?:quyển|cuốn|sách|tài\s+liệu|tập|bản)?\s*",
         r"^(?:vậy\s+(?:thì\s+)?|thế\s+(?:thì\s+)?|vậy\s+còn\s+|thế\s+còn\s+)\s*",
-        r"^(?:có\s+)?(?:các\s+|những\s+|một\s+số\s+)?(?:sách|tài\s+liệu\s+tham\s+khảo|tài\s+liệu|giáo\s+trình|luận\s+văn|luận\s+án|bài\s+giảng|cuốn|quyển)\s+(?:nào\s+)?(?:liên\s+quan\s+đến|về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về)?\s*",
+        r"^(?:có\s+)?(?:các\s+|những\s+|một\s+số\s+|một\s+|1\s+|vài\s+|mấy\s+)?\s*(?:cuốn\s+sách|quyển\s+sách|cuốn|quyển|tập|bản)?\s*(?:sách|tài\s+liệu\s+tham\s+khảo|tài\s+liệu|giáo\s+trình|luận\s+văn|luận\s+án|bài\s+giảng)\s+(?:nào\s+)?(?:liên\s+quan\s+đến|về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về)?\s*",
         r"^(?:cuốn|quyển|sách|tài\s+liệu\s+tham\s+khảo|tài\s+liệu|giáo\s+trình|luận\s+văn|bài\s+giảng)\s+(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về|nào\s+)?\s*",
         r"^(?:thuộc\s+ngành|ngành|chuyên\s+ngành|lĩnh\s+vực)\s+",
         r"^(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về)\s+",
@@ -219,6 +219,11 @@ def clean_conversational_query(query: str) -> str:
 
     # 2. Hậu tố câu hỏi, yêu cầu gợi ý, mục đích bổ trợ & trạng thái
     suffixes = [
+        # Hậu tố quên tên / không nhớ rõ tên / không rõ tác giả
+        r"[,.-]?\s*(?:nhưng\s+|mà\s+)?(?:tôi\s+|mình\s+|em\s+)?(?:không|chẳng|chưa|quên)\s+(?:nhớ|biết|rõ|chắc|mất)?(?:\s+rõ)?(?:\s+(?:tên|nhan\s+đề|tiêu\s+đề|tác\s+giả|năm|cuốn\s+sách|quyển\s+sách|nữa))?.*$",
+        r"[,.-]?\s*(?:quên\s+mất|quên)\s+(?:tên|rồi|mất\s+rồi).*$",
+        r"[,.-]?\s*(?:không\s+nhớ\s+rõ\s+tên|không\s+nhớ\s+tên|không\s+rõ\s+tên|chưa\s+nhớ\s+tên|quên\s+tên|không\s+nhớ\s+tác\s+giả|quên\s+tác\s+giả).*$",
+
         # Câu lệnh/hành động phụ nối tiếp: ". Hãy tìm các tài liệu..."
         r"[.?!;]\s*(?:hãy|bạn\s+hãy|vui\s+lòng|cho\s+mình|ad\s+cho|bot\s+cho)?\s*(?:tìm|gợi\s+ý|liệt\s+kê|giúp|cho\s+tôi|cho\s+mình|cho\s+em).*$",
         # Mệnh đề ưu tiên/phạm vi: ", đặc biệt là các luận văn..."
@@ -243,7 +248,7 @@ def clean_conversational_query(query: str) -> str:
         r"[,.-]?\s*(?:nên\s+đọc|cần\s+đọc|tìm)\s+(?:sách|tài\s+liệu|cuốn|quyển)\s+nào\s*[?.]*$",
         r"[,.-]?\s*(?:nên|có\s+thể)\s+(?:tìm\s+tài\s+liệu|tìm|tham\s+khảo)\s+.*$",
         r"\s*(?:từ\s+cơ\s+bản\s+đến\s+nâng\s+cao|từ\s+đầu|từ\s+a\s+đến\s+z|cơ\s+bản|nâng\s+cao)\s*[?.]*$",
-        r"\s*(?:dành\s+cho\s+)?(?:người|sinh\s+viên)?\s*(?:mới\s+bắt\s+đầu|mới\s+học|chưa\s+biết\s+gì|chưa\s+biết\s+lập\s+trình|nhập\s+môn|tự\s+học)\s*[?.]*$",
+        r"\s*(?:dành\s+cho\s+|cho\s+)?(?:người|sinh\s+viên)?\s*(?:mới\s+bắt\s+đầu|mới\s+học|chưa\s+biết\s+gì|chưa\s+biết\s+lập\s+trình|nhập\s+môn|tự\s+học)\s*[?.]*$",
         r"\s*(?:hiện\s+tại\s+)?(?:còn|có)\s+(?:ở\s+)?(?:phòng|kho|kệ|giá|thư viện)\s+.*$",
         r"\s*(?:có\s+)?năm\s+(?:xuất\s+bản\s+)?(?:cũ|sớm|lâu\s+đời|lâu|gần|gần\s+đây|mới)\s+nhất\s*(?:không)?\s*[?.]*$",
         r"\s*\b(?:cũ|sớm|lâu\s+đời|lâu|gần\s+đây|mới\s+nhất|mới)\s+nhất\s*(?:không)?\s*[?.]*$",

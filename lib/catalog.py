@@ -76,6 +76,9 @@ TOPIC_MARKER_PATTERNS = [
 ]  
 
 TOPIC_TRAILING_PATTERNS = [
+    r"\b(?:nhung\s+|ma\s+)?(?:toi\s+|minh\s+|em\s+)?(?:khong|chang|chua|quen)\s+(?:nho|biet|ro|chac|mat)?(?:\s+ro)?(?:\s+(?:ten|nhan\s+de|tieu\s+de|tac\s+gia|nam|cuon\s+sach|quyen\s+sach|nua))?.*$",
+    r"\b(?:khong\s+nho\s+ro\s+ten|khong\s+nho\s+ten|khong\s+ro\s+ten|quen\s+ten|quen\s+mat\s+ten)\b.*$",
+    r"\b(?:danh\s+cho|cho)\s+(?:nguoi|sinh\s+vien)?\s*(?:moi\s+bat\s+dau|moi\s+hoc|chua\s+biet|nhap\s+mon|tu\s+hoc)\b.*$",
     r"\b(?:ban\s+)?(?:hay\s+)?(?:goi\s+y|de\s+xuat|gioi\s+thieu|cho\s+(?:toi|minh|em)\s+xin)\b.*$",
     r"\bgoi y\b.*$",
     r"\bcac\s+(?:linh\s+vuc|chu\s+de|nganh)\s+do.*$",
