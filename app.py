@@ -745,6 +745,16 @@ def _format_catalog_type_breakdown(search_results: list) -> str:
     return f"gồm {', '.join(parts[:-1])} và {parts[-1]}"
 
 
+def _clean_author_display(author: str) -> str:
+    """Làm sạch tên tác giả từ metadata thư viện (loại bỏ B.s.:, Đ.d.:, chuẩn hóa dấu lửng)."""
+    if not author or author.strip() in ("N/A", "Unknown", "None", ""):
+        return ""
+    a = author.strip()
+    a = re.sub(r'^(?:b\.?s\.?:?\s*|đ\.?d\.?:?\s*)', '', a, flags=re.IGNORECASE).strip()
+    a = re.sub(r'\.{2,}$', '...', a)
+    return a
+
+
 def _format_top_book_highlight(search_results: list) -> str:
     """Trích xuất 1 cuốn sách tiêu biểu để giới thiệu tự nhiên trong câu trả lời."""
     if not search_results:
@@ -753,7 +763,7 @@ def _format_top_book_highlight(search_results: list) -> str:
     title = (top_doc.get("title") or "").strip().rstrip('.')
     if not title or len(title) < 3:
         return ""
-    author = (top_doc.get("author") or "").strip()
+    author = _clean_author_display(top_doc.get("author") or "")
     year = str(top_doc.get("year") or "").strip()
 
     auth_str = f" của tác giả **{author}**" if author and author not in ("N/A", "Unknown", "None", "") else ""
@@ -806,7 +816,7 @@ def build_catalog_answer(
     top_doc = search_results[0].get("doc", search_results[0])
     top_title = (top_doc.get("title") or "").strip().rstrip('.')
     top_year = top_doc.get("year", "")
-    top_author = (top_doc.get("author") or "").strip()
+    top_author = _clean_author_display(top_doc.get("author") or "")
     type_breakdown = _format_catalog_type_breakdown(search_results)
     type_str = f" ({type_breakdown})" if type_breakdown else ""
     highlight_str = _format_top_book_highlight(search_results)
