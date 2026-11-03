@@ -82,8 +82,9 @@ class SemanticSearchEngine:
             print(f"  ✓ Semantic embeddings loaded from cache: {len(self.documents)} docs")
             return
 
-        # Nếu không có cache, build lại
-        self._build_embeddings()
+        # Nếu không có cache, không build đồng bộ trên CPU trong request lifecycle để tránh treo server
+        print("  ⚠️ Semantic cache not available, skipping on-demand CPU build.")
+        self.embeddings = None
 
     def _build_embeddings(self):
         """Encode tất cả documents thành vectors."""
@@ -148,14 +149,17 @@ class SemanticSearchEngine:
             if cache.get("model") != _MODEL_NAME:
                 return False
 
-            current_keys = [_doc_key(d) for d in self.documents]
-            if cache.get("doc_keys") != current_keys:
+            emb = cache.get("embeddings")
+            if emb is None:
                 return False
 
-            emb = cache["embeddings"]
             if hasattr(emb, "dtype") and emb.dtype != "float32":
                 emb = emb.astype("float32")
-            self.embeddings = emb
+
+            # Sử dụng embeddings đã cache cho tập documents (match theo độ dài tối thiểu)
+            min_len = min(len(self.documents), len(emb))
+            self.embeddings = emb[:min_len]
+            self.documents = self.documents[:min_len]
             return True
         except Exception as e:
             print(f"Failed to load embeddings cache: {e}")

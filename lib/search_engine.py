@@ -49,6 +49,7 @@ class BM25SearchEngine:
             self.doc_lengths.append(len(tokens))
             self.vocabulary.update(tokens)
 
+        self.tokenized_doc_sets = [set(tokens) for tokens in self.tokenized_docs]
         self.avg_doc_length = sum(self.doc_lengths) / len(self.doc_lengths) if self.doc_lengths else 1
         self.num_docs = len(self.documents)
         _safe_print(f"✅ BM25 Index built: {self.num_docs} docs, {len(self.vocabulary)} unique terms")
@@ -60,7 +61,11 @@ class BM25SearchEngine:
     def _get_idf(self, term):
         if term in self.idf_cache:
             return self.idf_cache[term]
-        doc_freq = sum(1 for tokens in self.tokenized_docs if term in tokens)
+        token_sets = getattr(self, "tokenized_doc_sets", None)
+        if token_sets is not None:
+            doc_freq = sum(1 for s in token_sets if term in s)
+        else:
+            doc_freq = sum(1 for tokens in self.tokenized_docs if term in tokens)
         # Standard Lucene/BM25 smoothed IDF: ln(1 + (N - DF + 0.5) / (DF + 0.5))
         idf = math.log(1.0 + (self.num_docs - doc_freq + 0.5) / (doc_freq + 0.5))
         self.idf_cache[term] = idf
@@ -144,11 +149,18 @@ class BM25SearchEngine:
                 if len(t) >= 2 and normalize_text(t) not in {'sach', 'tai', 'lieu', 've', 'cac', 'nhung', 'cua', 'va'}
             ]
 
+        phrase_pattern = None
+        if len(tokens) >= 2 and len(normalized_query) >= 4:
+            phrase_pattern = re.compile(r'(?<!\w)' + re.escape(normalized_query) + r'(?!\w)')
+
+        query_tokens_set = set(tokens)
+        token_sets = getattr(self, "tokenized_doc_sets", None)
+
         scores = []
         for doc_idx in range(len(self.documents)):
             # Token coverage: every token must appear for short queries
-            doc_tokens_set = set(self.tokenized_docs[doc_idx])
-            matched_count = sum(1 for t in tokens if t in doc_tokens_set)
+            doc_tokens_set = token_sets[doc_idx] if token_sets is not None else set(self.tokenized_docs[doc_idx])
+            matched_count = len(query_tokens_set & doc_tokens_set)
             coverage = matched_count / len(tokens) if tokens else 0.0
 
             if coverage < min_coverage:
@@ -167,8 +179,7 @@ class BM25SearchEngine:
             # Exact phrase boost (ưu tiên vượt trội khi xuất hiện nguyên cụm từ đi liền nhau)
             phrase_boost = 0.0
             has_phrase = False
-            if len(tokens) >= 2 and len(normalized_query) >= 4:
-                phrase_pattern = re.compile(r'(?<!\w)' + re.escape(normalized_query) + r'(?!\w)')
+            if phrase_pattern is not None:
                 if phrase_pattern.search(doc_title):
                     phrase_boost += 20.0
                     has_phrase = True
@@ -261,9 +272,11 @@ class BM25SearchEngine:
             ]
 
         count = 0
+        query_tokens_set = set(tokens)
+        token_sets = getattr(self, "tokenized_doc_sets", None)
         for doc_idx in range(len(self.documents)):
-            doc_tokens_set = set(self.tokenized_docs[doc_idx])
-            matched_count = sum(1 for t in tokens if t in doc_tokens_set)
+            doc_tokens_set = token_sets[doc_idx] if token_sets is not None else set(self.tokenized_docs[doc_idx])
+            matched_count = len(query_tokens_set & doc_tokens_set)
             coverage = matched_count / len(tokens) if tokens else 0.0
 
             if coverage < min_coverage:

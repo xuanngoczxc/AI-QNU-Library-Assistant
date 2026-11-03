@@ -73,7 +73,7 @@ QUERY_INTENT_PATTERNS = [
 TOPIC_MARKER_PATTERNS = [
     r"\b(?:ve\s+)?(?:chu\s+de|linh\s+vuc|chuyen\s+nganh|nganh)\s+([^,.;?]+)",
     r"\b(?:lien quan den|ve|linh vuc|chu de|nganh)\s+(.+)$",
-]
+]  
 
 TOPIC_TRAILING_PATTERNS = [
     r"\b(?:ban\s+)?(?:hay\s+)?(?:goi\s+y|de\s+xuat|gioi\s+thieu|cho\s+(?:toi|minh|em)\s+xin)\b.*$",
@@ -333,7 +333,7 @@ def score_ai_document(doc: dict) -> float:
 
 def get_doc_topic_fields(doc: dict) -> dict[str, str]:
     cached = doc.get("_topic_search_fields")
-    if cached:
+    if cached is not None and "_topic_all_tokens" in doc:
         return cached
     fields = [
         ("title", doc.get("title", "")), ("author", doc.get("author", "")),
@@ -346,7 +346,27 @@ def get_doc_topic_fields(doc: dict) -> dict[str, str]:
         fields.append((f"extra_{k}", v))
     normalized_fields = {name: normalize_topic_text(str(v)) for name, v in fields if v}
     doc["_topic_search_fields"] = normalized_fields
+
+    # Cache pre-tokenized sets and padded strings for ultra-fast matching
+    f_tokens = {}
+    f_padded = {}
+    all_t = set()
+    for fname, ftext in normalized_fields.items():
+        toks = set(ftext.split())
+        f_tokens[fname] = toks
+        f_padded[fname] = f" {ftext} "
+        all_t.update(toks)
+    doc["_topic_field_tokens"] = f_tokens
+    doc["_topic_padded_fields"] = f_padded
+    doc["_topic_all_tokens"] = all_t
+
     return normalized_fields
+
+def prepare_doc_topic_cache(doc: dict) -> None:
+    """Ensure pre-tokenized and padded field representations are cached on the document."""
+    if "_topic_all_tokens" in doc and "_topic_padded_fields" in doc:
+        return
+    get_doc_topic_fields(doc)
 
 def get_doc_topic_text(doc: dict) -> str:
     cached = doc.get("_topic_search_text")
@@ -519,39 +539,68 @@ def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int 
             if len(t) >= 2 and normalize_text(t) not in VIETNAMESE_STOP_WORDS
         ]
 
+    # Pre-parse multi-word and single-word phrases
+    query_tokens_set = set(topic_tokens_list)
+    multi_phrases = [
+        (p, f" {p} ", set(p.split()), p == primary_phrase)
+        for p in topic_phrases if p and " " in p
+    ]
+    single_phrases = [p for p in topic_phrases if p and " " not in p]
+    candidate_tokens = set(topic_tokens_list)
+    for _, _, pw, _ in multi_phrases:
+        candidate_tokens.update(pw)
+    for p in single_phrases:
+        candidate_tokens.add(p)
+
+    _token_match_fields = ("title", "author", "subject", "major", "course", "publisher")
+    len_tokens = max(len(topic_tokens_list), 1)
+
     for idx, doc in enumerate(bm25_documents):
-        doc_fields = get_doc_topic_fields(doc)
-        doc_text = " ".join(f for f in doc_fields.values() if f)
+        doc_all = doc.get("_topic_all_tokens")
+        if doc_all is None:
+            prepare_doc_topic_cache(doc)
+            doc_all = doc["_topic_all_tokens"]
+
+        if candidate_tokens.isdisjoint(doc_all):
+            continue
+
+        doc_padded = doc["_topic_padded_fields"]
+        doc_field_tokens = doc["_topic_field_tokens"]
         score = 0.0
         exact_phrase_hit = False
-        for phrase in topic_phrases:
-            if not phrase:
-                continue
-            for field_name, field_text in doc_fields.items():
-                if " " in phrase and contains_normalized_phrase(field_text, phrase):
-                    exact_phrase_hit = True
-                    base = field_weights.get(field_name, 8.0)
-                    score += base if phrase == primary_phrase else base * 0.55
-                elif " " not in phrase and contains_normalized_phrase(field_text, phrase):
-                    base = field_weights.get(field_name, 8.0)
-                    score += base * 0.3
+
+        # Multi-word phrase matches
+        for phrase, padded_phrase, phrase_words, is_primary in multi_phrases:
+            if phrase_words.issubset(doc_all):
+                for field_name, padded_text in doc_padded.items():
+                    if padded_phrase in padded_text:
+                        exact_phrase_hit = True
+                        base = field_weights.get(field_name, 8.0)
+                        score += base if is_primary else base * 0.55
+
+        # Single-word phrase matches
+        for phrase in single_phrases:
+            if phrase in doc_all:
+                for field_name, ftoks in doc_field_tokens.items():
+                    if phrase in ftoks:
+                        base = field_weights.get(field_name, 8.0)
+                        score += base * 0.3
+
         # Count how many query tokens appear together in the SAME key field
         # (only metadata fields — exclude full-text fields to avoid false matches
         # from diacritic-stripped tokens scattered across unrelated content)
-        _token_match_fields = {"title", "author", "subject", "major", "course", "publisher"}
         field_match_counts = []
-        for field_name, field_text in doc_fields.items():
-            if field_name not in _token_match_fields:
+        for field_name in _token_match_fields:
+            ftoks = doc_field_tokens.get(field_name)
+            if not ftoks:
                 continue
-            field_count = sum(
-                1 for t in topic_tokens_list
-                if re.search(rf"\b{re.escape(t)}\b", field_text)
-            )
-            if field_count:
-                field_match_counts.append(field_count)
+            common = len(query_tokens_set & ftoks)
+            if common:
+                field_match_counts.append(common)
+
         match_count = max(field_match_counts) if field_match_counts else 0
         if match_count:
-            coverage = match_count / max(len(topic_tokens_list), 1)
+            coverage = match_count / len_tokens
             score += (match_count * 2.0) + (coverage * 6.0)
             if not exact_phrase_hit:
                 if len(topic_tokens_list) <= 3 and coverage < 1.0:
@@ -568,6 +617,7 @@ def metadata_search_by_query(query: str, bm25_documents: list[dict], top_k: int 
             scored.append({"doc": doc, "score": score + 1000.0, "index": idx})
         elif score > 0:
             scored.append({"doc": doc, "score": score + 50.0, "index": idx})
+
     scored.sort(key=lambda item: item["score"], reverse=True)
     return scored[:top_k]
 
@@ -579,6 +629,7 @@ def build_topic_cache(bm25_documents: list[dict]) -> None:
     TOPIC_CACHE = {}
     ALL_DOC_KEYWORDS = {}
     for idx, doc in enumerate(bm25_documents):
+        prepare_doc_topic_cache(doc)
         keywords = set()
         for field in ("subject", "major", "title"):
             raw = doc.get(field, "")
