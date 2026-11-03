@@ -79,7 +79,7 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
         return None, None, None
 
     q_norm = normalize_text(query).strip()
-    m = re.search(r'\b(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham)?\s*(?:cua\s+(?:tac\s+gia\s+)?|ve\s+tac\s+gia\s+|tac\s+gia\s+)', q_norm)
+    m = re.search(r'\b(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham)?\s*(?:cua\s+(?:tac\s+(?:gia|ga)\s+|tg\s+)?|ve\s+tac\s+(?:gia|ga)\s+|tac\s+(?:gia|ga)\s+|tg\s+)', q_norm)
     if not m:
         m = re.search(r'\bcua\s+', q_norm)
 
@@ -232,7 +232,7 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
 
     # Step 3.5: Kiểm tra tính nhất quán dấu tiếng Việt (VD: Nguyễn Nhật Ánh vs Nguyễn Nhật Anh)
     if all_author_docs:
-        m_a = re.search(r'\b(?:tác\s+giả\s+|của\s+(?:tác\s+giả\s+)?)([A-Za-zÀ-ỹ\s]+?)(?:\s+(?:xuất\s+bản|năm|ở|thuộc|không|chưa)|\?|$)', query, re.IGNORECASE)
+        m_a = re.search(r'\b(?:tác\s+(?:giả|gả|gia)\s+|của\s+(?:tác\s+(?:giả|gả|gia)\s+)?)([A-Za-zÀ-ỹ\s]+?)(?:\s+(?:xuất\s+bản|năm|ở|thuộc|không|chưa)|\?|$)', query, re.IGNORECASE)
         if m_a:
             u_author = m_a.group(1).strip()
             u_words = u_author.lower().split()
@@ -335,13 +335,13 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
         recent_docs = sorted(all_author_docs, key=_doc_year_val, reverse=True)[:10]
         final_docs = recent_docs
     elif target_doc_type and not filtered_docs:
-        # User specified a doc type, but author doesn't have that type
         ans = (
-            f"Tác giả **{author_display}** hiện có **{len(all_author_docs)} tài liệu** trong Thư viện QNU, "
-            f"tuy nhiên không có tài liệu nào thuộc loại **{target_doc_type}**.\n\n"
-            f"Dưới đây là các tài liệu hiện có của tác giả để bạn tham khảo:"
+            f"Dạ có nhé! Thư viện QNU hiện có **{len(all_author_docs)} tài liệu** của tác giả **{author_display}**"
+            f" (tuy nhiên chưa có tài liệu phân loại riêng là **{target_doc_type}**).\n\n"
+            f"Bạn có thể xem chi tiết tài liệu hiện có của tác giả bên dưới:"
         )
         final_docs = all_author_docs[:10]
+        filtered_docs = final_docs
     elif is_loc_q:
         rooms_found = OrderedDict()
         for d in filtered_docs:
@@ -420,7 +420,7 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
         "answer": ans,
         "sources": srcs,
         "total_sources": len(srcs),
-        "total_found": len(filtered_docs),
+        "total_found": len(final_docs),
         "matched_attr": "author_location",
         "found": True,
         "author_display": author_display,

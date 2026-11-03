@@ -229,10 +229,7 @@ CANONICAL_MAJORS_CATALOG = {
         "kỹ thuật phần mềm", "ngành kỹ thuật phần mềm", "ktpm",
         "software engineering", "phần mềm", "công nghệ phần mềm"
     ],
-    "Trí tuệ nhân tạo": [
-        "trí tuệ nhân tạo", "ngành trí tuệ nhân tạo", "ttnt",
-        "artificial intelligence", "ai", "khoa học trí tuệ nhân tạo"
-    ],
+
 
     # ── Khoa Giáo dục Tiểu học và Mầm non ──
     "Giáo dục Tiểu học": [

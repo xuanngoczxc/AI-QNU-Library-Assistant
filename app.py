@@ -3410,6 +3410,14 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
 
             _rerank_q = search_query if search_query else req.query
             search_results = rerank_results_for_query(_rerank_q, search_results, prefer_strict=_prefer_strict, target_doc_type=_detected_doc_type, excluded_keywords=getattr(parsed_q, 'excluded_keywords', None))
+            # Relevance Gating for topic catalog searches: loại bỏ tài liệu rác dính stopword (score quá thấp so với top)
+            if catalog_mode and not req.major and not _is_pure_yr and not is_list_request and search_results:
+                _top_s = search_results[0].get("score", 0)
+                if _top_s >= 8.0:
+                    _cutoff = max(3.0, _top_s * 0.35)
+                    _gated = [r for r in search_results if r.get("score", 0) >= _cutoff]
+                    if len(_gated) >= 3:
+                        search_results = _gated
             # PDF page collapsing disabled
             if use_cache and search_results:
                 _search_cache.set(cache_key, search_results)
@@ -3600,20 +3608,19 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                     if all_major_dt:
                         all_major_docs = all_major_dt
 
-                if _is_general_major_query or not filtered_results:
+                if _is_general_major_query:
                     search_results = all_major_docs
-                else:
+                elif filtered_results:
                     if _detected_doc_type:
                         dt_filtered = [
                             r for r in filtered_results
                             if doc_matches_target_doc_type(r.get("doc", r), _detected_doc_type)
                         ]
-                        if dt_filtered:
-                            search_results = dt_filtered
-                        else:
-                            search_results = filtered_results
+                        search_results = dt_filtered if dt_filtered else filtered_results
                     else:
                         search_results = filtered_results
+                elif all_major_docs and not search_results:
+                    search_results = all_major_docs
 
         # ── Language filter: "tiếng Anh" / "Song ngữ" ──
         if _lang_filter_now and search_results:

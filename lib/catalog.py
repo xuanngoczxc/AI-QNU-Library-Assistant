@@ -1034,6 +1034,9 @@ def detect_course_name(query: str) -> str | None:
 
 # Common typos for technical terms
 _TYPO_CORRECTIONS = {
+    "tác gả": "tác giả", "tac ga": "tac gia", "tác giã": "tác giả", "tác gỉa": "tác giả",
+    "giao trinh": "giáo trình", "tai lieu": "tài liệu", "luan van": "luận văn",
+    "xuat ban": "xuất bản", "tieu de": "tiêu đề", "tieude": "tiêu đề",
     "khoaa": "khoa", "khoahoc": "khoa học", "maytinh": "máy tính",
     "hocmay": "học máy", "tinhoc": "tin học", "laptrinh": "lập trình",
     "toann": "toán", "hoaa": "hóa",
@@ -1052,15 +1055,21 @@ _TYPO_CORRECTIONS = {
 }
 
 def apply_fuzzy_corrections(query: str) -> str:
-    """Sửa lỗi chính tả phổ biến và lỗi gõ phím Telex (vd: 'khoaa' -> 'khoa'). Trả về query đã sửa, hoặc '' nếu không cần."""
+    """Sửa lỗi chính tả phổ biến và lỗi gõ phím Telex (vd: 'khoaa' -> 'khoa', 'tác gả' -> 'tác giả'). Trả về query đã sửa, hoặc '' nếu không cần."""
     if not query:
         return ""
     from lib.text_utils import generalized_telex_cleanup, WHITELISTED_SHORT_ACRONYMS
     import difflib
 
     q = generalized_telex_cleanup(query.strip())
+    changed = False
 
-    # Tập hợp các danh từ kỹ thuật chuẩn để so khớp mờ tự động (Dynamic Vocabulary)
+    # Multi-word phrase typo replacement
+    for wrong, right in _TYPO_CORRECTIONS.items():
+        if " " in wrong and re.search(r'\b' + re.escape(wrong) + r'\b', q, flags=re.I):
+            q = re.sub(r'\b' + re.escape(wrong) + r'\b', right, q, flags=re.I)
+            changed = True
+
     canonical_tech_terms = {
         "python", "javascript", "tensorflow", "pytorch", "react", "django",
         "flask", "pandas", "numpy", "matplotlib", "scikit-learn", "nodejs",
@@ -1068,16 +1077,14 @@ def apply_fuzzy_corrections(query: str) -> str:
     }
 
     tokens = q.split()
-    changed = False
     for i, t in enumerate(tokens):
         t_clean = t.strip(".,!?;:\"'()[]{}").lower()
         if t_clean in WHITELISTED_SHORT_ACRONYMS:
             continue
-        if t_clean in _TYPO_CORRECTIONS:
+        if t_clean in _TYPO_CORRECTIONS and " " not in t_clean:
             tokens[i] = _TYPO_CORRECTIONS[t_clean]
             changed = True
         elif len(t_clean) >= 5:
-            # Fuzzy match token nếu sai lệch 1 ký tự so với từ điển kỹ thuật
             close = difflib.get_close_matches(t_clean, canonical_tech_terms, n=1, cutoff=0.82)
             if close:
                 tokens[i] = close[0]
