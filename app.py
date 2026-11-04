@@ -2603,6 +2603,20 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         routed = route_conversational_turn(req.query, dst_state)
 
+        # Lượt tìm kiếm MỚI (không phải tinh chỉnh/lọc tiếp nối): xóa bộ lọc dính từ chủ đề trước
+        if (routed.action_type == RouterActionType.CATALOG_SEARCH and not routed.topic
+                and not is_follow_up_refinement(req.query) and not is_follow_up_filter(req.query)):
+            dst_state.doc_types = []
+            dst_state.year_min = None
+            dst_state.year_max = None
+            dst_state.language = None
+            dst_state.primary_topic = ""
+            dst_state.topics = []
+            # Hỏi nhiều loại tài liệu ngay lượt đầu: "giáo trình hoặc sách về X"
+            _multi_dt = detect_multiple_doc_types_from_query(req.query)
+            if len(_multi_dt) > 1:
+                dst_state.doc_types = _multi_dt
+
         # Action: SELECT_TOP_K (chọn lọc trực tiếp từ kết quả vừa tìm)
         if routed.action_type == RouterActionType.SELECT_TOP_K and dst_state.working_set:
             chosen = dst_state.working_set[:routed.target_k]
@@ -2749,7 +2763,11 @@ Hãy đưa ra lời khuyên học thuật tận tình, cụ thể:
                 dst_state.year_min = routed.year_min
             if routed.language:
                 dst_state.language = routed.language
-            target_topic = dst_state.primary_topic or "tài liệu"
+            if not dst_state.doc_types and inherited_ctx.get("doc_type"):
+                dst_state.doc_types = [inherited_ctx["doc_type"]]
+            if dst_state.major and not getattr(req, "major", None):
+                req.major = dst_state.major
+            target_topic = dst_state.primary_topic or inherited_ctx.get("search_query") or "tài liệu"
             req.query = f"tìm sách về {target_topic}"
             normalized_query = normalize_text(req.query)
             intent = "catalog"
@@ -3835,7 +3853,7 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                     search_results = all_major_docs
 
         # ── DST Doc types filter (hỗ trợ nhiều loại đồng thời: 'sách hoặc giáo trình') ──
-        _effective_doc_types = dst_state.doc_types if dst_state.doc_types else ([_detected_doc_type] if _detected_doc_type else [])
+        _effective_doc_types = dst_state.doc_types if dst_state.doc_types else []
         if _effective_doc_types and search_results:
             dt_filtered_res = [
                 r for r in search_results
@@ -4011,6 +4029,7 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
         # Đồng bộ Dialogue State Tracking (DST)
         dst_state.primary_topic = topic or clean_topic or dst_state.primary_topic
         dst_state.set_working_set(sources)
+        dst_state.major = getattr(req, "major", None) or _study_major_now or dst_state.major
         dst_state.last_query = req.query
         dst_state.last_search_query = search_query
         save_dialogue_state(req.session_id, dst_state)
