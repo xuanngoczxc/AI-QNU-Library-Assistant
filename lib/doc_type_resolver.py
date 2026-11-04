@@ -192,3 +192,63 @@ def doc_matches_target_doc_type(doc: dict, target_doc_type: str) -> bool:
         return doc_dt == "kiểm định" or "tự đánh giá" in str(doc.get("title", "")).lower()
 
     return False
+
+
+def detect_multiple_doc_types_from_query(query: str) -> list:
+    """
+    Phát hiện danh sách các loại tài liệu (hỗ trợ liên từ 'hoặc', 'và', 'lẫn').
+    Ví dụ: 'Chỉ lấy sách hoặc giáo trình' => ['Giáo trình', 'Sách']
+           'giáo trình và tài liệu hướng dẫn thực hành' => ['Giáo trình', 'Sách bài tập']
+    """
+    if not query:
+        return []
+    q_norm = normalize_text(query).strip().lower()
+    types_found = []
+
+    # Kiểm tra các loại đặc thù trước
+    if re.search(r'\b(?:giao\s+trinh|textbook)\b', q_norm):
+        types_found.append('Giáo trình')
+    if re.search(r'\b(?:sach\s+bai\s+tap|huong\s+dan\s+thuc\s+hanh|thuc\s+hanh|bai\s+tap)\b', q_norm):
+        types_found.append('Sách bài tập')
+    if re.search(r'\b(?:tai\s+lieu\s+tham\s+khao|sach\s+tham\s+khao|tham\s+khao)\b', q_norm):
+        types_found.append('Tài liệu tham khảo')
+    if re.search(r'\b(?:luan\s+van|luan\s+an|khoa\s+luan|do\s+an)\b', q_norm):
+        types_found.append('Luận văn')
+    if re.search(r'\b(?:kiem\s+dinh|tu\s+danh\s+gia)\b', q_norm):
+        types_found.append('Kiểm định')
+    if re.search(r'\b(?:bai\s+giang)\b', q_norm):
+        types_found.append('Bài giảng')
+    if re.search(r'\b(?:ky\s+yeu)\b', q_norm):
+        types_found.append('Kỷ yếu')
+
+    # Bóc bỏ các cụm ghép để xem từ 'sách' có đứng độc lập hoặc nối bằng và/hoặc không
+    q_sub = re.sub(r'\b(?:sach\s+bai\s+tap|sach\s+giao\s+trinh|sach\s+tham\s+khao)\b', ' ', q_norm)
+    if re.search(r'\b(?:sach)\b', q_sub):
+        # Nếu có từ nối hoặc chỉ thị loại sách: 'sách hoặc...', 'sách và...', 'chỉ lấy sách'
+        if re.search(r'\b(?:sach\s+(?:hoac|va|hay)|(?:hoac|va)\s+sach|chi\s+lay\s+sach|loai\s+sach)\b', q_sub) or len(types_found) > 0:
+            types_found.append('Sách')
+
+    if not types_found:
+        single = detect_doc_type_from_query(query)
+        if single:
+            types_found.append(single)
+
+    seen = set()
+    result = []
+    for t in types_found:
+        if t not in seen:
+            seen.add(t)
+            result.append(t)
+    return result
+
+
+def doc_matches_target_doc_types(doc: dict, target_types) -> bool:
+    """
+    Kiểm tra một document có khớp với bất kỳ loại tài liệu nào trong target_types hay không.
+    target_types có thể là str, list[str], set[str], hoặc None.
+    """
+    if not target_types:
+        return True
+    if isinstance(target_types, str):
+        target_types = [target_types]
+    return any(doc_matches_target_doc_type(doc, t) for t in target_types)

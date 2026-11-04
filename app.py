@@ -102,8 +102,12 @@ from lib.doc_type_resolver import (
     detect_doc_type_from_query,
     clean_query_doc_type_terms,
     doc_matches_target_doc_type,
+    doc_matches_target_doc_types,
+    detect_multiple_doc_types_from_query,
     infer_doc_type_from_doc,
 )
+from lib.dialogue_state import get_dialogue_state, save_dialogue_state, ConversationState
+from lib.semantic_router import route_conversational_turn, RouterActionType, RoutedAction
 from lib.conversation_resolver import (
     detect_ordinal_reference,
     detect_anaphoric_reference,
@@ -2586,6 +2590,178 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         inherited_ctx = get_inherited_context(hist)
 
+        # ── Dialogue State Tracking (DST) & Semantic Router ──
+        dst_state = get_dialogue_state(req.session_id)
+        if not dst_state.primary_topic and inherited_ctx.get("topic"):
+            dst_state.primary_topic = inherited_ctx["topic"]
+        if not dst_state.major and inherited_ctx.get("major"):
+            dst_state.major = inherited_ctx["major"]
+        if not dst_state.working_set and (inherited_ctx.get("last_sources") or inherited_ctx.get("list_sources")):
+            dst_state.working_set = inherited_ctx.get("last_sources") or inherited_ctx.get("list_sources") or []
+            if dst_state.working_set:
+                dst_state.selected_doc = dst_state.working_set[0]
+
+        routed = route_conversational_turn(req.query, dst_state)
+
+        # Action: SELECT_TOP_K (chọn lọc trực tiếp từ kết quả vừa tìm)
+        if routed.action_type == RouterActionType.SELECT_TOP_K and dst_state.working_set:
+            chosen = dst_state.working_set[:routed.target_k]
+            lines = [f"Dưới đây là **{len(chosen)} tài liệu phù hợp nhất** được chọn lọc từ kết quả tìm kiếm cho bạn:\n"]
+            for idx, doc_item in enumerate(chosen, 1):
+                d = doc_item.get("doc", doc_item)
+                t_val = d.get("title", "Tài liệu")
+                a_val = _clean_author_display(d.get("author", ""))
+                y_val = str(d.get("year", "")).strip()
+                dt_val = infer_doc_type_from_doc(d)
+                loc_val = d.get("location", "")
+                a_str = f" - Tác giả: **{a_val}**" if a_val and a_val not in ("N/A", "Unknown", "None", "") else ""
+                y_str = f" ({y_val})" if y_val and y_val.isdigit() else ""
+                l_str = f"\n   *Vị trí lưu trữ:* {loc_val}" if loc_val else ""
+                lines.append(f"{idx}. **{t_val}**{y_str}{a_str} ({dt_val}){l_str}")
+            lines.append("\nBạn có thể mở từng nhóm hoặc mục chi tiết bên dưới để tra cứu vị trí phòng đọc nhé!")
+            ans_text = "\n".join(lines)
+            hist.append({"query": req.query, "answer": ans_text, "search_query": dst_state.primary_topic, "topic": dst_state.primary_topic, "source_count": len(chosen), "sources": chosen})
+            save_session_history(req.session_id, hist)
+            save_dialogue_state(req.session_id, dst_state)
+            return ChatResponse(
+                answer=ans_text,
+                sources=chosen,
+                total_sources=len(chosen),
+                total_found=len(chosen),
+                follow_up_suggestions=[{"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"}]
+            )
+
+        # Action: BOOK_TOC_INQUIRY (Hỏi số chương / nội dung chương -> minh bạch giới hạn CSDL thư mục)
+        if routed.action_type == RouterActionType.BOOK_TOC_INQUIRY:
+            target_book = dst_state.selected_doc or (dst_state.working_set[0] if dst_state.working_set else None)
+            d = target_book.get("doc", target_book) if target_book else {}
+            b_title = d.get("title", "cuốn sách này")
+            b_loc = d.get("location", "")
+            loc_phrase = f" tại **{b_loc}**" if b_loc else " tại Thư viện QNU"
+            ans_text = (
+                f"Hiện tại cơ sở dữ liệu Thư viện QNU chỉ lưu trữ thông tin thư mục (nhan đề, tác giả, năm xuất bản, nhà xuất bản, vị trí phòng đọc, mã xếp giá) "
+                f"và tóm tắt tổng quan, **chưa có mục lục chi tiết số lượng chương hoặc nội dung từng chương** của cuốn **\"{b_title}\"**.\n\n"
+                f"Để tra cứu chi tiết nội dung các chương, bạn có thể đến xem trực tiếp cuốn sách{loc_phrase} nhé! 😊"
+            )
+            hist.append({"query": req.query, "answer": ans_text, "search_query": b_title, "topic": b_title, "source_count": 1 if target_book else 0, "sources": [target_book] if target_book else []})
+            save_session_history(req.session_id, hist)
+            save_dialogue_state(req.session_id, dst_state)
+            return ChatResponse(
+                answer=ans_text,
+                sources=[target_book] if target_book else [],
+                total_sources=1 if target_book else 0,
+                total_found=1 if target_book else 0,
+                follow_up_suggestions=[
+                    {"label": "Vị trí phòng đọc của sách", "query": f"cuốn {b_title} ở phòng nào" if b_title else "sách này để ở phòng nào"},
+                    {"label": "Năm xuất bản của sách", "query": "sách đó xuất bản năm nào"}
+                ]
+            )
+
+        # Action: BOOK_ATTRIBUTE (Hỏi tác giả và năm xuất bản của cuốn sách vừa tìm)
+        if routed.action_type == RouterActionType.BOOK_ATTRIBUTE:
+            target_book = dst_state.selected_doc or (dst_state.working_set[0] if dst_state.working_set else None)
+            if target_book:
+                d = target_book.get("doc", target_book)
+                t_val = d.get("title", "Tài liệu")
+                a_val = _clean_author_display(d.get("author", "Chưa cập nhật"))
+                y_val = str(d.get("year", "Chưa cập nhật")).strip()
+                p_val = d.get("publisher", "")
+                pub_str = f", Nhà xuất bản: **{p_val}**" if p_val else ""
+                ans_text = f"Cuốn sách **\"{t_val}\"** do tác giả **{a_val}** biên soạn, được xuất bản vào năm **{y_val}**{pub_str}."
+                hist.append({"query": req.query, "answer": ans_text, "search_query": t_val, "topic": t_val, "source_count": 1, "sources": [target_book]})
+                save_session_history(req.session_id, hist)
+                save_dialogue_state(req.session_id, dst_state)
+                return ChatResponse(
+                    answer=ans_text,
+                    sources=[target_book],
+                    total_sources=1,
+                    total_found=1,
+                    follow_up_suggestions=[
+                        {"label": "Vị trí phòng đọc của sách", "query": f"cuốn {t_val} ở phòng nào"},
+                        {"label": "Xem tóm tắt nội dung", "query": f"tóm tắt nội dung cuốn {t_val}"}
+                    ]
+                )
+
+        # Action: ACADEMIC_ADVICE (Tư vấn học thuật cho sinh viên năm cuối / tự học)
+        if routed.action_type == RouterActionType.ACADEMIC_ADVICE and dst_state.working_set:
+            avail_sources = dst_state.working_set[:10]
+            sources_summary = "\n".join([
+                f"- Tiêu đề: {s.get('doc', s).get('title')} | Tác giả: {s.get('doc', s).get('author')} | Năm: {s.get('doc', s).get('year')} | Loại: {infer_doc_type_from_doc(s.get('doc', s))}"
+                for s in avail_sources
+            ])
+            advice_prompt = f"""Bạn là Trợ lý Thư viện QNU am hiểu học thuật.
+Người dùng đang tham khảo danh sách các tài liệu sau từ Thư viện QNU:
+{sources_summary}
+
+Yêu cầu/thắc mắc của bạn đọc: "{req.query}"
+
+Hãy đưa ra lời khuyên học thuật tận tình, cụ thể:
+1. Đánh giá và chọn ra 2-3 cuốn sách phù hợp nhất với đối tượng/nhu cầu của bạn đọc (ví dụ sinh viên năm cuối làm khóa luận tốt nghiệp, thực tập, hoặc người tự học).
+2. Giải thích rõ ràng, ngắn gọn lý do vì sao những cuốn đó phù hợp (nội dung thực tiễn, chuyên sâu hay bài bản).
+3. Trả lời bằng tiếng Việt lịch sự, định dạng Markdown rõ ràng, thân thiện."""
+            advice_ans = ""
+            try:
+                advice_ans = await asyncio.wait_for(
+                    call_llm_async([{"role": "user", "content": advice_prompt}]),
+                    timeout=15.0
+                )
+            except Exception as _e:
+                logger.warning("Academic advice LLM call failed or timed out: %s", _e)
+
+            if not advice_ans or len(advice_ans.strip()) < 20:
+                chosen = avail_sources[0].get("doc", avail_sources[0])
+                advice_ans = f"Dựa trên các tài liệu đã tìm được, cuốn sách phù hợp nhất cho nhu cầu của bạn là **{chosen.get('title')}** ({chosen.get('year', 'N/A')}). Cuốn sách này cung cấp kiến thức hệ thống, chuyên sâu và rất hữu ích cho bạn đọc."
+
+            hist.append({"query": req.query, "answer": advice_ans, "search_query": dst_state.primary_topic, "topic": dst_state.primary_topic, "source_count": len(avail_sources), "sources": avail_sources})
+            save_session_history(req.session_id, hist)
+            save_dialogue_state(req.session_id, dst_state)
+            return ChatResponse(
+                answer=advice_ans,
+                sources=avail_sources,
+                total_sources=len(avail_sources),
+                total_found=len(avail_sources),
+                follow_up_suggestions=[{"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"}]
+            )
+
+        # Action: CLEAR_FILTER (Xóa bỏ bộ lọc năm, ngành, loại sách...)
+        if routed.action_type == RouterActionType.CLEAR_FILTER:
+            for t_clear in routed.clear_targets:
+                dst_state.clear_filter(t_clear)
+            target_topic = dst_state.primary_topic or "tài liệu"
+            req.query = f"tìm sách về {target_topic}"
+            normalized_query = normalize_text(req.query)
+            intent = "catalog"
+
+        # Action: ADD_TOPIC (Gộp thêm chủ đề mới vào chủ đề cũ)
+        if routed.action_type == RouterActionType.ADD_TOPIC and routed.topic:
+            combined = f"{dst_state.primary_topic} {routed.topic}".strip()
+            dst_state.topics.append(routed.topic)
+            dst_state.primary_topic = combined
+            req.query = f"tìm sách về {combined}"
+            normalized_query = normalize_text(req.query)
+            intent = "catalog"
+
+        # Action: FILTER_UPDATE (Cập nhật loại sách, năm, ngôn ngữ tiếp nối)
+        if routed.action_type == RouterActionType.FILTER_UPDATE:
+            if routed.doc_types:
+                dst_state.doc_types = routed.doc_types
+            if routed.year_min:
+                dst_state.year_min = routed.year_min
+            if routed.language:
+                dst_state.language = routed.language
+            target_topic = dst_state.primary_topic or "tài liệu"
+            req.query = f"tìm sách về {target_topic}"
+            normalized_query = normalize_text(req.query)
+            intent = "catalog"
+
+        # Action: CATALOG_SEARCH with clean topic (như 'Thu hẹp vào trí tuệ nhân tạo')
+        if routed.topic and routed.action_type == RouterActionType.CATALOG_SEARCH:
+            dst_state.primary_topic = routed.topic
+            req.query = f"tìm sách về {routed.topic}"
+            normalized_query = normalize_text(req.query)
+            intent = "catalog"
+
+
         # ── Kiểm tra câu hỏi chỉ có đại từ chỉ định mà không có ngữ cảnh ("Có tài liệu nào về chủ đề này không?") ──
         q_demonstrative = normalize_text(req.query).strip().lower()
         if re.search(r'^(?:co\s+(?:tai\s+lieu|sach)\s+(?:nao\s+)?ve\s+)?(?:chu\s+de|linh\s+vuc|noi\s+dung)?\s*(?:nay|do|kia)\s*(?:khong|ko)?\s*[?.]*$', q_demonstrative):
@@ -3658,13 +3834,27 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 elif all_major_docs and not search_results:
                     search_results = all_major_docs
 
-        # ── Language filter: "tiếng Anh" / "Song ngữ" ──
-        if _lang_filter_now and search_results:
-            search_results = filter_by_language(search_results, _lang_filter_now)
+        # ── DST Doc types filter (hỗ trợ nhiều loại đồng thời: 'sách hoặc giáo trình') ──
+        _effective_doc_types = dst_state.doc_types if dst_state.doc_types else ([_detected_doc_type] if _detected_doc_type else [])
+        if _effective_doc_types and search_results:
+            dt_filtered_res = [
+                r for r in search_results
+                if doc_matches_target_doc_types(r.get("doc", r), _effective_doc_types)
+            ]
+            if dt_filtered_res:
+                search_results = dt_filtered_res
 
-        # ── Year filter: "xuất bản từ 2023", "sau 2022" ──
-        if _year_filter_now and search_results:
-            search_results = filter_by_year(search_results, _year_filter_now, _year_dir_now or "exact")
+        # ── Language filter từ DST hoặc query ──
+        _eff_lang = _lang_filter_now or dst_state.language
+        if _eff_lang and search_results:
+            _lang_val = "việt" if _eff_lang in ("vi", "tiếng Việt") else ("anh" if _eff_lang in ("en", "tiếng Anh") else _eff_lang)
+            search_results = filter_by_language(search_results, _lang_val)
+
+        # ── Year filter từ DST hoặc query ──
+        _eff_yr = _year_filter_now or dst_state.year_min
+        _eff_dir = _year_dir_now or ("after" if dst_state.year_min else "exact")
+        if _eff_yr and search_results:
+            search_results = filter_by_year(search_results, _eff_yr, _eff_dir)
 
         # ── Recency / Oldest sort: "năm gần đây nhất", "mới nhất", "cũ nhất" ──
         if _recency_sort_now and search_results:
@@ -3721,11 +3911,18 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 _disp_topic = ""
             else:
                 _disp_topic = _refine_topic or (_clean_cur_topic if _clean_cur_topic and len(_clean_cur_topic) >= 3 else "") or ("Trí tuệ nhân tạo" if detect_ai_domain(req.query) else (_restore_topic_diacritics(search_query, req.query) or clean_suggestion_topic(search_query, max_words=5) or search_query))
+            _final_dt_label = _detected_doc_type
+            if dst_state and dst_state.doc_types:
+                if len(dst_state.doc_types) > 1:
+                    _final_dt_label = " và ".join([t.lower() for t in dst_state.doc_types])
+                elif not _final_dt_label:
+                    _final_dt_label = dst_state.doc_types[0]
+
             answer = build_catalog_answer(
                 search_results,
                 req.query,
                 total_found=total_found,
-                doc_type=_detected_doc_type,
+                doc_type=_final_dt_label,
                 major=req.major,
                 is_recency=_recency_sort_now,
                 is_oldest=_oldest_sort_now,
@@ -3811,6 +4008,12 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
         }
         hist.append(entry)
         save_session_history(req.session_id, hist)
+        # Đồng bộ Dialogue State Tracking (DST)
+        dst_state.primary_topic = topic or clean_topic or dst_state.primary_topic
+        dst_state.set_working_set(sources)
+        dst_state.last_query = req.query
+        dst_state.last_search_query = search_query
+        save_dialogue_state(req.session_id, dst_state)
 
         total_found = total_found if total_found > 0 else len(sources)
         # has_pdf_sources disabled
