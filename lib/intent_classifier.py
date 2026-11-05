@@ -218,9 +218,9 @@ def extract_entities(query: str) -> QueryEntities:
         cand = extract_author_candidate(text)
         if cand:
             name_tokens = cand.split()
-            # Filter out stop words from name
-            name_tokens = [t for t in name_tokens if t not in VIETNAMESE_STOP_WORDS and len(t) >= 2]
-            if len(name_tokens) >= 2:
+            # Filter out stop words from name, keep initials (like L.G.)
+            name_tokens = [t for t in name_tokens if t not in VIETNAMESE_STOP_WORDS and (len(t) >= 2 or t.isalpha())]
+            if len(name_tokens) >= 1:
                 ent.author_name = " ".join(name_tokens)
 
     # Heuristic: surname first without "tac gia"
@@ -365,8 +365,10 @@ def classify_intent(query: str) -> str:
         scores["catalog_search"] += 8
     if ent.has_book_target:
         scores["catalog_search"] += 6
-    if ent.has_author_kw and ent.author_name:
+    if ent.has_author_kw:
         scores["catalog_search"] += 7
+    if ent.author_name:
+        scores["catalog_search"] += 3
     if ent.has_publisher_kw:
         scores["catalog_search"] += 6
     if ent.has_subject_kw:
@@ -383,7 +385,7 @@ def classify_intent(query: str) -> str:
     # ── Clarify scoring ──
     # Only when query is VERY short + ambiguous
     if ent.is_short and not ent.has_catalog_action and not ent.has_content_action:
-        if ent.word_count <= 2 and not ent.is_subject_name:
+        if ent.word_count <= 1 and not ent.is_subject_name:
             # Single word like "toan", "ly", "hoa" → NẾU là tên môn học thì chuyển catalog
             scores["clarify"] += 2
         elif ent.word_count == 3 and ent.has_book_target:
@@ -409,8 +411,10 @@ def classify_intent(query: str) -> str:
     best_intent = max(scores, key=scores.get)
     best_score = scores[best_intent]
 
-    # Minimum threshold — if nothing scored, return unknown
+    # Minimum threshold — if nothing scored, return catalog_search if query has >= 2 words (book title / subject)
     if best_score <= 0:
+        if ent.word_count >= 2:
+            return "catalog_search"
         return "unknown"
 
     # If top 2 are very close and one is clarify → prefer the other

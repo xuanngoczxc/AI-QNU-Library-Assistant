@@ -221,6 +221,13 @@ class BM25SearchEngine:
                 if phrase_pattern.search(doc_title):
                     phrase_boost += 20.0
                     has_phrase = True
+                    dt_stripped = doc_title.strip()
+                    if dt_stripped == normalized_query:
+                        phrase_boost += 60.0
+                    elif dt_stripped in (f"giao trinh {normalized_query}", f"sach {normalized_query}", f"bai giang {normalized_query}"):
+                        phrase_boost += 50.0
+                    elif dt_stripped.startswith(normalized_query) or normalized_query.startswith(dt_stripped):
+                        phrase_boost += 30.0
                 elif phrase_pattern.search(doc_subj):
                     phrase_boost += 12.0
                     has_phrase = True

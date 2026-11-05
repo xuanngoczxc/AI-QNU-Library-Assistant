@@ -1545,7 +1545,22 @@ function renderGroupedSources(bubble, containerId) {
     groups[dt].push(sources[i]);
   }
 
-  var groupKeys = Object.keys(groups).sort(function(a, b) { return groups[b].length - groups[a].length; });
+    // Sort groups: Ưu tiên nhóm chứa tài liệu có độ khớp cao nhất (top rank trong sources)
+  var groupBestRank = {};
+  for (var k in groups) {
+    var minIdx = sources.length;
+    for (var j = 0; j < groups[k].length; j++) {
+      var sIdx = sources.indexOf(groups[k][j]);
+      if (sIdx !== -1 && sIdx < minIdx) minIdx = sIdx;
+    }
+    groupBestRank[k] = minIdx;
+  }
+  var groupKeys = Object.keys(groups).sort(function(a, b) {
+    if (groupBestRank[a] !== groupBestRank[b]) {
+      return groupBestRank[a] - groupBestRank[b];
+    }
+    return groups[b].length - groups[a].length;
+  });
 
   if (!__groupPages[containerId]) __groupPages[containerId] = {};
   var pages = __groupPages[containerId];

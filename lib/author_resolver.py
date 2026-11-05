@@ -35,19 +35,30 @@ class AuthorIndex:
             for sa in combined_people:
                 sa_clean = re.sub(r'\(.*?\)|\[.*?\]', '', sa).strip()
                 sa_clean = re.sub(r'\b(?:h\.d\.|ch\.b\.|b\.s\.|h\.d|chb|dich|bien\s+soan|chu\s+bien)\b', '', sa_clean, flags=re.I).strip()
+                while sa_clean and sa_clean[-1] in " ?,!;:'\"\r\n":
+                    sa_clean = sa_clean[:-1].strip()
                 norm = normalize_text(sa_clean).strip()
                 toks = norm.split()
                 if 2 <= len(toks) <= 5:
-                    self.author_lexicon[norm] = self.author_lexicon.get(norm, 0) + 1
-                    if norm not in self.author_display_map and any(c.isupper() for c in sa_clean):
-                        self.author_display_map[norm] = sa_clean.strip()
-                    
-                    pair_key = (norm, title_key)
-                    if pair_key not in seen_pairs:
-                        seen_pairs.add(pair_key)
-                        if norm not in self.author_to_docs:
-                            self.author_to_docs[norm] = []
-                        self.author_to_docs[norm].append(d)
+                    forms = [norm]
+                    if len(toks) == 2:
+                        forms.append(f"{toks[1]} {toks[0]}")
+                    elif len(toks) == 3:
+                        forms.append(f"{toks[2]} {toks[0]} {toks[1]}")
+                        forms.append(f"{toks[2]} {toks[1]} {toks[0]}")
+                        forms.append(f"{toks[1]} {toks[2]} {toks[0]}")
+
+                    for f_norm in set(forms):
+                        self.author_lexicon[f_norm] = self.author_lexicon.get(f_norm, 0) + 1
+                        if f_norm not in self.author_display_map and any(c.isupper() for c in sa_clean):
+                            self.author_display_map[f_norm] = sa_clean.strip()
+                        
+                        pair_key = (f_norm, title_key)
+                        if pair_key not in seen_pairs:
+                            seen_pairs.add(pair_key)
+                            if f_norm not in self.author_to_docs:
+                                self.author_to_docs[f_norm] = []
+                            self.author_to_docs[f_norm].append(d)
 
 
 _SLOT_BOUNDARY_PATTERN = re.compile(
@@ -70,27 +81,36 @@ _SLOT_BOUNDARY_PATTERN = re.compile(
 )
 
 
-def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex] = None) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
     """
     Extracts (author_norm, author_display, remaining_query) using
     Dictionary-backed Maximal Matching with grammar fallback.
     """
     if not query:
-        return None, None, None
+        return None, None, None, None
 
     q_norm = normalize_text(query).strip()
-    m = re.search(r'\b(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham)?\s*(?:cua\s+(?:tac\s+(?:gia|ga)\s+|tg\s+)?|ve\s+tac\s+(?:gia|ga)\s+|tac\s+(?:gia|ga)\s+|tg\s+)', q_norm)
+    # Không nhận diện "mở cửa", "đóng cửa" là từ nối "của"
+    if re.search(r'\b(?:mo|dong|khoa|canh)\s+cua\b', q_norm) and not re.search(r'\b(?:tac\s+gia|dong\s+tac\s+gia|chu\s+bien)\b', q_norm):
+        return None, None, None, None
+
+    m = re.search(r'\b(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham)?\s*(?:(?<!\bmo\s)(?<!\bdong\s)(?<!\bkhoa\s)(?<!\bcanh\s)cua\s+(?:tac\s+(?:gia|ga)\s+|tg\s+)?|ve\s+tac\s+(?:gia|ga)\s+|tac\s+(?:gia|ga)\s+|tg\s+)', q_norm)
     if not m:
-        m = re.search(r'\bcua\s+', q_norm)
+        m = re.search(r'(?<!\bmo\s)(?<!\bdong\s)(?<!\bkhoa\s)(?<!\bcanh\s)\bcua\s+', q_norm)
 
     matched_author = None
     remaining = ""
+    title_cand = ""
 
     if m:
+        head = q_norm[:m.start()].strip()
+        head = re.sub(r"^(?:sach|tai\s+lieu|giao\s+trinh|cuon\s+sach|cuon|quyen|tim|an\s+pham)\s+", "", head).strip()
+        if len(head.split()) >= 2 and head not in ("nhung sach", "cac sach", "tai lieu", "giao trinh"):
+            title_cand = head
         tail = q_norm[m.end():].strip()
         words = tail.split()
         if not words:
-            return None, None, None
+            return None, None, None, None
 
         # 1. Lexicon maximal matching (5, 4, 3, 2 grams)
         if author_index and author_index.author_lexicon:
@@ -100,7 +120,7 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
                     matched_author = cand
                     remaining = " ".join(words[k:])
                     # Kiểm tra xem có từ thừa (như XYZ) đứng trước mốc thời gian/hành vi không
-                    slot_b = re.search(r'\b(?:moi\s+nhat|gan\s+day\s+nhat|gan\s+nhat|cu\s+nhat|lau\s+doi\s+nhat|som\s+nhat|xuat\s+ban|nam\s+\d{4}|\d{4}|phat\s+hanh|tai\s+ban|co\s+khong|khong|o\s+dau|phong|kho)\b', remaining)
+                    slot_b = re.search(r'\b(?:moi\s+nhat|gan\s+day\s+nhat|gan\s+nhat|cu\s+nhat|lau\s+doi\s+nhat|som\s+nhat|(?:xuat\s+ban\s+)?(?:vao\s+)?nam\s+\d{4}|(?:tu|sau|truoc|den)\s+nam\s+\d{4}|xuat\s+ban|nam\s+\d{4}|\d{4}|phat\s+hanh|tai\s+ban|co\s+khong|khong|o\s+dau|phong|kho)\b', remaining)
                     extra_words = remaining[:slot_b.start()].strip() if slot_b else ""
                     if extra_words and len(extra_words.split()) <= 2 and not re.search(r'\b(?:moi|gan|cu|lau|som|nhat)\b', extra_words):
                         matched_author = f"{matched_author} {extra_words}"
@@ -138,7 +158,7 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
                 remaining = q_norm[len(cand_head):].strip()
 
     if not matched_author or len(matched_author) < 2:
-        return None, None, None
+        return None, None, None, None
 
     # Resolve display name
     author_display = None
@@ -151,13 +171,16 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
         cand_words = matched_author.split()
         for i in range(len(words_norm) - len(cand_words) + 1):
             if words_norm[i:i+len(cand_words)] == cand_words:
-                author_display = " ".join(words_orig[i:i+len(cand_words)]).strip(' ?.,!;:"\'').title()
+                slice_orig = " ".join(words_orig[i:i+len(cand_words)])
+                while slice_orig and slice_orig[-1] in " ?,!;:\'\"":
+                    slice_orig = slice_orig[:-1].strip()
+                author_display = slice_orig
                 break
 
     if not author_display:
         author_display = matched_author.title()
 
-    return matched_author, author_display, remaining
+    return matched_author, author_display, remaining, title_cand
 
 
 def handle_author_inquiry(query: str, retriever=None, author_index: Optional[AuthorIndex] = None, build_source_item_fn=None) -> Optional[Dict[str, Any]]:
@@ -177,13 +200,17 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
     q_norm = normalize_text(query).strip()
 
     # Step 1: Extract author entity and remaining slots
-    author_norm, author_display, remaining = extract_author_and_remaining(query, author_index)
+    author_norm, author_display, remaining, title_cand = extract_author_and_remaining(query, author_index)
     if not author_norm:
         return None
 
     # Step 2: Validate not a department / major / subject false positive
     category_pattern = r"\b(?:nganh|chuyen\s+nganh|khoa|bo\s+mon|mon\s+hoc|mon|nxb|nha\s+xuat\s+ban|truong|lop|chu\s+de|linh\s+vuc|hoc\s+phan)\b"
     if re.search(category_pattern, author_norm):
+        return None
+
+    question_pattern = r"\b(?:luc\s+may\s+gio|may\s+gio|bao\s+nhieu|o\s+dau|khi\s+nao|the\s+nao|sao|thu\s+may|ngay\s+nao)\b"
+    if re.search(question_pattern, author_norm):
         return None
 
     has_explicit_author = bool(re.search(r"\b(?:tac\s+gia|dong\s+tac\s+gia|chu\s+bien|dich\s+gia|nha\s+van|nha\s+tho)\b", q_norm))
@@ -271,6 +298,19 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
     is_loc_q = bool(re.search(r"\b(?:nam\s+o|o\s+tai|muon\s+o|tim\s+o|thi\s+qua|thi\s+o|phong\s+doc\s+nao|phong\s+nao|kho\s+nao|o\s+dau|dau)\b", q_norm))
 
     filtered_docs = list(all_author_docs)
+    title_specific_doc = None
+
+    # Filter by Title Candidate if user asked for a specific book title of this author
+    if title_cand:
+        t_words = set(title_cand.split())
+        matched_by_title = []
+        for d in all_author_docs:
+            d_t_norm = normalize_text(d.get('title', '')).strip()
+            d_words = set(d_t_norm.split())
+            if title_cand in d_t_norm or len(t_words & d_words) / max(len(t_words), 1) >= 0.70:
+                matched_by_title.append(d)
+        if matched_by_title:
+            title_specific_doc = matched_by_title[0]
 
     # Filter by Doc Type if requested
     if target_doc_type:
@@ -314,6 +354,36 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
         filtered_docs.sort(key=lambda d: (-_doc_year_val(d), len(d.get('location', '')) == 0))
 
     # Step 6: Formulate Intelligent Conversational Responses
+    if title_specific_doc and target_year:
+        t_y = 0
+        try:
+            t_y = int(str(title_specific_doc.get('year', 0)).strip())
+        except Exception:
+            pass
+        t_title = title_specific_doc.get('title', 'Tài liệu')
+        t_loc = title_specific_doc.get('location', '')
+        t_loc_str = f" tại **{t_loc}**" if t_loc else ""
+        y_phrase = f"sau năm {target_year}" if year_dir == "after" else (f"trước năm {target_year}" if year_dir == "before" else f"năm {target_year}")
+        if (year_dir == "after" and t_y <= target_year) or (year_dir == "before" and t_y >= target_year) or (year_dir == "exact" and t_y != target_year):
+            ans = (
+                f"Thư viện QNU hiện có cuốn **'{t_title}'** của tác giả **{author_display}** "
+                f"được xuất bản vào năm **{t_y}**{t_loc_str}, tuy nhiên **không có ấn bản nào xuất bản {y_phrase}**.\n\n"
+                f"Bạn có thể tham khảo ấn bản năm {t_y} của sách hoặc các tài liệu gần đây của tác giả dưới đây nhé:"
+            )
+            # Put the specific doc first, then recent docs
+            res_sources = [title_specific_doc] + [d for d in filtered_docs if d.get('title') != t_title][:9]
+            return {
+                "answer": ans,
+                "sources": res_sources,
+                "total_sources": len(res_sources),
+                "total_found": len(res_sources),
+                "matched_attr": "author_location",
+                "found": True,
+                "author_display": author_display,
+                "candidate": author_display,
+                "doc": title_specific_doc
+            }
+
     if target_year and not year_matched:
         # User specified a year, but author has no books for that year (e.g. Hồ Chí Minh năm 2025)
         valid_years = sorted([_doc_year_val(d) for d in all_author_docs if _doc_year_val(d) > 1900])

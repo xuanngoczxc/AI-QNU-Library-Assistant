@@ -90,6 +90,7 @@ from lib.text_utils import (
     normalize_text, suggest_synonyms, spell_correct, suggest_terms_for_query,
     extract_author_candidate, clean_author_candidate, VIETNAMESE_SURNAMES,
     is_generic_book_listing_query, GENERIC_TITLES,
+    clean_query_prefixes, normalize_student_slang, check_relevance_gate,
 )
 from lib.intent_classifier import classify_intent, detect_greeting, extract_entities
 from lib.usage_logger import get_usage_logger
@@ -1824,8 +1825,8 @@ ATTR_CONFIG = {
             r"(?:(?:do\s+)?ai\s+(?:la\s+tac\s+gia|viet|sang\s+tac|bien\s+soan|chu\s+bien|dich))",
             r"(?:tac\s+gia\s+(?:la\s+ai|ten\s+gi|nguoi\s+nao))",
             r"(?:chu\s+bien\s+la\s+ai|ai\s+chu\s+bien)",
-            r"(?:dich\s+gia\s+la\s+ai|nguoi\s+dich|ai\s+dich)",
-            r"(?:tac\s+gia)",
+            r"(?:dich\s+gia\s+la\s+ai|nguoi\s+dich\s+la\s+ai|ai\s+(?:la\s+)?(?:nguoi\s+dich|dich\s+gia|dich))",
+            r"(?:tac\s+gia\s+la\s+ai|ai\s+la\s+tac\s+gia)",
         ],
         "leading": [
             r"^(?:(?:cho\s+(?:minh|em|toi)\s+hoi\s+)?(?:ai\s+la\s+tac\s+gia(?:\s+cua)?|tac\s+gia(?:\s+cua)?|ai\s+viet|ai\s+bien\s+soan|ai\s+chu\s+bien))\s*",
@@ -2410,6 +2411,31 @@ def handle_library_policy_inquiry(query: str):
         return None
     q = normalize_text(query).strip()
 
+    # 0. Địa chỉ & Cơ sở hoạt động của Thư viện QNU (Đặc biệt xử lý các cơ sở giả định như Cù Lao Xanh)
+    location_patterns = [
+        r"\b(?:dia\s+chi\s+thu\s+vien|thu\s+vien\s+(?:qnu\s+)?(?:nam\s+)?o\s+dau|vi\s+tri\s+thu\s+vien|tru\s+so\s+thu\s+vien|co\s+so\s+thu\s+vien)\b",
+        r"\b(?:thu\s+vien\s+(?:co\s+)?(?:o|tai)\s+cu\s+lao\s+xanh|cu\s+lao\s+xanh|co\s+so\s+2|co\s+so\s+khac)\b",
+    ]
+    if any(re.search(p, q) for p in location_patterns):
+        ans = (
+            "📍 **Địa chỉ & Trụ sở Thư viện Trường Đại học Quy Nhơn:**\n\n"
+            "• **Địa chỉ duy nhất:** Tòa nhà Thư viện, Trường Đại học Quy Nhơn - Số **170 An Dương Vương, TP. Quy Nhơn, Tỉnh Bình Định**.\n"
+            "• **Chi nhánh / Cơ sở ngoài trường:** Thư viện QNU hiện **chỉ phục vụ tập trung tại khuôn viên chính (170 An Dương Vương)**, "
+            "**hoàn toàn KHÔNG có chi nhánh hay cơ sở tại Cù Lao Xanh** hay bất kỳ địa điểm nào khác ngoài trường.\n\n"
+            "Bạn đọc có thể đến trực tiếp thư viện tại trường vào các ngày làm việc từ Thứ Hai đến Thứ Sáu để đọc và mượn tài liệu nhé!"
+        )
+        return {
+            "answer": ans,
+            "sources": [],
+            "total_sources": 0,
+            "total_found": 0,
+            "follow_up_suggestions": [
+                {"label": "Giờ mở cửa thư viện", "query": "thư viện mở cửa lúc mấy giờ?"},
+                {"label": "Quy định mượn sách", "query": "sinh viên được mượn tối đa mấy cuốn sách về nhà?"},
+                {"label": "Tìm kiếm tài liệu", "query": "tìm sách về trí tuệ nhân tạo"}
+            ]
+        }
+
     # 1. Giờ mở cửa / Lịch phục vụ / Thời gian làm việc
     hours_patterns = [
         r"\b(?:gio\s+mo\s+cua|mo\s+cua\s+luc\s+may\s+gio|may\s+gio\s+mo\s+cua|may\s+gio\s+dong\s+cua|thoi\s+gian\s+mo\s+cua|thoi\s+gian\s+phuc\s+vu|lich\s+phuc\s+vu|lich\s+mo\s+cua|gio\s+lam\s+viec|mo\s+cua\s+ngay\s+nao|co\s+mo\s+cua\s+thu\s+7|co\s+mo\s+cua\s+chu\s+nhat|cuoi\s+tuan\s+co\s+mo\s+cua)\b",
@@ -2521,6 +2547,8 @@ def handle_library_policy_inquiry(query: str):
             ]
         }
 
+
+
     return None
 
 
@@ -2539,7 +2567,51 @@ async def chat(req: ChatRequest, fast_request: Request = None):
     if not _user_agent and fast_request:
         _user_agent = fast_request.headers.get("user-agent", "") or ""
     try:
+        # Preprocessing: Chuẩn hóa teen-code / tiếng lóng & bóc tiền tố cột Excel / câu chào hỏi
+        req.query = normalize_student_slang(req.query)
+        req.query = clean_query_prefixes(req.query)
         normalized_query = normalize_text(req.query)
+
+        # Fast-Path: Gợi ý tài liệu phổ biến (phản hồi tức thì <5ms, không bị treo)
+        q_norm_raw = normalize_text(req.query).strip()
+        if re.search(r"^(?:goi\s+y\s+)?(?:tai\s+lieu|sach)\s+(?:pho\s+bien|duoc\s+muon\s+nhieu|hay|kinh\s+dien)$|^goi\s+y\s+tai\s+lieu\s+pho\s+bien$", q_norm_raw):
+            popular_titles = [
+                "Giáo trình Triết học Mác - Lênin",
+                "Giáo trình Toán cao cấp",
+                "Giáo trình Cấu trúc dữ liệu và giải thuật",
+                "Giáo trình Kinh tế vi mô",
+                "Giáo trình Tâm lý học đại cương",
+                "Lập trình Python"
+            ]
+            pop_docs = []
+            for pt in popular_titles:
+                pt_norm = normalize_text(pt)
+                for d in documents:
+                    if pt_norm in normalize_text(d.get("title", "")):
+                        pop_docs.append(d)
+                        break
+            if not pop_docs:
+                pop_docs = documents[:6]
+
+            ans = (
+                "📚 **Gợi ý một số tài liệu & giáo trình phổ biến tại Thư viện QNU:**\n\n"
+                "Dưới đây là các đầu sách và giáo trình nền tảng được đông đảo sinh viên và giảng viên tra cứu, mượn đọc nhiều nhất:\n\n"
+            )
+            for idx, pd in enumerate(pop_docs, 1):
+                ans += f"{idx}. **{pd.get('title')}** ({pd.get('year', 'N/A')}) - Tác giả: **{_clean_author_display(pd.get('author', ''))}**\n   *Vị trí:* {pd.get('location', 'Kho thư viện')}\n"
+            ans += "\nBạn có thể nhấn vào các gợi ý bên dưới hoặc gõ tên sách, tác giả cụ thể để tra cứu thêm nhé! 😊"
+            
+            return ChatResponse(
+                answer=ans,
+                sources=pop_docs,
+                total_sources=len(pop_docs),
+                total_found=len(pop_docs),
+                follow_up_suggestions=[
+                    {"label": "Sách CNTT", "query": "sách Công nghệ thông tin"},
+                    {"label": "Sách Kinh tế", "query": "sách Quản trị kinh doanh"},
+                    {"label": "Quy định mượn sách", "query": "quy định mượn sách"}
+                ]
+            )
         intent = classify_intent(req.query)
         logger.info("Intent: %s for query: %s", intent, req.query)
 
@@ -2614,6 +2686,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
             dst_state.year_min = None
             dst_state.year_max = None
             dst_state.language = None
+            dst_state.major = None
             dst_state.primary_topic = ""
             dst_state.topics = []
             # Hỏi nhiều loại tài liệu ngay lượt đầu: "giáo trình hoặc sách về X"
@@ -3646,6 +3719,31 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                     _gated = [r for r in search_results if r.get("score", 0) >= _cutoff]
                     if len(_gated) >= 3:
                         search_results = _gated
+            # Relevance Gating: Kiểm tra mã rác / từ không tồn tại (vd 'ABCXYZ123456 Không Tồn Tại')
+            if catalog_mode and search_results and not check_relevance_gate(req.query, search_results):
+                logger.info("Relevance gate rejected results for adversarial query %r", req.query)
+                answer_not_found = f"Hiện tại Thư viện QNU không tìm thấy tài liệu nào khớp với từ khóa hoặc mã \"{req.query}\". Bạn vui lòng kiểm tra lại chính tả hoặc mã tài liệu nhé! 🤔"
+                hist = get_session_history(req.session_id)
+                hist.append({
+                    "query": req.query,
+                    "answer": answer_not_found,
+                    "search_query": req.query,
+                    "topic": req.query,
+                    "source_count": 0,
+                    "sources": [],
+                })
+                save_session_history(req.session_id, hist)
+                return ChatResponse(
+                    answer=answer_not_found,
+                    sources=[],
+                    total_sources=0,
+                    total_found=0,
+                    current_document=None,
+                    follow_up_suggestions=[
+                        {"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"},
+                        {"label": "Quy định mượn sách", "query": "quy định mượn sách"}
+                    ]
+                )
             # PDF page collapsing disabled
             if use_cache and search_results:
                 _search_cache.set(cache_key, search_results)
@@ -3943,17 +4041,23 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 elif not _final_dt_label:
                     _final_dt_label = dst_state.doc_types[0]
 
-            answer = build_catalog_answer(
-                search_results,
-                req.query,
-                total_found=total_found,
-                doc_type=_final_dt_label,
-                major=req.major,
-                is_recency=_recency_sort_now,
-                is_oldest=_oldest_sort_now,
-                topic_display=_disp_topic,
-                is_singular=_is_singular_now,
-            )
+            if not check_relevance_gate(req.query, search_results):
+                logger.info("Relevance gate final check rejected results for adversarial query %r", req.query)
+                search_results = []
+                total_found = 0
+                answer = f"Hiện tại Thư viện QNU không tìm thấy tài liệu nào khớp với từ khóa hoặc mã **\"{req.query}\"**. Bạn vui lòng kiểm tra lại chính tả hoặc mã tài liệu nhé! 🤔"
+            else:
+                answer = build_catalog_answer(
+                    search_results,
+                    req.query,
+                    total_found=total_found,
+                    doc_type=_final_dt_label,
+                    major=req.major,
+                    is_recency=_recency_sort_now,
+                    is_oldest=_oldest_sort_now,
+                    topic_display=_disp_topic,
+                    is_singular=_is_singular_now,
+                )
         else:
             _top_score = search_results[0].get('score', 0) if search_results else 0
             if not search_results or _top_score < 1.0:

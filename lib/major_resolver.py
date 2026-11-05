@@ -300,9 +300,12 @@ def resolve_canonical_major_from_query(query: str) -> tuple[str, str] | None:
         "co sach nganh", "co tai lieu nganh", "co giao trinh nganh",
         "gioi thieu sach nganh", "gioi thieu tai lieu nganh",
     ]
+    has_explicit_major_prefix = False
     for prefix in common_prefixes:
         if cleaned.startswith(prefix + " "):
             cleaned = cleaned[len(prefix):].strip()
+            if "nganh" in prefix or "hoc" in prefix or "sinh vien" in prefix:
+                has_explicit_major_prefix = True
             break
 
     # 2. Bóc tách hậu tố khẩu ngữ
@@ -312,28 +315,59 @@ def resolve_canonical_major_from_query(query: str) -> tuple[str, str] | None:
         cleaned
     ).strip()
 
+    # Kiểm tra xem câu có chứa từ khóa chỉ định ngành rõ ràng không (ngành, chuyên ngành, khoa, học)
+    has_major_marker = has_explicit_major_prefix or bool(re.search(
+        r"\b(?:nganh|chuyen\s+nganh|khoa|hoc\s+nganh|dan\s+it|sinh\s+vien\s+nganh)\b",
+        q_norm
+    ))
+
     # 3. Ưu tiên khớp chính xác hoặc có cụm từ alias
     best_match = None
     best_len = 0
     is_software_context = bool(re.search(r"\b(website|web|app|ung dung|phan mem|he thong|mo hinh|chatbot|co so du lieu)\b", q_norm))
+
     for major_name, aliases in _NORMALIZED_ALIASES_MAP.items():
         if major_name == "Kỹ thuật xây dựng" and is_software_context:
             continue
         for alias in aliases:
-            # Từ ngắn <= 3 ký tự (vd "it", "cs") cần ranh giới từ chính xác
+            # Xử lý các từ viết tắt rất ngắn (như "it", "cs", "sp")
+            if alias in ("it", "cs", "sp"):
+                # Ngăn chặn "Bánh Ít" hay "ít nhất", "một ít" match với IT
+                if alias == "it":
+                    if re.search(r"\b(?:bánh|banh|một|mot|vài|vai|chút|chut|quá|qua|rất|rat)\s+(?:ít|it)\b", query, re.IGNORECASE):
+                        continue
+                    if re.search(r"\b[íìỉĩịÍÌỈĨỊ]t\b", query):
+                        continue
+                    if not (has_major_marker or "IT" in query.split() or re.search(r"\b(?:nganh|hoc|sach|tai\s+lieu|dan)\s+it\b", q_norm)):
+                        continue
+                else:
+                    if not (has_major_marker or alias.upper() in query.split()):
+                        continue
+
             pat = r"\b" + re.escape(alias) + r"\b"
             if re.search(pat, cleaned) or alias == cleaned:
+                single_word_ambiguous = {"moi truong", "kinh doanh", "dat dai", "khach san", "du lich"}
+                if alias in single_word_ambiguous and not has_major_marker and len(cleaned.split()) >= 4:
+                    continue
+
                 if len(alias) > best_len:
                     best_match = (major_name, alias)
                     best_len = len(alias)
             elif len(alias) >= 4 and re.search(pat, q_norm):
+                single_word_ambiguous = {"moi truong", "kinh doanh", "dat dai", "khach san", "du lich"}
+                if alias in single_word_ambiguous and not has_major_marker and len(q_norm.split()) >= 4:
+                    continue
+
                 if len(alias) > best_len:
                     best_match = (major_name, alias)
                     best_len = len(alias)
 
     # 4. Fuzzy candidate fallback khi người dùng gõ sai chính tả (khoaa, meem, taoo, etc.)
-    # Áp dụng Guardrails: chỉ chạy khi exact match không có, alias >= 5 ký tự, cutoff >= 0.80
-    if not best_match:
+    # Áp dụng Guardrails nghiêm ngặt:
+    # - CHỈ chạy khi có major marker (ngành, chuyên ngành, học) HOẶC câu hỏi rất ngắn (<= 3 từ)
+    # - TUYỆT ĐỐI KHÔNG trượt cửa sổ fuzzy qua các câu dài / nhan đề sách (ngăn "ky toan" -> "ke toan", "doi tuong" -> "moi truong")
+    # - Yêu cầu cutoff >= 0.88, cùng số token và cùng ký tự đầu
+    if not best_match and (has_major_marker or len(cleaned.split()) <= 3):
         import difflib
         from lib.text_utils import generalized_telex_cleanup
         cleaned_clean = generalized_telex_cleanup(cleaned)
@@ -346,18 +380,23 @@ def resolve_canonical_major_from_query(query: str) -> tuple[str, str] | None:
             for alias in aliases:
                 if len(alias) < 5:
                     continue
-                alias_tok_count = len(alias.split())
-                if len(tokens) >= alias_tok_count:
-                    for i in range(len(tokens) - alias_tok_count + 1):
-                        sub = " ".join(tokens[i:i + alias_tok_count])
+                alias_toks = alias.split()
+                alias_tok_count = len(alias_toks)
+                if len(tokens) == alias_tok_count:
+                    sub = " ".join(tokens)
+                    if sub[0] == alias[0]:
                         ratio = difflib.SequenceMatcher(None, sub, alias).ratio()
-                        if ratio >= 0.80 and ratio > best_ratio:
+                        if ratio >= 0.88 and ratio > best_ratio:
                             best_ratio = ratio
                             fuzzy_match = (major_name, alias)
-                ratio_whole = difflib.SequenceMatcher(None, cleaned_clean, alias).ratio()
-                if ratio_whole >= 0.80 and ratio_whole > best_ratio:
-                    best_ratio = ratio_whole
-                    fuzzy_match = (major_name, alias)
+                elif has_major_marker and len(tokens) >= alias_tok_count:
+                    for i in range(len(tokens) - alias_tok_count + 1):
+                        sub = " ".join(tokens[i:i + alias_tok_count])
+                        if sub[0] == alias[0]:
+                            ratio = difflib.SequenceMatcher(None, sub, alias).ratio()
+                            if ratio >= 0.88 and ratio > best_ratio:
+                                best_ratio = ratio
+                                fuzzy_match = (major_name, alias)
         if fuzzy_match:
             best_match = fuzzy_match
 
