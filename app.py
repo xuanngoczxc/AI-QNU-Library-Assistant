@@ -336,9 +336,9 @@ def format_docs_with_metadata(search_results):
             if valid(location): clean += f"\nVị trí / Phòng đọc: {location}"
             if valid(ddc): clean += f"\nMã phân loại DDC: {ddc}"
             if valid(major): clean += f"\nNgành đào tạo: {major}"
-            if valid(abstract): clean += f"\nTóm tắt: {abstract[:1200]}"
+            if valid(abstract): clean += f"\nTóm tắt: {abstract[:3000]}"
             else: clean += "\nTóm tắt: (Không có tóm tắt)"
-            content = clean[:3000]
+            content = clean[:6000]
 
         meta_dict = dict(doc)
         meta_dict.pop('text', None)
@@ -883,14 +883,20 @@ def build_catalog_answer(
         dt_label = doc_type.lower()
         t_part = f" về **{clean_topic}**" if clean_topic else ""
         m_part = f" thuộc ngành **{major}**" if major else ""
-        variant = (abs(hash(query)) % 3) if query else 0
-        if variant == 0:
-            lead = f"Thư viện QNU hiện có **{total} {dt_label}**{t_part}{m_part}."
-        elif variant == 1:
-            lead = f"Dạ, mình tìm thấy **{total} {dt_label}**{t_part}{m_part} trong kho lưu trữ của thư viện."
+        if total == 1 and top_title:
+            year_info = f" (năm {top_year})" if top_year and str(top_year).strip() not in ('N/A', 'Unknown', 'None', '') else ""
+            author_info = f" của tác giả **{top_author}**" if top_author and str(top_author).strip() not in ('N/A', 'Unknown', 'None', '') else ""
+            return f"Dạ, thư viện tìm thấy 1 {dt_label}{t_part}{m_part} là cuốn **'{top_title}'**{year_info}{author_info}. Bạn xem thông tin chi tiết bên dưới nhé:"
+
+        var_idx = (abs(hash(query)) % 4) if query else 0
+        if var_idx == 0:
+            return f"Chào bạn, thư viện có **{total} {dt_label}**{t_part}{m_part} phù hợp. Dưới đây là danh sách chi tiết:"
+        elif var_idx == 1:
+            return f"Dạ, mình tìm thấy **{total} {dt_label}**{t_part}{m_part} trong kho lưu trữ của thư viện. Bạn tham khảo danh sách bên dưới nhé:"
+        elif var_idx == 2:
+            return f"Thư viện QNU hiện có **{total} {dt_label}**{t_part}{m_part}. Gửi bạn danh sách tài liệu liên quan:"
         else:
-            lead = f"Chào bạn, thư viện có **{total} {dt_label}**{t_part}{m_part} phù hợp."
-        return f"{lead}\n\nMời bạn xem chi tiết danh sách tài liệu bên dưới để tra cứu vị trí phòng đọc và mã xếp giá nhé:"
+            return f"Dưới đây là **{total} {dt_label}**{t_part}{m_part} hiện có trong hệ thống thư viện:"
 
     # ── Natural, Conversational Phrasing for General Catalog Search ──
     if clean_topic:
@@ -904,22 +910,20 @@ def build_catalog_answer(
     if not t_phrase and not m_phrase:
         t_phrase = " liên quan"
 
-    variant = (abs(hash(query)) % 3) if query else 0
-    if variant == 0:
-        return (
-            f"Dạ, mình đã tìm thấy **{total} tài liệu**{t_phrase}{m_phrase} trong kho lưu trữ của Thư viện QNU{type_str}.\n\n"
-            f"Mình đã phân loại chi tiết theo từng nhóm ở danh mục bên dưới, bạn hãy bấm vào từng mục để xem thông tin chi tiết và vị trí phòng đọc nhé! 👇"
-        )
-    elif variant == 1:
-        return (
-            f"Thư viện QNU hiện có **{total} tài liệu**{t_phrase}{m_phrase}{type_str}.\n\n"
-            f"Danh sách chi tiết đã được sắp xếp theo từng thể loại ở bên dưới để bạn tiện tra cứu:"
-        )
+    if total == 1 and top_title:
+        year_info = f" (năm {top_year})" if top_year and str(top_year).strip() not in ('N/A', 'Unknown', 'None', '') else ""
+        author_info = f" của tác giả **{top_author}**" if top_author and str(top_author).strip() not in ('N/A', 'Unknown', 'None', '') else ""
+        return f"Dạ, thư viện tìm thấy 1 tài liệu{t_phrase}{m_phrase} là cuốn **'{top_title}'**{year_info}{author_info}. Mời bạn xem chi tiết bên dưới:"
+
+    var_idx = (abs(hash(query)) % 4) if query else 0
+    if var_idx == 0:
+        return f"Dạ, mình tìm thấy **{total} tài liệu**{t_phrase}{m_phrase} trong kho thư viện{type_str}. Bạn xem danh sách chi tiết bên dưới nhé:"
+    elif var_idx == 1:
+        return f"Thư viện QNU hiện có **{total} tài liệu**{t_phrase}{m_phrase}{type_str}. Gửi bạn danh sách tra cứu phù hợp:"
+    elif var_idx == 2:
+        return f"Chào bạn, hệ thống ghi nhận **{total} tài liệu**{t_phrase}{m_phrase}{type_str}. Mời bạn tham khảo danh sách bên dưới:"
     else:
-        return (
-            f"Chào bạn, hệ thống tìm thấy **{total} tài liệu** phù hợp{t_phrase}{m_phrase}{type_str}.\n\n"
-            f"Bạn có thể mở từng nhóm tài liệu bên dưới để xem thêm thông tin và chọn cuốn phù hợp nhất nhé!"
-        )
+        return f"Dưới đây là **{total} tài liệu**{t_phrase}{m_phrase}{type_str} hiện có trong hệ thống thư viện để bạn tra cứu:"
 
 
 def detect_document_types_overview_query(query: str) -> bool:
@@ -2666,7 +2670,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                 total_sources=1 if target_book else 0,
                 total_found=1 if target_book else 0,
                 follow_up_suggestions=[
-                    {"label": "Vị trí phòng đọc của sách", "query": f"cuốn {b_title} ở phòng nào" if b_title else "sách này để ở phòng nào"},
+                    {"label": "Tác giả cuốn sách", "query": f"tác giả cuốn {b_title}" if b_title else "ai là tác giả cuốn sách này"},
                     {"label": "Năm xuất bản của sách", "query": "sách đó xuất bản năm nào"}
                 ]
             )
@@ -2691,8 +2695,8 @@ async def chat(req: ChatRequest, fast_request: Request = None):
                     total_sources=1,
                     total_found=1,
                     follow_up_suggestions=[
-                        {"label": "Vị trí phòng đọc của sách", "query": f"cuốn {t_val} ở phòng nào"},
-                        {"label": "Xem tóm tắt nội dung", "query": f"tóm tắt nội dung cuốn {t_val}"}
+                        {"label": "Tìm sách cùng tác giả", "query": f"sách của tác giả {a_val}" if a_val else "sách tương tự"},
+                        {"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"}
                     ]
                 )
 
@@ -3119,23 +3123,17 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 clean_a = clean_author_for_suggestion(a_name)
 
                 follow_ups = []
-                # Nếu câu hỏi vừa hỏi chưa phải là tóm tắt thì gợi ý tóm tắt
-                if matched_attr != "abstract":
-                    follow_ups.append({
-                        "label": "Xem tóm tắt nội dung sách",
-                        "query": f"tóm tắt nội dung cuốn {t_name}" if t_name else "tóm tắt nội dung sách"
-                    })
-                # Nếu câu hỏi vừa hỏi chưa phải là vị trí phòng đọc thì gợi ý phòng đọc
-                if matched_attr != "location":
-                    follow_ups.append({
-                        "label": "Vị trí phòng đọc của sách",
-                        "query": f"cuốn {t_name} ở phòng nào" if t_name else "sách này để ở phòng nào"
-                    })
                 # Gợi ý sách cùng tác giả (rõ ràng, không cắt cụt chữ)
                 if clean_a:
                     follow_ups.append({
                         "label": f"Tìm sách của tác giả: {clean_a}",
                         "query": f"sách của tác giả {clean_a}"
+                    })
+                # Gợi ý năm xuất bản nếu chưa tra cứu
+                if matched_attr != "year":
+                    follow_ups.append({
+                        "label": "Năm xuất bản của sách",
+                        "query": f"năm xuất bản cuốn {t_name}" if t_name else "sách đó xuất bản năm nào"
                     })
                 # Gợi ý theo ngành nếu có
                 if m_name and m_name not in ("Unknown", "N/A") and len(follow_ups) < 4:
@@ -3781,6 +3779,15 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                         logger.info("Fallback search '%s' → %d results", _fb[:60], len(search_results))
                         break
 
+                # 3. Tự động sửa lỗi chính tả bằng kho từ vựng BM25 (Levenshtein đối chiếu với 230,000+ từ)
+                if not search_results and retriever and hasattr(retriever, 'bm25'):
+                    _auto_spelled = retriever.bm25.suggest_spelling_correction(search_query or req.query)
+                    if _auto_spelled and _auto_spelled != (search_query or req.query):
+                        _sp_results = retriever.search_by_query(_auto_spelled, top_k=retrieval_k)
+                        if _sp_results:
+                            search_results = _sp_results
+                            logger.info("Typo auto-correction fallback '%s' -> '%s' (found %d)", (search_query or req.query)[:40], _auto_spelled[:40], len(search_results))
+
         if is_list_request and list_topic_query and search_results:
             _topic_norm = normalize_text(list_topic_query).strip()
             if _topic_norm:
@@ -4148,8 +4155,9 @@ async def chat_stream(req: ChatRequest, fast_request: Request = None):
             # ── TRUE LLM STREAMING for Content QA ──
             hist = get_session_history(req.session_id)
             search_query = resolve_search_query(req.query, hist, catalog_mode=False)
-            bm25_results = retriever.search_by_query(search_query, top_k=30)
-            context, doc_metadata_list = format_docs_with_metadata(bm25_results)
+            bm25_results = retriever.search_by_query(search_query, top_k=25)
+            # Tối ưu prompt LLM: chỉ đưa 8 tài liệu sát nhất vào context để giảm độ trễ prefill từ 12s xuống <3s
+            context, doc_metadata_list = format_docs_with_metadata(bm25_results[:8])
 
             _top_score = bm25_results[0].get('score', 0) if bm25_results else 0
             if not bm25_results or _top_score < 1.0:

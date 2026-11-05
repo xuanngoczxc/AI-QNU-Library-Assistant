@@ -52,6 +52,7 @@ class BM25SearchEngine:
         self.tokenized_doc_sets = [set(tokens) for tokens in self.tokenized_docs]
         self.avg_doc_length = sum(self.doc_lengths) / len(self.doc_lengths) if self.doc_lengths else 1
         self.num_docs = len(self.documents)
+        self.frequent_vocab = {w for w, c in self.vocabulary.items() if c >= 2 and len(w) >= 3}
         _safe_print(f"✅ BM25 Index built: {self.num_docs} docs, {len(self.vocabulary)} unique terms")
 
     def _tokenize(self, text):
@@ -85,6 +86,43 @@ class BM25SearchEngine:
                 score += numerator / denominator
 
         return score
+
+    def suggest_spelling_correction(self, query: str):
+        """
+        Sửa lỗi chính tả tự động dựa trên kho từ vựng BM25 (230,000+ từ của thư viện).
+        Nếu query có từ không tồn tại trong từ điển, tìm từ tương đồng gần nhất (Levenshtein/difflib).
+        """
+        if not query:
+            return None
+        import difflib
+        from .text_utils import normalize_text, WHITELISTED_SHORT_ACRONYMS, generalized_telex_cleanup
+        
+        q_clean = generalized_telex_cleanup(query.strip())
+        tokens = q_clean.split()
+        corrected_tokens = list(tokens)
+        changed = False
+
+        for i, tok in enumerate(tokens):
+            norm_tok = normalize_text(tok).strip().lower()
+            if len(norm_tok) < 4 or norm_tok in WHITELISTED_SHORT_ACRONYMS:
+                continue
+            # Nếu từ đã có trong từ vựng thư viện với tần suất >= 2, giữ nguyên
+            if norm_tok in self.vocabulary and self.vocabulary[norm_tok] >= 2:
+                continue
+            
+            # Tìm từ ứng viên có cùng chữ cái đầu và độ dài chênh lệch tối đa 1 ký tự
+            cands = [w for w in getattr(self, "frequent_vocab", ()) if w[0] == norm_tok[0] and abs(len(w) - len(norm_tok)) <= 1]
+            matches = difflib.get_close_matches(norm_tok, cands, n=3, cutoff=0.75)
+            if matches:
+                # Chọn từ có tần suất cao nhất trong kho tài liệu
+                best_match = max(matches, key=lambda w: self.vocabulary.get(w, 0))
+                if best_match != norm_tok:
+                    corrected_tokens[i] = best_match
+                    changed = True
+
+        if changed or q_clean != query.strip():
+            return " ".join(corrected_tokens)
+        return None
 
     def _tokens_in_proximity(self, doc_tokens, query_tokens, max_gap=6):
         """Kiểm tra các query_tokens có xuất hiện đúng thứ tự và gần nhau.

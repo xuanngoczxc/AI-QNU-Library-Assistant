@@ -109,7 +109,7 @@ async def call_llm_async(messages: list, temperature: float = 0.3) -> str:
                         "model": model_name,
                         "messages": messages,
                         "temperature": temperature,
-                        "max_tokens": 1500,
+                        "max_tokens": 4096,
                         "chat_template_kwargs": {"enable_thinking": False},
                     }
                     response = await client.post(
@@ -203,7 +203,7 @@ async def stream_llm_async(messages: list, temperature: float = 0.3) -> AsyncGen
                     "model": model_name,
                     "messages": messages,
                     "temperature": temperature,
-                    "max_tokens": 1500,
+                    "max_tokens": 4096,
                     "stream": True,
                     "chat_template_kwargs": {"enable_thinking": False},
                 }

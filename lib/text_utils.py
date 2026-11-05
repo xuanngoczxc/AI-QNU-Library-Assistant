@@ -476,11 +476,19 @@ WHITELISTED_SHORT_ACRONYMS = {
 def generalized_telex_cleanup(text: str) -> str:
     """
     Chuẩn hóa tự động các lỗi lặp phím Telex và lỗi nhả phím thường gặp trong tiếng Việt.
-    Ví dụ: 'khoaa' -> 'khoa', 'toann' -> 'toan', 'lap trinhh' -> 'lap trinh'.
+    Ví dụ: 'sachsh' -> 'sach', 'khoaa' -> 'khoa', 'toann' -> 'toan', 'lap trinhh' -> 'lap trinh', 'mmo' -> 'mo'.
     """
     if not text:
         return ""
     q = text
+    # 1. Bóc lỗi gõ dính phím phụ Telex (vd: 'sachsh' -> 'sach')
+    q = re.sub(r'\b([a-zA-Z]+)chsh\b', r'\1ch', q, flags=re.IGNORECASE)
+    q = re.sub(r'\b([a-zA-Z]+)sh\b', r'\1s', q, flags=re.IGNORECASE)
+    
+    # 2. Khử lặp phụ âm vô tình ở đầu hoặc cuối từ (kkinh -> kinh, mmo -> mo, toann -> toan)
+    q = re.sub(r'\b([b-df-hj-np-tv-z])\1+', r'\1', q, flags=re.IGNORECASE)
+    
+    # 3. Khử lặp nguyên âm vô tình (khoaa -> khoa, toann -> toan)
     telex_doubled = [
         (r'\b([a-zA-Z]+)aa\b', r'\1a'),
         (r'\b([a-zA-Z]+)ee\b', r'\1e'),
@@ -492,6 +500,11 @@ def generalized_telex_cleanup(text: str) -> str:
         (r'\b([a-zA-Z]+)cc\b', r'\1c'),
         (r'\b([a-zA-Z]+)mm\b', r'\1m'),
         (r'\b([a-zA-Z]+)gg\b', r'\1g'),
+        (r'\b([a-zA-Z]+)ss\b', r'\1s'),
+        (r'\b([a-zA-Z]+)jj\b', r'\1j'),
+        (r'\b([a-zA-Z]+)ff\b', r'\1f'),
+        (r'\b([a-zA-Z]+)xx\b', r'\1x'),
+        (r'\b([a-zA-Z]+)rr\b', r'\1r'),
     ]
     for pat, repl in telex_doubled:
         q = re.sub(pat, repl, q, flags=re.IGNORECASE)

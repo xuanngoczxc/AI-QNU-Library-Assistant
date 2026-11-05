@@ -224,8 +224,8 @@ def prepare_rag_messages(context: str, question: str, history: Optional[list] = 
                 if prev_q:
                     messages.append({"role": "user", "content": prev_q})
                 if prev_a:
-                    # Truncate previous assistant response to keep token window efficient
-                    messages.append({"role": "assistant", "content": prev_a[:500]})
+                    # Giữ ngữ cảnh câu trả lời trước đó đầy đủ (không cắt cụt quá sớm)
+                    messages.append({"role": "assistant", "content": prev_a[:1500]})
 
     messages.append({
         "role": "user",

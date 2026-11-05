@@ -282,8 +282,11 @@ def build_contextual_suggestions(
                 if clean_a:
                     suggestions.append({"label": f"Tìm sách của tác giả: {clean_a}", "query": f"sách của tác giả {clean_a}"})
                     break
-        if len(suggestions) < 3 and answer and len(answer) > 200:
-            suggestions.append({"label": "Tóm tắt nội dung chính", "query": "Tóm tắt lại nội dung thành 3-5 ý chính"})
+        if len(suggestions) < 3 and sources:
+            major = (sources[0].get("major") or "").strip()
+            clean_m = clean_suggestion_topic(major)
+            if clean_m and clean_m not in ("Unknown", "N/A"):
+                suggestions.append({"label": f"Tìm sách theo ngành: {clean_m}", "query": f"tìm sách ngành {clean_m}"})
 
     seen = set()
     unique = []
