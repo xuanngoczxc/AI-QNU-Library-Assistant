@@ -140,14 +140,27 @@ class PolicyEngine:
         # ── 0. BẢO VỆ TRA CỨU SÁCH: Nếu truy vấn có chủ đích tìm sách/tài liệu trong kho thì bỏ qua ──
         if re.search(r"^(?:nhan\s+de\s*:|nhande\s*:|nhan\s+de\s+chinh|tac\s+gia\s*:|ma\s+tai\s+lieu\s*:)", q):
             return None
-        if re.search(r"^(?:tim\s+sach|tim\s+tai\s+lieu|tra\s+cuu\s+sach|co\s+sach\s+nao\s+ve)\b", q):
-            return None
+
+        # Không chặn các câu hỏi cá nhân về mượn trả (sách của tôi, sách tôi đang mượn...)
+        is_personal_loan = bool(re.search(r"\b(?:sach\s+cua\s+(?:toi|minh|em|anh|chi|ban|ta)|sach\s+(?:toi|minh|em|anh|chi|ban|ta)\s+(?:da\s+|dang\s+)?muon)\b", q))
+
+        if not is_personal_loan:
+            # Phát hiện người dùng có ý định tìm kiếm sách/tài liệu/giáo trình cụ thể
+            explicit_book_search = [
+                r"\b(?:tim\s+sach|tim\s+tai\s+lieu|tim\s+giao\s+trinh|tra\s+cuu\s+sach|tra\s+cuu\s+tai\s+lieu)\b",
+                r"\b(?:co\s+sach\s+nao|co\s+tai\s+lieu\s+nao|co\s+giao\s+trinh\s+nao)\b",
+                r"\b(?:sach\s+lien\s+quan|tai\s+lieu\s+lien\s+quan)\b",
+                r"\b(?:sach|tai\s+lieu|giao\s+trinh|luan\s+van)\s+ve\s+(?!nha\b)[a-z0-9]",
+            ]
+            # Loại trừ câu hỏi về quy định định lượng (mượn bao nhiêu cuốn về nhà, mượn được bao lâu)
+            is_rule_quota_q = bool(re.search(r"\b(?:bao\s+nhieu\s+cuon|may\s+cuon|thoi\s+han|bao\s+lau)\b", q))
+            if any(re.search(p, q) for p in explicit_book_search) and not is_rule_quota_q:
+                return None
+
         if re.search(r"\b(?:tac\s+gia\s+(?:alexander|west|nguyen|tran|le|pham|morris|hoang))\b", q):
             return None
         if re.search(r"\b(?:cu\s+lao\s+xanh)\b", q):
             pass
-        elif re.search(r"\b(?:sach\s+ve|tim\s+sach|giao\s+trinh\s+nganh|tai\s+lieu\s+ve|chuyen\s+nganh)\s+[a-z0-9]", q) and not re.search(r"\b(?:quy\s+dinh|noi\s+quy|bao\s+nhieu\s+cuon|thoi\s+han|muon\s+ve\s+nha|muon\s+duoc|den\s+sach|qua\s+han|qua\s+90\s+ngay)\b", q):
-            return None
 
         # ── 1. ĐỊA CHỈ & CƠ SỞ HOẠT ĐỘNG (Xác minh trụ sở, từ chối Cù Lao Xanh / cơ sở ảo) ──
         location_patterns = [
