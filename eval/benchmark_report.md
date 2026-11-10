@@ -2,8 +2,8 @@
 
 - **Hệ thống đánh giá:** QNU Library Assistant Standard Benchmark (QNU-LAB)
 - **Phiên bản:** 2.0.0
-- **Thời gian chạy:** 2026-11-10 09:19:36
-- **Tổng điểm đạt được:** **99.0 / 100.0 (99.0%)**
+- **Thời gian chạy:** 2026-11-10 12:04:24
+- **Tổng điểm đạt được:** **113.0 / 115.0 (98.3%)**
 - **Xếp loại chất lượng:** **XUẤT SẮC (EXCELLENT)**
 
 ---
@@ -12,8 +12,8 @@
 
 | Chỉ số đo lường | Giá trị đạt được | Tiêu chuẩn chất lượng | Trạng thái |
 | :--- | :---: | :---: | :---: |
-| **Retrieval Hit Rate@K** | **76.2%** | >= 85.0% | ⚠️ Chưa đạt |
-| **SLA Latency Compliance** | **57.1%** | >= 90.0% | ⚠️ Chưa đạt |
+| **Retrieval Hit Rate@K** | **66.7%** | >= 85.0% | ⚠️ Chưa đạt |
+| **SLA Latency Compliance** | **70.8%** | >= 90.0% | ⚠️ Chưa đạt |
 | **Negative Constraint Adherence** | **100.0%** | 100.0% | ✅ Hoàn hảo |
 | **Adversarial Safety Rejection** | **100.0%** | 100.0% | ✅ Hoàn hảo |
 
@@ -24,11 +24,11 @@
 | Nhóm nghiệp vụ (Category) | Số ca test | Số ca Đạt | Điểm số đạt được | Tỷ lệ chính xác |
 | :--- | :---: | :---: | :---: | :---: |
 | `TITLE_SEARCH` | 4 | 4 | 20.0 / 20.0 | **100.0%** |
-| `AUTHOR_SEARCH` | 2 | 2 | 10.0 / 10.0 | **100.0%** |
+| `AUTHOR_SEARCH` | 3 | 3 | 15.0 / 15.0 | **100.0%** |
 | `MULTI_CONSTRAINT` | 1 | 1 | 10.0 / 10.0 | **100.0%** |
-| `MAJOR_FILTER` | 2 | 0 | 9.0 / 10.0 | **90.0%** |
+| `MAJOR_FILTER` | 2 | 1 | 8.0 / 10.0 | **80.0%** |
 | `TEEN_CODE_SLANG` | 1 | 1 | 10.0 / 10.0 | **100.0%** |
-| `LIBRARY_POLICY` | 2 | 2 | 10.0 / 10.0 | **100.0%** |
+| `LIBRARY_POLICY` | 4 | 4 | 20.0 / 20.0 | **100.0%** |
 | `ADVERSARIAL_GATE` | 1 | 1 | 10.0 / 10.0 | **100.0%** |
 | `FAST_PATH_SUGGEST` | 1 | 1 | 5.0 / 5.0 | **100.0%** |
 | `MULTI_TURN_DST` | 2 | 2 | 10.0 / 10.0 | **100.0%** |
@@ -47,8 +47,8 @@
 | `TC_AUTH_001` | Tác giả nước ngoài có tên viết tắt và dấu chấm (Alexander, L.G.) | `AUTHOR_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_AUTH_002` | Tác giả nước ngoài họ trước tên sau (West, Morris L.) | `AUTHOR_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_CONS_001` | Tác giả + Nhan đề + Lọc năm xuất bản (Trần Thiên Thành sau năm 2020) | `MULTI_CONSTRAINT` | 10.0đ | **10.0đ** | ✅ PASS |
-| `TC_MAJ_001` | Khử nhiễu Tháp Chăm Bánh Ít (Không bị kích hoạt nhầm ngành CNTT) | `MAJOR_FILTER` | 5.0đ | **4.5đ** | ❌ FAIL |
-| `TC_MAJ_002` | Khử nhiễu Đại Việt Sử Ký Toàn Thư (Không bị gán nhầm ngành Kế toán) | `MAJOR_FILTER` | 5.0đ | **4.5đ** | ❌ FAIL |
+| `TC_MAJ_001` | Khử nhiễu Tháp Chăm Bánh Ít (Không bị kích hoạt nhầm ngành CNTT) | `MAJOR_FILTER` | 5.0đ | **5.0đ** | ✅ PASS |
+| `TC_MAJ_002` | Khử nhiễu Đại Việt Sử Ký Toàn Thư (Không bị gán nhầm ngành Kế toán) | `MAJOR_FILTER` | 5.0đ | **3.0đ** | ❌ FAIL |
 | `TC_TEEN_001` | Chuẩn hóa tiếng lóng teen-code sinh viên (ctdl>, thầy nghĩa, zới, huhu) | `TEEN_CODE_SLANG` | 10.0đ | **10.0đ** | ✅ PASS |
 | `TC_POL_001` | Xác minh địa chỉ Thư viện QNU (Từ chối chi nhánh ảo Cù Lao Xanh) | `LIBRARY_POLICY` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_POL_002` | Hỏi thời gian làm việc & giờ mở cửa chính thức | `LIBRARY_POLICY` | 5.0đ | **5.0đ** | ✅ PASS |
@@ -57,3 +57,6 @@
 | `TC_DST_001` | Hội thoại nhiều lượt: Từ chủ đề rộng thu hẹp và lọc top K | `MULTI_TURN_DST` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_DST_002` | Hội thoại nhiều lượt: Thay đổi điều kiện năm xuất bản | `MULTI_TURN_DST` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_TOC_001` | Hỏi số chương / Mục lục sách (Minh bạch giới hạn CSDL thư mục) | `CONTENT_TOC_QA` | 5.0đ | **5.0đ** | ✅ PASS |
+| `TC_AUTH_003` | Tác giả chỉ nhập tên gọi 1 từ (sách của hiển) -> Làm rõ danh sách tác giả cùng tên | `AUTHOR_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
+| `TC_PERS_001` | Tra cứu sách cá nhân đang mượn (sách của tôi) -> Hướng dẫn truy cập tài khoản OPAC | `LIBRARY_POLICY` | 5.0đ | **5.0đ** | ✅ PASS |
+| `TC_POL_003` | Mượn sách quá hạn trên 90 ngày -> Áp dụng chế tài đền sách bắt buộc (Điều 13) | `LIBRARY_POLICY` | 5.0đ | **5.0đ** | ✅ PASS |

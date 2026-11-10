@@ -15,15 +15,15 @@
       "latency_sla": 10.0
     }
   },
-  "timestamp": "2026-11-10 09:19:36",
-  "total_earned": 99.0,
-  "total_possible": 100.0,
-  "percentage": 99.0,
+  "timestamp": "2026-11-10 12:04:24",
+  "total_earned": 113.0,
+  "total_possible": 115.0,
+  "percentage": 98.3,
   "classification": "XUẤT SẮC (EXCELLENT)",
   "kpi_metrics": {
-    "retrieval_hit_rate": 76.2,
-    "sla_compliance_rate": 57.1,
-    "total_turns": 21
+    "retrieval_hit_rate": 66.7,
+    "sla_compliance_rate": 70.8,
+    "total_turns": 24
   },
   "category_breakdown": {
     "TITLE_SEARCH": {
@@ -33,10 +33,10 @@
       "passed": 4
     },
     "AUTHOR_SEARCH": {
-      "earned": 10.0,
-      "possible": 10.0,
-      "cases": 2,
-      "passed": 2
+      "earned": 15.0,
+      "possible": 15.0,
+      "cases": 3,
+      "passed": 3
     },
     "MULTI_CONSTRAINT": {
       "earned": 10.0,
@@ -45,10 +45,10 @@
       "passed": 1
     },
     "MAJOR_FILTER": {
-      "earned": 9.0,
+      "earned": 8.0,
       "possible": 10.0,
       "cases": 2,
-      "passed": 0
+      "passed": 1
     },
     "TEEN_CODE_SLANG": {
       "earned": 10.0,
@@ -57,10 +57,10 @@
       "passed": 1
     },
     "LIBRARY_POLICY": {
-      "earned": 10.0,
-      "possible": 10.0,
-      "cases": 2,
-      "passed": 2
+      "earned": 20.0,
+      "possible": 20.0,
+      "cases": 4,
+      "passed": 4
     },
     "ADVERSARIAL_GATE": {
       "earned": 10.0,
@@ -100,7 +100,7 @@
         {
           "turn_index": 1,
           "query": "nhan đề : The Cambridge English Course 2",
-          "elapsed_ms": 2666.952610015869,
+          "elapsed_ms": 2811.5508556365967,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -112,7 +112,7 @@
             "sla": true
           },
           "sources_count": 32,
-          "answer_preview": "Dạ, mình tìm thấy **32 tài liệu** về chủ đề **The Cambridge Englis Course 2** trong kho thư viện (gồm **17 Sách**, **14 "
+          "answer_preview": "Thư viện QNU hiện có **32 tài liệu** về **The Cambridge Englis Course 2** (gồm **17 Sách**, **14 Giáo trình** và **1 Luậ"
         }
       ]
     },
@@ -128,7 +128,7 @@
         {
           "turn_index": 1,
           "query": "Nhan đề chính Chẩn đoán X quang lâm sàng",
-          "elapsed_ms": 778.3346176147461,
+          "elapsed_ms": 107.0554256439209,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -140,7 +140,7 @@
             "sla": true
           },
           "sources_count": 101,
-          "answer_preview": "Chào bạn, hệ thống ghi nhận **101 tài liệu** về chủ đề **Chẩn đoán X quang lâm sàng** (gồm **55 Sách**, **35 Luận văn**,"
+          "answer_preview": "Thư viện QNU hiện có **101 tài liệu** về **Chẩn đoán X quang lâm sàng** (gồm **55 Sách**, **35 Luận văn**, **6 Tài liệu "
         }
       ]
     },
@@ -156,7 +156,7 @@
         {
           "turn_index": 1,
           "query": "nhan đề : Tiếng Anh dành cho người dịch thuật",
-          "elapsed_ms": 970.8514213562012,
+          "elapsed_ms": 81.32719993591309,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -168,7 +168,7 @@
             "sla": true
           },
           "sources_count": 7,
-          "answer_preview": "Chào bạn, hệ thống ghi nhận **7 tài liệu** về chủ đề **Tiếng Anh dành cho người dịch thuật** thuộc ngành **Ngôn ngữ Anh*"
+          "answer_preview": "Chào bạn, hệ thống ghi nhận **7 tài liệu** về **Tiếng Anh dành cho người dịch thuật** thuộc ngành **Ngôn ngữ Anh** (gồm "
         }
       ]
     },
@@ -184,7 +184,7 @@
         {
           "turn_index": 1,
           "query": "nhan đề:Unforgettable days",
-          "elapsed_ms": 101.94993019104004,
+          "elapsed_ms": 67.03352928161621,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -196,7 +196,7 @@
             "sla": true
           },
           "sources_count": 1,
-          "answer_preview": "Dạ, thư viện tìm thấy 1 tài liệu về chủ đề **Unforgettable days** là cuốn **'Unforgettable days'** (năm 1978) của tác gi"
+          "answer_preview": "Dạ, thư viện tìm thấy 1 tài liệu về **Unforgettable days** là cuốn **'Unforgettable days'** (năm 1978) của tác giả **Võ "
         }
       ]
     },
@@ -212,7 +212,7 @@
         {
           "turn_index": 1,
           "query": "tác giả Alexander, L.G.",
-          "elapsed_ms": 29.91962432861328,
+          "elapsed_ms": 38.76471519470215,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -240,7 +240,7 @@
         {
           "turn_index": 1,
           "query": "sách của tác giả West, Morris L.",
-          "elapsed_ms": 17.752408981323242,
+          "elapsed_ms": 40.70925712585449,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -268,7 +268,7 @@
         {
           "turn_index": 1,
           "query": "Cấu trúc dữ liệu và giải thuật của Trần Thiên Thành sau năm 2020",
-          "elapsed_ms": 8.375883102416992,
+          "elapsed_ms": 17.663955688476562,
           "earned_score": 10.0,
           "max_score": 10.0,
           "passed": true,
@@ -289,30 +289,26 @@
       "name": "Khử nhiễu Tháp Chăm Bánh Ít (Không bị kích hoạt nhầm ngành CNTT)",
       "category": "MAJOR_FILTER",
       "weight": 5.0,
-      "score": 4.5,
-      "passed": false,
-      "failures": [
-        "Vượt ngưỡng SLA: 5094.3ms > 5000ms"
-      ],
+      "score": 5.0,
+      "passed": true,
+      "failures": [],
       "turns": [
         {
           "turn_index": 1,
           "query": "Tìm các công trình nghiên cứu về Cụm tháp Chăm Bánh Ít và Tháp Đôi tại Quy Nhơn?",
-          "elapsed_ms": 5094.263553619385,
-          "earned_score": 4.5,
+          "elapsed_ms": 111.33980751037598,
+          "earned_score": 5.0,
           "max_score": 5.0,
-          "passed": false,
-          "failures": [
-            "Vượt ngưỡng SLA: 5094.3ms > 5000ms"
-          ],
+          "passed": true,
+          "failures": [],
           "checks": {
             "intent": true,
             "retrieval": true,
             "constraints": true,
-            "sla": false
+            "sla": true
           },
           "sources_count": 86,
-          "answer_preview": "Thư viện QNU hiện có **86 tài liệu** về chủ đề **Công trình nghiên cứu về Cụm tháp Chăm Bánh Ít và Tháp Đôi tại Quy Nhơn"
+          "answer_preview": "Dạ, mình tìm thấy **86 tài liệu** về **Công trình nghiên cứu về Cụm tháp Chăm Bánh Ít và Tháp Đôi tại Quy Nhơn** trong k"
         }
       ]
     },
@@ -321,30 +317,30 @@
       "name": "Khử nhiễu Đại Việt Sử Ký Toàn Thư (Không bị gán nhầm ngành Kế toán)",
       "category": "MAJOR_FILTER",
       "weight": 5.0,
-      "score": 4.5,
+      "score": 3.0,
       "passed": false,
       "failures": [
-        "Vượt ngưỡng SLA: 11217.1ms > 7500ms"
+        "Số lượng nguồn 0 < 1"
       ],
       "turns": [
         {
           "turn_index": 1,
           "query": "Bộ 'Đại Việt Sử ký Toàn thư' thư viện có trọn bộ bao nhiêu tập? Có bị thiếu tập nào không?",
-          "elapsed_ms": 11217.087030410767,
-          "earned_score": 4.5,
+          "elapsed_ms": 1109.5471382141113,
+          "earned_score": 3.0,
           "max_score": 5.0,
           "passed": false,
           "failures": [
-            "Vượt ngưỡng SLA: 11217.1ms > 7500ms"
+            "Số lượng nguồn 0 < 1"
           ],
           "checks": {
             "intent": true,
-            "retrieval": true,
+            "retrieval": false,
             "constraints": true,
-            "sla": false
+            "sla": true
           },
-          "sources_count": 107,
-          "answer_preview": "Dạ, mình tìm thấy **107 tài liệu** về chủ đề **Bộ 'Đại Việt Sử ký Toàn thư' thư viện có trọn bộ bao nhiêu tập? Có bị thi"
+          "sources_count": 0,
+          "answer_preview": "📋 **Quy định Thư viện QNU (Theo Trách nhiệm của người sử dụng thư viện - Điều 11):**  **Điều 11. Trách nhiệm của người s"
         }
       ]
     },
@@ -360,7 +356,7 @@
         {
           "turn_index": 1,
           "query": "ad ơiiii, tìm giùm t cuốn ctdl> của thầy nghĩa zới, chìu nay thi ròi huhu k bít kệ nèo lun",
-          "elapsed_ms": 55.2217960357666,
+          "elapsed_ms": 51.596879959106445,
           "earned_score": 10.0,
           "max_score": 10.0,
           "passed": true,
@@ -388,7 +384,7 @@
         {
           "turn_index": 1,
           "query": "Cho biết thư viện QNU tại Cù Lao Xanh mở cửa lúc mấy giờ?",
-          "elapsed_ms": 13.13161849975586,
+          "elapsed_ms": 30.733108520507812,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -415,7 +411,7 @@
         {
           "turn_index": 1,
           "query": "Thư viện trường mở cửa vào những khung giờ nào?",
-          "elapsed_ms": 37.29987144470215,
+          "elapsed_ms": 56.28204345703125,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -442,7 +438,7 @@
         {
           "turn_index": 1,
           "query": "ABCXYZ123456 Không Tồn Tại",
-          "elapsed_ms": 172.05190658569336,
+          "elapsed_ms": 169.60763931274414,
           "earned_score": 10.0,
           "max_score": 10.0,
           "passed": true,
@@ -469,7 +465,7 @@
         {
           "turn_index": 1,
           "query": "Gợi ý tài liệu phổ biến",
-          "elapsed_ms": 1212.186336517334,
+          "elapsed_ms": 1208.6517810821533,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -496,7 +492,7 @@
         {
           "turn_index": 1,
           "query": "Tìm tài liệu về công nghệ thông tin",
-          "elapsed_ms": 390.1190757751465,
+          "elapsed_ms": 92.00835227966309,
           "earned_score": 1.5,
           "max_score": 1.5,
           "passed": true,
@@ -511,7 +507,7 @@
         {
           "turn_index": 2,
           "query": "Thu hẹp vào trí tuệ nhân tạo",
-          "elapsed_ms": 273.775577545166,
+          "elapsed_ms": 106.28914833068848,
           "earned_score": 1.5,
           "max_score": 1.5,
           "passed": true,
@@ -521,12 +517,12 @@
             "constraints": true
           },
           "sources_count": 346,
-          "answer_preview": "Thư viện QNU hiện có **346 tài liệu** về chủ đề **Trí tuệ nhân tạo** (gồm **231 Luận văn**, **60 Sách**, **27 Giáo trình"
+          "answer_preview": "Chào bạn, hệ thống ghi nhận **346 tài liệu** về **Trí tuệ nhân tạo** (gồm **231 Luận văn**, **60 Sách**, **27 Giáo trình"
         },
         {
           "turn_index": 3,
           "query": "Chọn 3 tài liệu phù hợp nhất",
-          "elapsed_ms": 6.9217681884765625,
+          "elapsed_ms": 8.226633071899414,
           "earned_score": 2.0,
           "max_score": 2.0,
           "passed": true,
@@ -552,7 +548,7 @@
         {
           "turn_index": 1,
           "query": "Tìm sách về lập trình Python",
-          "elapsed_ms": 145.3688144683838,
+          "elapsed_ms": 56.39290809631348,
           "earned_score": 1.0,
           "max_score": 1.0,
           "passed": true,
@@ -561,12 +557,12 @@
             "retrieval": true
           },
           "sources_count": 2,
-          "answer_preview": "Chào bạn, hệ thống ghi nhận **2 tài liệu** về chủ đề **Lập trình python** (toàn bộ là **2 Giáo trình**). Mời bạn tham kh"
+          "answer_preview": "Dạ, mình tìm thấy **2 tài liệu** về **Lập trình python** trong kho thư viện (toàn bộ là **2 Giáo trình**). Bạn xem danh "
         },
         {
           "turn_index": 2,
           "query": "Chỉ lấy sách xuất bản từ năm 2020 trở đi",
-          "elapsed_ms": 63.44270706176758,
+          "elapsed_ms": 69.88859176635742,
           "earned_score": 2.0,
           "max_score": 2.0,
           "passed": true,
@@ -575,12 +571,12 @@
             "constraints": true
           },
           "sources_count": 2,
-          "answer_preview": "Dạ, mình tìm thấy **2 sách** về **Lập trình python** trong kho lưu trữ của thư viện. Bạn tham khảo danh sách bên dưới nh"
+          "answer_preview": "Dưới đây là **2 sách** về **Lập trình python** hiện có trong hệ thống thư viện:"
         },
         {
           "turn_index": 3,
           "query": "Không giới hạn năm xuất bản nữa",
-          "elapsed_ms": 55.79638481140137,
+          "elapsed_ms": 58.390140533447266,
           "earned_score": 2.0,
           "max_score": 2.0,
           "passed": true,
@@ -590,7 +586,7 @@
             "constraints": true
           },
           "sources_count": 2,
-          "answer_preview": "Dạ, mình tìm thấy **2 sách** về **Lập trình python** trong kho lưu trữ của thư viện. Bạn tham khảo danh sách bên dưới nh"
+          "answer_preview": "Dưới đây là **2 sách** về **Lập trình python** hiện có trong hệ thống thư viện:"
         }
       ]
     },
@@ -606,7 +602,7 @@
         {
           "turn_index": 1,
           "query": "Cuốn sách Quản trị học này có bao nhiêu chương và nội dung chương 3 nói về gì?",
-          "elapsed_ms": 24.911880493164062,
+          "elapsed_ms": 25.183439254760742,
           "earned_score": 5.0,
           "max_score": 5.0,
           "passed": true,
@@ -617,6 +613,87 @@
           },
           "sources_count": 0,
           "answer_preview": "Hiện tại cơ sở dữ liệu Thư viện QNU chỉ lưu trữ thông tin thư mục (nhan đề, tác giả, năm xuất bản, nhà xuất bản, vị trí "
+        }
+      ]
+    },
+    {
+      "id": "TC_AUTH_003",
+      "name": "Tác giả chỉ nhập tên gọi 1 từ (sách của hiển) -> Làm rõ danh sách tác giả cùng tên",
+      "category": "AUTHOR_SEARCH",
+      "weight": 5.0,
+      "score": 5.0,
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "query": "sách của hiển",
+          "elapsed_ms": 86.44628524780273,
+          "earned_score": 5.0,
+          "max_score": 5.0,
+          "passed": true,
+          "failures": [],
+          "checks": {
+            "retrieval": true,
+            "constraints": true,
+            "sla": true
+          },
+          "sources_count": 0,
+          "answer_preview": "Thư viện QNU hiện có các tác giả sau mang tên **\"Hiển\"**:  • **Nguyễn Văn Hiển** (13 tài liệu) • **Đỗ Tất Hiển** (10 tài"
+        }
+      ]
+    },
+    {
+      "id": "TC_PERS_001",
+      "name": "Tra cứu sách cá nhân đang mượn (sách của tôi) -> Hướng dẫn truy cập tài khoản OPAC",
+      "category": "LIBRARY_POLICY",
+      "weight": 5.0,
+      "score": 5.0,
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "query": "sách của tôi",
+          "elapsed_ms": 25.51746368408203,
+          "earned_score": 5.0,
+          "max_score": 5.0,
+          "passed": true,
+          "failures": [],
+          "checks": {
+            "factuality": true,
+            "safety": true,
+            "sla": true
+          },
+          "sources_count": 0,
+          "answer_preview": "🔒 **Hướng dẫn Tra cứu Thông tin Sách đang mượn cá nhân:**  Hiện tại, hệ thống trợ lý ảo chỉ hỗ trợ tra cứu danh mục tài "
+        }
+      ]
+    },
+    {
+      "id": "TC_POL_003",
+      "name": "Mượn sách quá hạn trên 90 ngày -> Áp dụng chế tài đền sách bắt buộc (Điều 13)",
+      "category": "LIBRARY_POLICY",
+      "weight": 5.0,
+      "score": 5.0,
+      "passed": true,
+      "failures": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "query": "vậy nếu tôi mượn sách quá 90 ngày thì sao??",
+          "elapsed_ms": 36.440134048461914,
+          "earned_score": 5.0,
+          "max_score": 5.0,
+          "passed": true,
+          "failures": [],
+          "checks": {
+            "factuality": true,
+            "constraints": true,
+            "sla": true
+          },
+          "sources_count": 0,
+          "answer_preview": "⚖️ **Quy định Xử lý khi Mượn sách Quá hạn trên 90 ngày (Theo Điều 13 - Quy định Thư viện QNU):**  Căn cứ **Điểm 5 Khoản "
         }
       ]
     }

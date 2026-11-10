@@ -41,12 +41,15 @@ class AuthorIndex:
                 toks = norm.split()
                 if 2 <= len(toks) <= 5:
                     forms = [norm]
-                    if len(toks) == 2:
-                        forms.append(f"{toks[1]} {toks[0]}")
-                    elif len(toks) == 3:
-                        forms.append(f"{toks[2]} {toks[0]} {toks[1]}")
-                        forms.append(f"{toks[2]} {toks[1]} {toks[0]}")
-                        forms.append(f"{toks[1]} {toks[2]} {toks[0]}")
+                    # Chỉ đảo ngược tên đối với tên nước ngoài / tên phương Tây (có dấu phẩy "Lastname, Firstname" hoặc không phải họ Việt Nam)
+                    is_vietnamese = any(ord(c) > 127 for c in sa_clean) or (toks and toks[0] in VIETNAMESE_SURNAMES)
+                    if not is_vietnamese and ("," in sa or len(toks) in (2, 3)):
+                        if len(toks) == 2:
+                            forms.append(f"{toks[1]} {toks[0]}")
+                        elif len(toks) == 3:
+                            forms.append(f"{toks[2]} {toks[0]} {toks[1]}")
+                            forms.append(f"{toks[2]} {toks[1]} {toks[0]}")
+                            forms.append(f"{toks[1]} {toks[2]} {toks[0]}")
 
                     for f_norm in set(forms):
                         self.author_lexicon[f_norm] = self.author_lexicon.get(f_norm, 0) + 1
@@ -77,6 +80,25 @@ _SLOT_BOUNDARY_PATTERN = re.compile(
     r"|nganh\s+[a-z\s]+"
     r"|tieng\s+(?:anh|viet|nga|trung|phap)"
     r")\b.*$",
+    flags=re.I
+)
+
+_SLOT_START_PATTERN = re.compile(
+    r"^(?:"
+    r"(?:xuat\s+ban\s+(?:vao\s+)?nam|nam\s+xb|nam\s+xuat\s+ban|xuat\s+ban\s+sau\s+nam|xuat\s+ban\s+truoc\s+nam|tai\s+ban|nam)\s+\d{4}"
+    r"|(?:tu\s+nam|den\s+nam|sau\s+nam|truoc\s+nam)\s+\d{4}"
+    r"|nam\s+\d{4}|\d{4}"
+    r"|moi\s+nhat|gan\s+day\s+nhat|gan\s+nhat|cu\s+nhat|lau\s+doi\s+nhat|som\s+nhat"
+    r"|o\s+dau|o\s+phong|o\s+kho|phong\s+nao|kho\s+nao"
+    r"|co\s+(?:nhung\s+|cac\s+)?(?:sach|tai\s+lieu|giao\s+trinh|cuon|quyen)"
+    r"|co\s+(?:sach|tai\s+lieu|cuon)"
+    r"|co\s+(?:duoc\s+)?(?:muon|doc)"
+    r"|co\s+khong|co\s+ko|co\s+k|co\s+chua|con\s+khong|con\s+ko"
+    r"|dung\s+khong|phai\s+khong"
+    r"|khong\s+a|ko\s+a|k\s+a|khong|ko|k|ha|nhi|the|vay|a|nhe|nha|voi|oi"
+    r"|nganh\s+[a-z\s]+"
+    r"|tieng\s+(?:anh|viet|nga|trung|phap)"
+    r")\b",
     flags=re.I
 )
 
@@ -117,8 +139,14 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
             for k in range(min(5, len(words)), 1, -1):
                 cand = " ".join(words[:k])
                 if cand in author_index.author_lexicon:
+                    rem_candidate = " ".join(words[k:]).strip()
+                    # Nếu còn từ phía sau, kiểm tra xem từ đó có phải là mốc bắt đầu slot hay không
+                    if rem_candidate and not _SLOT_START_PATTERN.search(rem_candidate):
+                        # Từ phía sau không phải slot (ví dụ "bảo" trong "nguyễn hoài bảo")
+                        # Không được cắt ngắn tên tác giả người dùng đang hỏi!
+                        continue
                     matched_author = cand
-                    remaining = " ".join(words[k:])
+                    remaining = rem_candidate
                     # Kiểm tra xem có từ thừa (như XYZ) đứng trước mốc thời gian/hành vi không
                     slot_b = re.search(r'\b(?:moi\s+nhat|gan\s+day\s+nhat|gan\s+nhat|cu\s+nhat|lau\s+doi\s+nhat|som\s+nhat|(?:xuat\s+ban\s+)?(?:vao\s+)?nam\s+\d{4}|(?:tu|sau|truoc|den)\s+nam\s+\d{4}|xuat\s+ban|nam\s+\d{4}|\d{4}|phat\s+hanh|tai\s+ban|co\s+khong|khong|o\s+dau|phong|kho)\b', remaining)
                     extra_words = remaining[:slot_b.start()].strip() if slot_b else ""
@@ -133,10 +161,13 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
             for k in range(min(4, len(words)), 1, -1):
                 cand = " ".join(words[:k])
                 if len(cand) >= 6:
+                    rem_candidate = " ".join(words[k:]).strip()
+                    if rem_candidate and not _SLOT_START_PATTERN.search(rem_candidate):
+                        continue
                     close = difflib.get_close_matches(cand, author_index.author_lexicon.keys(), n=1, cutoff=0.88)
                     if close:
                         matched_author = close[0]
-                        remaining = " ".join(words[k:])
+                        remaining = rem_candidate
                         break
 
         # 2. Grammar fallback with slot boundary stripping
@@ -147,6 +178,16 @@ def extract_author_and_remaining(query: str, author_index: Optional[AuthorIndex]
                 cand = " ".join(c_words)
                 matched_author = cand
                 remaining = tail[len(cand):].strip()
+            elif len(c_words) == 1:
+                cand = c_words[0]
+                PRONOUNS_AND_NON_AUTHORS = {
+                    "toi", "toii", "minh", "em", "anh", "chi", "ban", "ta", "chung", "ho", "nguoi",
+                    "nay", "kia", "do", "ay", "nao", "gi", "sao", "dau", "truong", "thu", "vien",
+                    "khoa", "lop", "nganh", "mon"
+                }
+                if cand not in PRONOUNS_AND_NON_AUTHORS and len(cand) >= 2:
+                    matched_author = cand
+                    remaining = tail[len(cand):].strip()
     else:
         # Pattern: "<Tên tác giả> có sách / tài liệu / giáo trình..."
         m_start = re.match(r'^([a-z\s]{3,35}?)\s+co\s+(?:nhung\s+|cac\s+)?(?:sach|tai\s+lieu|giao\s+trinh|cuon)\b', q_norm)
@@ -214,48 +255,107 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
         return None
 
     has_explicit_author = bool(re.search(r"\b(?:tac\s+gia|dong\s+tac\s+gia|chu\s+bien|dich\s+gia|nha\s+van|nha\s+tho)\b", q_norm))
+    if re.search(r"\b(?:sach|tai\s+lieu|giao\s+trinh|an\s+pham)\s+cua\b", q_norm):
+        has_explicit_author = True
     norm_words = author_norm.split()
     if norm_words and norm_words[0] in VIETNAMESE_SURNAMES:
         has_explicit_author = True
 
-    if not has_explicit_author and author_index and (author_norm not in author_index.author_lexicon):
-        return None
+    # Xử lý trường hợp người dùng chỉ nhập 1 từ tên tác giả (VD: "sách của Hiển", "sách của Sơn")
+    if len(norm_words) == 1 and author_index:
+        target_raw_tokens = [w.strip("?,.!;:\"'").lower() for w in author_display.split()]
+        has_accent = any(any(ord(c) > 127 for c in w) for w in target_raw_tokens)
+        target_norm_tokens = author_norm.strip().lower().split()
 
-    # Step 3: Fetch base documents for this author
-    all_author_docs = []
-    if author_index is not None:
-        if author_norm in author_index.author_to_docs:
+        candidates = []
+        for norm_key, disp in author_index.author_display_map.items():
+            disp_words = disp.lower().split()
+            n_words = norm_key.split()
+            doc_count = len(author_index.author_to_docs.get(norm_key, []))
+            if doc_count == 0:
+                continue
+
+            if has_accent:
+                matched = all(t in disp_words for t in target_raw_tokens)
+                is_given = (disp_words[-1] in target_raw_tokens)
+            else:
+                matched = all(t in n_words for t in target_norm_tokens)
+                is_given = (n_words[-1] in target_norm_tokens)
+
+            if matched:
+                candidates.append((disp, norm_key, doc_count, is_given))
+
+        # Sắp xếp ưu tiên tên chính (tên gọi cuối) rồi đến số lượng tài liệu
+        candidates.sort(key=lambda x: (x[3], x[2]), reverse=True)
+
+        if len(candidates) > 1:
+            disp_title = author_display.title()
+            ans = f"Thư viện QNU hiện có các tác giả sau mang tên **\"{disp_title}\"**:\n\n"
+            for disp, nkey, dcount, _ in candidates[:5]:
+                ans += f"• **{disp}** ({dcount} tài liệu)\n"
+            ans += "\nBạn muốn tìm sách của tác giả nào ở trên? Hãy nhấn vào gợi ý bên dưới hoặc gõ đầy đủ họ tên tác giả nhé! 😊"
+
+            follow_ups = []
+            for disp, nkey, dcount, _ in candidates[:5]:
+                follow_ups.append({"label": f"Sách của tác giả {disp}", "query": f"sách của tác giả {disp}"})
+
+            return {
+                "answer": ans,
+                "sources": [],
+                "total_sources": 0,
+                "total_found": 0,
+                "matched_attr": "author_disambiguation",
+                "found": True,
+                "author_display": disp_title,
+                "candidate": disp_title,
+                "follow_up_suggestions": follow_ups
+            }
+        elif len(candidates) == 1:
+            author_norm = candidates[0][1]
+            author_display = candidates[0][0]
             all_author_docs = list(author_index.author_to_docs[author_norm])
         else:
-            # Check if author_norm matches any full author name in the index with word boundary
-            seen_titles = set()
+            all_author_docs = []
+    else:
+        if not has_explicit_author and author_index and (author_norm not in author_index.author_lexicon):
+            return None
+
+    # Step 3: Fetch base documents for this author
+    if len(norm_words) > 1 or (len(norm_words) == 1 and not all_author_docs and author_norm in getattr(author_index, 'author_to_docs', {})):
+        all_author_docs = []
+        if author_index is not None:
+            if author_norm in author_index.author_to_docs:
+                all_author_docs = list(author_index.author_to_docs[author_norm])
+            else:
+                # Check if author_norm matches any full author name in the index with word boundary
+                seen_titles = set()
+                pattern = r'(?<!\w)' + re.escape(author_norm) + r'(?!\w)'
+                for key, kdocs in author_index.author_to_docs.items():
+                    if re.search(pattern, key):
+                        for d in kdocs:
+                            t_k = d.get('title', '').strip().lower()
+                            if t_k not in seen_titles:
+                                seen_titles.add(t_k)
+                                all_author_docs.append(d)
+        elif retriever and hasattr(retriever, 'bm25'):
+            # Fallback search ONLY if index not yet initialized
+            seen = set()
             pattern = r'(?<!\w)' + re.escape(author_norm) + r'(?!\w)'
-            for key, kdocs in author_index.author_to_docs.items():
-                if re.search(pattern, key):
-                    for d in kdocs:
-                        t_k = d.get('title', '').strip().lower()
-                        if t_k not in seen_titles:
-                            seen_titles.add(t_k)
-                            all_author_docs.append(d)
-    elif retriever and hasattr(retriever, 'bm25'):
-        # Fallback search ONLY if index not yet initialized
-        seen = set()
-        pattern = r'(?<!\w)' + re.escape(author_norm) + r'(?!\w)'
-        for d in retriever.bm25.documents:
-            combined_people = re.split(r'[;,\n/]+', d.get('author', '')) + re.split(r'[;,\n/]+', d.get('responsibility', ''))
-            matched = False
-            for sa in combined_people:
-                sa_clean = re.sub(r'\(.*?\)|\[.*?\]', '', sa).strip()
-                sa_clean = re.sub(r'\b(?:h\.d\.|ch\.b\.|b\.s\.|h\.d|chb|dich|bien\s+soan|chu\s+bien)\b', '', sa_clean, flags=re.I).strip()
-                norm = normalize_text(sa_clean).strip()
-                if re.search(pattern, norm):
-                    matched = True
-                    break
-            if matched:
-                t_k = d.get('title', '').strip().lower()
-                if t_k not in seen:
-                    seen.add(t_k)
-                    all_author_docs.append(d)
+            for d in retriever.bm25.documents:
+                combined_people = re.split(r'[;,\n/]+', d.get('author', '')) + re.split(r'[;,\n/]+', d.get('responsibility', ''))
+                matched = False
+                for sa in combined_people:
+                    sa_clean = re.sub(r'\(.*?\)|\[.*?\]', '', sa).strip()
+                    sa_clean = re.sub(r'\b(?:h\.d\.|ch\.b\.|b\.s\.|h\.d|chb|dich|bien\s+soan|chu\s+bien)\b', '', sa_clean, flags=re.I).strip()
+                    norm = normalize_text(sa_clean).strip()
+                    if re.search(pattern, norm):
+                        matched = True
+                        break
+                if matched:
+                    t_k = d.get('title', '').strip().lower()
+                    if t_k not in seen:
+                        seen.add(t_k)
+                        all_author_docs.append(d)
 
     # Step 3.5: Kiểm tra tính nhất quán dấu tiếng Việt (VD: Nguyễn Nhật Ánh vs Nguyễn Nhật Anh)
     if all_author_docs:
@@ -275,10 +375,32 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
     if not all_author_docs:
         if not has_explicit_author:
             return None
+
+        # Tìm gợi ý tác giả gần giống nếu có trong thư viện
+        suggested_authors = []
+        author_tokens = author_norm.split()
+        if len(author_tokens) >= 2 and author_index:
+            last_2 = " ".join(author_tokens[-2:])
+            for a_key, a_disp in author_index.author_display_map.items():
+                if last_2 in a_key and a_disp not in suggested_authors and a_disp != author_display:
+                    suggested_authors.append(a_disp)
+                    if len(suggested_authors) >= 2:
+                        break
+
         ans = (
             f"Hiện tại Thư viện QNU chưa tìm thấy tài liệu nào của tác giả **\"{author_display}\"** trong hệ thống lưu trữ. 🤔\n\n"
-            f"Bạn vui lòng kiểm tra lại chính xác tên tác giả hoặc tìm kiếm theo tên giáo trình / tài liệu cụ thể nhé!"
+            f"Bạn vui lòng kiểm tra lại chính xác họ tên tác giả hoặc thử tra cứu theo tên sách, chuyên ngành cụ thể nhé!"
         )
+
+        follow_ups = []
+        for sa in suggested_authors:
+            follow_ups.append({"label": f"Tìm sách tác giả: {sa}", "query": f"sách của tác giả {sa}"})
+        if not follow_ups:
+            follow_ups = [
+                {"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"},
+                {"label": "Quy chế Thư viện QNU", "query": "các quy định tại thư viện"}
+            ]
+
         return {
             "answer": ans,
             "sources": [],
@@ -287,7 +409,8 @@ def handle_author_inquiry(query: str, retriever=None, author_index: Optional[Aut
             "matched_attr": "author_location",
             "found": False,
             "author_display": author_display,
-            "candidate": author_display
+            "candidate": author_display,
+            "follow_up_suggestions": follow_ups
         }
 
     # Step 5: Multi-attribute Slot Extraction on Query

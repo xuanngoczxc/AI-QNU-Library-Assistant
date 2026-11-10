@@ -1038,6 +1038,10 @@ def detect_course_name(query: str) -> str | None:
 # Common typos for technical terms
 _TYPO_CORRECTIONS = {
     "tác gả": "tác giả", "tac ga": "tac gia", "tác giã": "tác giả", "tác gỉa": "tác giả",
+    "thư ciện": "thư viện", "thu cien": "thư viện", "ciện": "viện", "cien": "viện",
+    "qui định": "quy định", "qui dinh": "quy định",
+    "qui chế": "quy chế", "qui che": "quy chế",
+    "nội qui": "nội quy", "noi qui": "nội quy",
     "giao trinh": "giáo trình", "tai lieu": "tài liệu", "luan van": "luận văn",
     "xuat ban": "xuất bản", "tieu de": "tiêu đề", "tieude": "tiêu đề",
     "khoaa": "khoa", "khoahoc": "khoa học", "maytinh": "máy tính",

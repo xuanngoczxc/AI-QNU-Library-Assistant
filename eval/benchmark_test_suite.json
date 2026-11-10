@@ -543,6 +543,86 @@
           }
         }
       ]
+    },
+    {
+      "id": "TC_AUTH_003",
+      "category": "AUTHOR_SEARCH",
+      "name": "Tác giả chỉ nhập tên gọi 1 từ (sách của hiển) -> Làm rõ danh sách tác giả cùng tên",
+      "difficulty": "Medium",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "sách của hiển"
+          },
+          "expected": {
+            "must_contain": ["Nguyễn Văn Hiển", "Đỗ Tất Hiển", "Trần Diên Hiển"],
+            "must_not_contain": ["Của hiển", "về Của"],
+            "max_sources": 0,
+            "sla_max_ms": 1500
+          },
+          "rubric": {
+            "retrieval_points": 2.5,
+            "constraint_points": 2.0,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_PERS_001",
+      "category": "LIBRARY_POLICY",
+      "name": "Tra cứu sách cá nhân đang mượn (sách của tôi) -> Hướng dẫn truy cập tài khoản OPAC",
+      "difficulty": "Medium",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "sách của tôi"
+          },
+          "expected": {
+            "must_contain": ["thuvien.qnu.edu.vn", "tài khoản mượn trả cá nhân"],
+            "must_not_contain": ["Của tôi", "về Của"],
+            "max_sources": 0,
+            "sla_max_ms": 1500
+          },
+          "rubric": {
+            "factuality_points": 2.5,
+            "safety_points": 2.0,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_POL_003",
+      "category": "LIBRARY_POLICY",
+      "name": "Mượn sách quá hạn trên 90 ngày -> Áp dụng chế tài đền sách bắt buộc (Điều 13)",
+      "difficulty": "Medium",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "vậy nếu tôi mượn sách quá 90 ngày thì sao??"
+          },
+          "expected": {
+            "must_contain": ["90 ngày", "đền sách", "Điều 13"],
+            "must_not_contain": ["Tài liệu không cung cấp"],
+            "sla_max_ms": 1500
+          },
+          "rubric": {
+            "factuality_points": 3.0,
+            "constraint_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
     }
   ]
 }

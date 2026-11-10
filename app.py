@@ -131,6 +131,7 @@ from lib.conversation_resolver import (
     extract_clarification_content,
 )
 from lib.author_resolver import AuthorIndex, handle_author_inquiry
+from lib.policy_engine import policy_engine
 # from lib.load_pdf import load_all_pdfs
 # from lib.pdf_manager import PDFManager
 
@@ -810,6 +811,22 @@ def build_catalog_answer(
         flags=re.IGNORECASE
     ).strip()
 
+    # Bóc bỏ các cụm định vị thư viện còn sót trong clean_topic
+    clean_topic = re.sub(
+        r'\s*(?:tại\s+thư\s+viện|ở\s+thư\s+viện|trong\s+thư\s+viện|của\s+thư\s+viện|thư\s+viện\s+qnu|thư\s+viện|tại\s+trường|ở\s+trường)\b',
+        '',
+        clean_topic,
+        flags=re.IGNORECASE
+    ).strip()
+
+    # Bóc bỏ các từ nối 'của', 'về', 'thuộc' vô nghĩa ở đầu clean_topic
+    clean_topic = re.sub(r'^(?:của|cua|về|ve|thuộc|thuoc)\s+', '', clean_topic, flags=re.IGNORECASE).strip()
+
+    # Bỏ qua nếu clean_topic chỉ là đại từ nhân xưng hoặc từ ngữ rác
+    topic_norm = normalize_text(clean_topic).lower().strip()
+    if topic_norm in ("toi", "toii", "minh", "em", "anh", "chi", "ban", "ta", "chung toi", "chung ta", "sach", "tai lieu", "giao trinh"):
+        clean_topic = ""
+
     # Khử lặp khi clean_topic quá dài (trên 6 từ / 50 ký tự) -> trích xuất chủ đề cốt lõi
     if clean_topic and (len(clean_topic.split()) > 6 or len(clean_topic) > 50):
         extracted = extract_primary_topic_text(clean_topic)
@@ -823,11 +840,12 @@ def build_catalog_answer(
         if normalize_text(clean_topic).lower().strip() == dt_norm or clean_topic.lower() in ("sách", "giáo trình", "tài liệu", "luận văn", "tài liệu tham khảo"):
             clean_topic = ""
 
-    # Khử trùng lặp giữa chủ đề và ngành: nếu topic trùng hoặc là tập con của ngành thì không lặp lại
+    # Khử trùng lặp giữa chủ đề và ngành: nếu topic trùng, là tập con hoặc alias/viết tắt của ngành thì xóa topic
     if major and clean_topic:
         m_norm = normalize_text(major).strip()
         t_norm = normalize_text(clean_topic).strip()
-        if m_norm == t_norm or m_norm in t_norm or t_norm in m_norm:
+        aliases = [normalize_text(a).strip() for a in get_canonical_major_aliases(major)]
+        if m_norm == t_norm or m_norm in t_norm or t_norm in m_norm or t_norm in aliases:
             clean_topic = ""
 
     if clean_topic:
@@ -901,10 +919,17 @@ def build_catalog_answer(
 
     # ── Natural, Conversational Phrasing for General Catalog Search ──
     if clean_topic:
-        if clean_topic.lower().startswith("xuất bản") or clean_topic.lower().startswith("năm"):
+        c_norm = normalize_text(clean_topic).strip()
+        auth_m = re.match(r'^(?:sách\s+của\s+)?(?:tác\s+giả\s+|tg\s+)(.+)$', clean_topic, flags=re.IGNORECASE)
+        if auth_m:
+            t_phrase = f" của tác giả **{auth_m.group(1).strip()}**"
+        elif c_norm in ("sach", "tai lieu", "giao trinh", "luan van", "cac tai lieu", "nhung cuon", "quy dinh", "cac quy dinh", "noi quy", "thong tin"):
+            t_phrase = ""
+        elif clean_topic.lower().startswith("xuất bản") or clean_topic.lower().startswith("năm"):
             t_phrase = f" **{clean_topic}**"
         else:
-            t_phrase = f" về chủ đề **{clean_topic}**"
+            # Tự nhiên hơn trong tiếng Việt: dùng "về **X**" thay vì gượng gạo "về chủ đề **X**"
+            t_phrase = f" về **{clean_topic}**"
     else:
         t_phrase = ""
     m_phrase = f" thuộc ngành **{major}**" if major else ""
@@ -2410,146 +2435,7 @@ def handle_library_policy_inquiry(query: str):
     if not query:
         return None
     q = normalize_text(query).strip()
-
-    # 0. Địa chỉ & Cơ sở hoạt động của Thư viện QNU (Đặc biệt xử lý các cơ sở giả định như Cù Lao Xanh)
-    location_patterns = [
-        r"\b(?:dia\s+chi\s+thu\s+vien|thu\s+vien\s+(?:qnu\s+)?(?:nam\s+)?o\s+dau|vi\s+tri\s+thu\s+vien|tru\s+so\s+thu\s+vien|co\s+so\s+thu\s+vien)\b",
-        r"\b(?:thu\s+vien\s+(?:co\s+)?(?:o|tai)\s+cu\s+lao\s+xanh|cu\s+lao\s+xanh|co\s+so\s+2|co\s+so\s+khac)\b",
-    ]
-    if any(re.search(p, q) for p in location_patterns):
-        ans = (
-            "📍 **Địa chỉ & Trụ sở Thư viện Trường Đại học Quy Nhơn:**\n\n"
-            "• **Địa chỉ duy nhất:** Tòa nhà Thư viện, Trường Đại học Quy Nhơn - Số **170 An Dương Vương, TP. Quy Nhơn, Tỉnh Bình Định**.\n"
-            "• **Chi nhánh / Cơ sở ngoài trường:** Thư viện QNU hiện **chỉ phục vụ tập trung tại khuôn viên chính (170 An Dương Vương)**, "
-            "**hoàn toàn KHÔNG có chi nhánh hay cơ sở tại Cù Lao Xanh** hay bất kỳ địa điểm nào khác ngoài trường.\n\n"
-            "Bạn đọc có thể đến trực tiếp thư viện tại trường vào các ngày làm việc từ Thứ Hai đến Thứ Sáu để đọc và mượn tài liệu nhé!"
-        )
-        return {
-            "answer": ans,
-            "sources": [],
-            "total_sources": 0,
-            "total_found": 0,
-            "follow_up_suggestions": [
-                {"label": "Giờ mở cửa thư viện", "query": "thư viện mở cửa lúc mấy giờ?"},
-                {"label": "Quy định mượn sách", "query": "sinh viên được mượn tối đa mấy cuốn sách về nhà?"},
-                {"label": "Tìm kiếm tài liệu", "query": "tìm sách về trí tuệ nhân tạo"}
-            ]
-        }
-
-    # 1. Giờ mở cửa / Lịch phục vụ / Thời gian làm việc
-    hours_patterns = [
-        r"\b(?:khung\s+gio\s+nao|khung\s+gio|gio\s+mo\s+cua|mo\s+cua\s+luc\s+may\s+gio|may\s+gio\s+mo\s+cua|may\s+gio\s+dong\s+cua|thoi\s+gian\s+mo\s+cua|thoi\s+gian\s+phuc\s+vu|lich\s+phuc\s+vu|lich\s+mo\s+cua|gio\s+lam\s+viec|mo\s+cua\s+ngay\s+nao|co\s+mo\s+cua\s+thu\s+7|co\s+mo\s+cua\s+chu\s+nhat|cuoi\s+tuan\s+co\s+mo\s+cua)\b",
-        r"\b(?:khi\s+nao\s+thu\s+vien\s+mo\s+cua|thu\s+vien\s+mo\s+cua\s+khi\s+nao|thu\s+vien\s+mo\s+cua\s+luc\s+nao|thu\s+vien\s+may\s+gio\s+mo|thu\s+vien\s+mo\s+cua\s+luc\s+may\s+gio)\b",
-    ]
-    if any(re.search(p, q) for p in hours_patterns):
-        ans = (
-            "🕒 **Thời gian mở cửa & Phục vụ của Thư viện QNU:**\n\n"
-            "Thư viện Trường Đại học Quy Nhơn phục vụ bạn đọc từ **Thứ Hai đến Thứ Sáu** hàng tuần:\n"
-            "• **Buổi sáng:** **07:00 – 11:30**\n"
-            "• **Buổi chiều:** **13:30 – 17:00**\n\n"
-            "📌 **Lưu ý:**\n"
-            "• **Thứ Bảy, Chủ Nhật và các ngày Lễ, Tết:** Thư viện tạm nghỉ phục vụ trực tiếp tại quầy.\n"
-            "• Hệ thống **Tra cứu danh mục & Tài nguyên số trực tuyến** luôn hoạt động 24/7 để phục vụ bạn đọc tự học và nghiên cứu từ xa."
-        )
-        return {
-            "answer": ans,
-            "sources": [],
-            "total_sources": 0,
-            "total_found": 0,
-            "follow_up_suggestions": [
-                {"label": "Quy định mượn sách về nhà", "query": "sinh viên được mượn tối đa mấy cuốn sách về nhà?"},
-                {"label": "Thủ tục làm thẻ thư viện", "query": "thủ tục làm thẻ thư viện thế nào?"},
-                {"label": "Tìm giáo trình CNTT", "query": "giáo trình ngành công nghệ thông tin"}
-            ]
-        }
-
-    # 2. Quy định mượn / trả / gia hạn sách / số lượng sách được mượn
-    borrow_patterns = [
-        r"\b(?:muon\s+toi\s+da\s+may\s+cuon|muon\s+duoc\s+may\s+cuon|duoc\s+muon\s+bao\s+nhieu\s+cuon|so\s+luong\s+sach\s+duoc\s+muon|quy\s+dinh\s+muon\s+tra|noi\s+quy\s+muon\s+tra|noi\s+quy\s+thu\s+vien|quy\s+dinh\s+thu\s+vien|thoi\s+han\s+muon\s+sach|muon\s+sach\s+duoc\s+bao\s+lau|muon\s+sach\s+bao\s+nhieu\s+ngay|gia\s+han\s+sach|tra\s+sach\s+qua\s+han|phi\s+phat\s+tra\s+muon)\b",
-        r"\b(?:sinh\s+vien\s+duoc\s+muon\s+.*(?:sach|ve\s+nha)|muon\s+ve\s+nha\s+toi\s+da)\b",
-        r"\b(?:duoc\s+muon\s+toi\s+da|muon\s+toi\s+da)\s+(?:bao\s+nhieu|may)\b",
-        r"\bmuon\s+(?:duoc\s+)?(?:sach\s+)?(?:trong\s+)?bao\s+lau\b",
-    ]
-    if any(re.search(p, q) for p in borrow_patterns) and not re.search(r"\b(?:cuon\s+|quyen\s+|giao\s+trinh\s+)(?!sach\b|tai\s+lieu\b|gi\b|nao\b|bao\s+nhieu\b|may\b)[a-z0-9]", q):
-        ans = (
-            "📖 **Quy định Mượn - Trả sách tại Thư viện QNU:**\n\n"
-            "1. **Số lượng tài liệu được mượn về nhà:**\n"
-            "   • **Sinh viên / Học viên:** Được mượn tối đa **3 – 5 cuốn sách/giáo trình** cùng một lúc.\n"
-            "   • **Giảng viên / Cán bộ nghiên cứu:** Được mượn tài liệu theo định mức phục vụ công tác giảng dạy & NCKH.\n\n"
-            "2. **Thời hạn mượn:**\n"
-            "   • **Giáo trình / Sách tham khảo:** Mượn từ **14 đến 30 ngày** (tùy học phần môn học).\n"
-            "   • **Gia hạn:** Bạn có thể xin gia hạn thêm 01 lần (từ 7 - 14 ngày) nếu tài liệu chưa có bạn đọc khác đăng ký mượn trước.\n\n"
-            "3. **Tài liệu đọc tại chỗ (không mang về nhà):**\n"
-            "   • Luận văn thạc sĩ, luận án tiến sĩ, khóa luận tốt nghiệp.\n"
-            "   • Báo, tạp chí chuyên ngành, từ điển tra cứu nhanh và sách độc bản lưu trữ tại kho."
-        )
-        return {
-            "answer": ans,
-            "sources": [],
-            "total_sources": 0,
-            "total_found": 0,
-            "follow_up_suggestions": [
-                {"label": "Giờ mở cửa thư viện", "query": "thư viện mở cửa lúc mấy giờ?"},
-                {"label": "Thủ tục làm thẻ thư viện", "query": "thủ tục làm thẻ thư viện thế nào?"},
-                {"label": "Tìm sách theo chuyên ngành", "query": "giáo trình ngành công nghệ thông tin"}
-            ]
-        }
-
-    # 3. Làm thẻ thư viện / Tài khoản bạn đọc
-    card_patterns = [
-        r"\b(?:lam\s+the\s+thu\s+vien|thu\s+tuc\s+lam\s+the|dang\s+ky\s+the\s+thu\s+vien|mat\s+the\s+thu\s+vien|the\s+sinh\s+vien\s+co\s+dung\s+lam\s+the\s+thu\s+vien|kich\s+hoat\s+the|tai\s+khoan\s+thu\s+vien)\b"
-    ]
-    if any(re.search(p, q) for p in card_patterns):
-        ans = (
-            "💳 **Thủ tục Thẻ Thư viện & Tài khoản Bạn đọc QNU:**\n\n"
-            "• **Sử dụng Thẻ sinh viên:** Thư viện QNU áp dụng tích hợp trực tiếp mã vạch trên **Thẻ sinh viên** làm thẻ thư viện. Bạn chỉ cần mang theo thẻ sinh viên còn hiệu lực để quét mã khi vào cửa và mượn tài liệu.\n"
-            "• **Kích hoạt / Quên mật khẩu tài khoản:** Bạn có thể liên hệ trực tiếp tại Quầy thông tin (Tầng 1 Thư viện) hoặc dùng email sinh viên (@qnu.edu.vn) để được hỗ trợ cấp lại.\n"
-            "• **Trường hợp mất thẻ:** Bạn đọc vui lòng báo ngay cho cán bộ thư viện để tạm khóa quyền mượn sách nhằm bảo vệ tài khoản cá nhân."
-        )
-        return {
-            "answer": ans,
-            "sources": [],
-            "total_sources": 0,
-            "total_found": 0,
-            "follow_up_suggestions": [
-                {"label": "Giờ mở cửa thư viện", "query": "thư viện mở cửa lúc mấy giờ?"},
-                {"label": "Quy định mượn sách về nhà", "query": "sinh viên được mượn tối đa mấy cuốn sách về nhà?"},
-                {"label": "Gợi ý tài liệu phổ biến", "query": "tìm sách về trí tuệ nhân tạo"}
-            ]
-        }
-
-    # 4. Nội quy phòng đọc / Không gian thư viện
-    rules_patterns = [
-        r"\b(?:noi\s+quy\s+thu\s+vien|noi\s+quy\s+phong\s+doc|co\s+duoc\s+mang\s+do\s+an|mang\s+ba\s+lo\s+vao|co\s+wifi\s+khong|khong\s+gian\s+tu\s+hoc)\b"
-    ]
-    if any(re.search(p, q) for p in rules_patterns):
-        ans = (
-            "🏛️ **Nội quy Chung tại Thư viện QNU:**\n\n"
-            "1. **Tác phong & Giữ gìn trật tự:**\n"
-            "   • Trang phục lịch sự, văn minh theo quy định của Nhà trường.\n"
-            "   • Đi nhẹ, nói khẽ, chuyển điện thoại sang chế độ rung khi vào các phòng đọc và phòng tự học.\n"
-            "2. **Tư trang & Hành lý:**\n"
-            "   • Bạn đọc vui lòng gửi cặp sách, ba lô tại Tủ đồ cá nhân trước khi vào phòng đọc.\n"
-            "   • Không mang đồ ăn, nước uống có màu, kẹo cao su hoặc các chất dễ gây cháy nổ vào thư viện.\n"
-            "3. **Bảo quản tài liệu & Trang thiết bị:**\n"
-            "   • Không viết, vẽ, gạch chân hoặc làm rách tài liệu.\n"
-            "   • Sau khi đọc xong, vui lòng để sách vào xe đẩy trả sách, không tự ý xếp sai vị trí giá sách."
-        )
-        return {
-            "answer": ans,
-            "sources": [],
-            "total_sources": 0,
-            "total_found": 0,
-            "follow_up_suggestions": [
-                {"label": "Giờ mở cửa thư viện", "query": "thư viện mở cửa lúc mấy giờ?"},
-                {"label": "Quy định mượn sách", "query": "sinh viên được mượn tối đa mấy cuốn sách về nhà?"},
-                {"label": "Tìm kiếm tài liệu", "query": "tìm sách về trí tuệ nhân tạo"}
-            ]
-        }
-
-
-
-    return None
+    return policy_engine.search_policy(query, q)
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -2615,7 +2501,7 @@ async def chat(req: ChatRequest, fast_request: Request = None):
         intent = classify_intent(req.query)
         logger.info("Intent: %s for query: %s", intent, req.query)
 
-        # ── Xử lý câu trả lời khẳng định/phủ định (trước intent) ──
+        # ── Xử lý câu trả lời khẳng định/phủ định / cảm ơn / ghi nhận (ok, cảm ơn...) ──
         list_topic_marker = "__LIST_TOPIC__:"
         list_topic_query = None
         if req.query.startswith(list_topic_marker):
@@ -2623,34 +2509,108 @@ async def chat(req: ChatRequest, fast_request: Request = None):
 
         hist = get_session_history(req.session_id)
 
-        # Phủ định: "không", "thôi"...
-        _affirm_yes = {"co", "ok", "oke", "okie", "duoc", "can", "muon",
-                       "u", "um", "ừ", "ừm", "được", "cần", "muốn",
-                       "liet ke", "liệt kê", "xem", "cho xem", "cho minh xem"}
-        q_affirm = normalize_text(req.query or "").strip()
-        if q_affirm in _affirm_yes and hist:
+        # Kiểm tra xem lượt trước bot có thực sự đang đặt câu hỏi hỏi người dùng có muốn xem/liệt kê danh sách không
+        def _is_waiting_for_list_confirmation(history_list: list) -> bool:
+            if not history_list:
+                return False
+            last = history_list[-1]
+            if not isinstance(last, dict):
+                return False
+            if last.get("awaiting_list_confirmation"):
+                return True
+            last_ans = normalize_text(str(last.get("answer") or last.get("content") or ""))
+            confirmation_cues = [
+                "ban co muon xem danh sach khong",
+                "ban co muon minh liet ke",
+                "co muon xem tiep khong",
+                "co muon minh liet ke chi tiet",
+                "ban co muon xem them khong",
+            ]
+            return any(cue in last_ans for cue in confirmation_cues)
+
+        is_waiting_confirmation = _is_waiting_for_list_confirmation(hist)
+
+        # 1. Trường hợp bot đang chủ động hỏi xem người dùng có muốn liệt kê sách không:
+        if is_waiting_confirmation and hist:
             last_entry = hist[-1]
             prev_topic = last_entry.get("topic", "")
-            if prev_topic:
+
+            # Người dùng đồng ý: "có", "liệt kê", "xem", "ok", "được", "ừ"
+            _affirm_yes = {"co", "ok", "oke", "okie", "duoc", "can", "muon",
+                           "u", "um", "ừ", "ừm", "được", "cần", "muốn",
+                           "liet ke", "liệt kê", "xem", "cho xem", "cho minh xem"}
+            q_affirm = normalize_text(req.query or "").strip()
+            if q_affirm in _affirm_yes and prev_topic:
                 list_topic_query = prev_topic
 
-        _decline_pat = re.compile(
-            r"^\s*(không|khong|thôi|thoi|thôi nhé|thoi nha|cảm ơn|cam on|cám ơn|cam_on|thank|thanks|no|nah|đủ rồi|du roi|thôi bỏ qua|thoi bo qua)\s*[.!]?\s*$",
-            re.IGNORECASE,
-        )
-        if not list_topic_query and hist and _decline_pat.match(req.query.strip()):
-            last_topic_entry = None
-            for entry in reversed(hist):
-                if isinstance(entry, dict) and entry.get("topic"):
-                    last_topic_entry = entry
-                    break
-            if last_topic_entry:
-                decline_topic = last_topic_entry.get("topic", "")
-                answer_text = f"Được, mình sẽ không liệt kê **{decline_topic}** nữa. Bạn muốn mình hỗ trợ gì khác không?"
+            # Người dùng từ chối xem: "không", "thôi", "thôi nhé"
+            _decline_pat = re.compile(
+                r"^\s*(không|khong|thôi|thoi|thôi nhé|thoi nha|no|nah|đủ rồi|du roi|thôi bỏ qua|thoi bo qua)\s*[.!]?\s*$",
+                re.IGNORECASE,
+            )
+            if not list_topic_query and _decline_pat.match(req.query.strip()):
+                answer_text = f"Được, mình sẽ không liệt kê **{prev_topic}** nữa. Bạn muốn mình hỗ trợ gì khác không?"
                 hist.append({"role": "assistant", "content": answer_text})
                 save_session_history(req.session_id, hist)
-                return ChatResponse(answer=answer_text, sources=[], total_sources=0, total_found=0, current_document=None,
-                    follow_up_suggestions=[{"label": "Gợi ý chủ đề khác", "query": "Gợi ý tài liệu phổ biến"}, {"label": "Tìm sách theo tác giả", "query": "sách của Nguyễn Nhật Ánh"}])
+                return ChatResponse(
+                    answer=answer_text, sources=[], total_sources=0, total_found=0, current_document=None,
+                    follow_up_suggestions=[
+                        {"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"},
+                        {"label": "Quy chế Thư viện QNU", "query": "các quy định tại thư viện"}
+                    ]
+                )
+
+        # 2. Xử lý phản hồi xã giao / ghi nhận (ok, cảm ơn, dạ vâng, hiểu rồi...):
+        _pure_ack_pat = re.compile(
+            r"^\s*(ok|oke|okie|okay|oki|dạ|da|vâng|vang|dạ vâng|da vang|rõ rồi|ro roi|hiểu rồi|hieu roi|mình hiểu rồi|minh hieu roi|đã hiểu|da hieu|tuyệt|tuyệt vời|tuyet|tuyet voi|good)(?:\s+(?:nhé|nha|ạ|a|nhe|nhá|bot|bạn|roi|nhieu))*\s*[.!?~😊🙏👌]*\s*$",
+            re.IGNORECASE,
+        )
+        _pure_thanks_pat = re.compile(
+            r"^\s*(?:dạ\s+)?(cảm ơn|cam on|cám ơn|cam_on|thank|thanks|tks|ty|thank you)(?:\s+(?:bạn|bot|ad|nhiều|nhieu|nhé|nha|ạ|a|nhe|nhá|rất nhiều|rat nhieu))*\s*[.!?~😊🙏]*\s*$",
+            re.IGNORECASE,
+        )
+        _pure_no_pat = re.compile(
+            r"^\s*(không|khong|thôi|thoi|thôi nhé|thoi nha|không cần|khong can|không cảm ơn|khong cam on)\s*[.!?~]*\s*$",
+            re.IGNORECASE,
+        )
+
+        clean_q_ack = req.query.strip()
+        if not list_topic_query:
+            if _pure_ack_pat.match(clean_q_ack):
+                ack_ans = "Dạ, rất vui được hỗ trợ bạn! 😊 Nếu bạn cần tìm tài liệu gì hay muốn hỏi thêm về quy định thư viện, bạn cứ nhắn mình nhé!"
+                hist.append({"role": "assistant", "content": ack_ans})
+                save_session_history(req.session_id, hist)
+                return ChatResponse(
+                    answer=ack_ans, sources=[], total_sources=0, total_found=0, current_document=None,
+                    follow_up_suggestions=[
+                        {"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"},
+                        {"label": "Quy định mượn trả sách", "query": "quy định mượn trả tài liệu in"},
+                        {"label": "Thời gian mở cửa", "query": "thư viện mở cửa vào những khung giờ nào?"}
+                    ]
+                )
+            elif _pure_thanks_pat.match(clean_q_ack):
+                thanks_ans = "Dạ không có gì ạ! Rất vui được hỗ trợ bạn. Chúc bạn một ngày học tập và nghiên cứu hiệu quả! Cần gì thêm bạn cứ hỏi mình nhé! 😊"
+                hist.append({"role": "assistant", "content": thanks_ans})
+                save_session_history(req.session_id, hist)
+                return ChatResponse(
+                    answer=thanks_ans, sources=[], total_sources=0, total_found=0, current_document=None,
+                    follow_up_suggestions=[
+                        {"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"},
+                        {"label": "Quy chế Thư viện", "query": "các quy định tại thư viện"},
+                        {"label": "Thời gian mở cửa", "query": "thư viện mở cửa vào những khung giờ nào?"}
+                    ]
+                )
+            elif _pure_no_pat.match(clean_q_ack):
+                no_ans = "Dạ vâng! Khi nào cần tra cứu tài liệu hoặc hỏi quy chế thư viện, bạn cứ nhắn mình nhé. Chúc bạn một ngày tốt lành! 😊"
+                hist.append({"role": "assistant", "content": no_ans})
+                save_session_history(req.session_id, hist)
+                return ChatResponse(
+                    answer=no_ans, sources=[], total_sources=0, total_found=0, current_document=None,
+                    follow_up_suggestions=[
+                        {"label": "Gợi ý tài liệu phổ biến", "query": "Gợi ý tài liệu phổ biến"},
+                        {"label": "Quy chế Thư viện", "query": "các quy định tại thư viện"}
+                    ]
+                )
 
         if list_topic_query:
             req_query_for_search = f"tìm sách về {list_topic_query}"
@@ -3229,7 +3189,9 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 if len(follow_ups) < 3:
                     follow_ups.extend(random_no_result_suggestions(3 - len(follow_ups)))
             else:
-                if book_inquiry_res.get("matched_attr") == "author_location" or book_inquiry_res.get("author_display"):
+                if book_inquiry_res.get("follow_up_suggestions"):
+                    follow_ups = book_inquiry_res["follow_up_suggestions"]
+                elif book_inquiry_res.get("matched_attr") == "author_location" or book_inquiry_res.get("author_display"):
                     follow_ups = random_no_result_suggestions(3, focus="author")
                 else:
                     follow_ups = random_no_result_suggestions(3)
@@ -3253,7 +3215,7 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 "query": req.query,
                 "answer": ans,
                 "search_query": req.query,
-                "topic": "Nội quy & Dịch vụ Thư viện",
+                "topic": "",
                 "source_count": 0,
                 "shown_titles": [],
             })
@@ -3276,7 +3238,7 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
                 "query": req.query,
                 "answer": overview_answer,
                 "search_query": "thống kê loại sách",
-                "topic": "Tổng quan loại tài liệu",
+                "topic": "",
                 "source_count": 0,
                 "shown_titles": [],
             })
@@ -4148,6 +4110,12 @@ Hãy thực hiện yêu cầu của người dùng một cách chính xác, logi
         total_found = total_found if total_found > 0 else len(sources)
         # has_pdf_sources disabled
         follow_ups = build_follow_up_suggestions(query=req.query, sources=sources, answer=answer, catalog_mode=catalog_mode, has_pdf_sources=False, session_id=req.session_id)
+
+        # Hỗ trợ tùy chọn 2 chiều (Disambiguation): Nếu câu hỏi tìm sách có từ khóa quy định/quy chế/nội quy, bổ sung nút xem Quy chế Thư viện
+        if re.search(r"\b(?:quy\s+dinh|quy\s+che|noi\s+quy|thu\s+tuc)\b", normalize_text(req.query)):
+            has_policy_pill = any("quy chế" in f.get("label", "").lower() or "quy định" in f.get("label", "").lower() for f in follow_ups)
+            if not has_policy_pill:
+                follow_ups.insert(0, {"label": "📜 Xem Quy chế Thư viện QNU", "query": "các quy định tại thư viện"})
 
         _record_query_analytics(req.query, total_found)
 

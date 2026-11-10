@@ -196,6 +196,8 @@ def clean_conversational_query(query: str) -> str:
         r"^(?:vậy\s+(?:thì\s+)?|thế\s+(?:thì\s+)?|vậy\s+còn\s+|thế\s+còn\s+)\s*",
         r"^(?:có\s+)?(?:các\s+|những\s+|một\s+số\s+|một\s+|1\s+|vài\s+|mấy\s+)?\s*(?:cuốn\s+sách|quyển\s+sách|cuốn|quyển|tập|bản)?\s*(?:sách|tài\s+liệu\s+tham\s+khảo|tài\s+liệu|giáo\s+trình|luận\s+văn|luận\s+án|bài\s+giảng)\s+(?:nào\s+)?(?:liên\s+quan\s+đến|về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về)?\s*",
         r"^(?:cuốn|quyển|sách|tài\s+liệu\s+tham\s+khảo|tài\s+liệu|giáo\s+trình|luận\s+văn|bài\s+giảng)\s+(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về|nào\s+)?\s*",
+        r"^(?:cuốn|quyển|sách|tài\s+liệu\s+tham\s+khảo|tài\s+liệu|giáo\s+trình|luận\s+văn|bài\s+giảng)?\s*(?:của|cua)\s+",
+        r"^(?:của|cua)\s+",
         r"^(?:thuộc\s+ngành|ngành|chuyên\s+ngành|lĩnh\s+vực)\s+",
         r"^(?:về\s+chủ\s+đề|thuộc\s+chủ\s+đề|chủ\s+đề|về|nói\s+về)\s+",
         r"^(?:dạ\s+)?(?:mình|tôi|em)\s+(?:đang|muốn|cần)?\s*(?:học|tìm\s+hiểu|nghiên\s+cứu)\s+(?:cách\s+)?(?:làm\s+ra|xây\s+dựng|tạo\s+ra|phát\s+triển|viết)\s+(?:một\s+)?(?=ứng\s+dụng|website|web|app|hệ\s+thống|chatbot|mạng|phần\s+mềm)",
@@ -219,7 +221,8 @@ def clean_conversational_query(query: str) -> str:
 
     # 2. Hậu tố câu hỏi, yêu cầu gợi ý, mục đích bổ trợ & trạng thái
     suffixes = [
-        # Hậu tố quên tên / không nhớ rõ tên / không rõ tác giả
+        r"\s*(?:có\s+những|có\s+mấy|gồm\s+những|có\s+các|những\s+loại)\s+(?:sách|tài\s+liệu|giáo\s+trình|luận\s+văn)?\s*(?:nào|gì)?\s*[?.]*$",
+        r"\s*(?:có\s+sách\s+gì|có\s+tài\s+liệu\s+gì|có\s+những\s+sách\s+nào|có\s+những\s+tài\s+liệu\s+nào)\s*[?.]*$",
         r"[,.-]?\s*(?:nhưng\s+|mà\s+)?(?:tôi\s+|mình\s+|em\s+)?(?:không|chẳng|chưa|quên)\s+(?:nhớ|biết|rõ|chắc|mất)?(?:\s+rõ)?(?:\s+(?:tên|nhan\s+đề|tiêu\s+đề|tác\s+giả|năm|cuốn\s+sách|quyển\s+sách|nữa))?.*$",
         r"[,.-]?\s*(?:quên\s+mất|quên)\s+(?:tên|rồi|mất\s+rồi).*$",
         r"[,.-]?\s*(?:không\s+nhớ\s+rõ\s+tên|không\s+nhớ\s+tên|không\s+rõ\s+tên|chưa\s+nhớ\s+tên|quên\s+tên|không\s+nhớ\s+tác\s+giả|quên\s+tác\s+giả).*$",

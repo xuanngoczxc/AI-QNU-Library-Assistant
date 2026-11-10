@@ -487,7 +487,8 @@ def check_diacritic_consistency(raw_text: str, query_tokens: list[str]) -> bool:
 
 WHITELISTED_SHORT_ACRONYMS = {
     "ai", "it", "cs", "sql", "c++", "c#", "cntt", "ktpm", "qtkd", "tcnh",
-    "ctxh", "qlnn", "khdl", "khmt", "khtn", "sp", "clc", "acca", "toán", "tin"
+    "ctxh", "qlnn", "khdl", "khmt", "khtn", "sp", "clc", "acca", "toán", "tin",
+    "attt", "httt", "csdl", "pttkht", "xstk", "ppnc", "nlkt", "tcdn", "ktdt", "ktct"
 }
 
 
@@ -495,38 +496,47 @@ def generalized_telex_cleanup(text: str) -> str:
     """
     Chuẩn hóa tự động các lỗi lặp phím Telex và lỗi nhả phím thường gặp trong tiếng Việt.
     Ví dụ: 'sachsh' -> 'sach', 'khoaa' -> 'khoa', 'toann' -> 'toan', 'lap trinhh' -> 'lap trinh', 'mmo' -> 'mo'.
+    Bảo toàn 100% các từ viết tắt chuyên ngành trong WHITELISTED_SHORT_ACRONYMS (vd: 'cntt', 'attt', 'httt'...).
     """
     if not text:
         return ""
-    q = text
-    # 1. Bóc lỗi gõ dính phím phụ Telex (vd: 'sachsh' -> 'sach')
-    q = re.sub(r'\b([a-zA-Z]+)chsh\b', r'\1ch', q, flags=re.IGNORECASE)
-    q = re.sub(r'\b([a-zA-Z]+)sh\b', r'\1s', q, flags=re.IGNORECASE)
     
-    # 2. Khử lặp phụ âm vô tình ở đầu hoặc cuối từ (kkinh -> kinh, mmo -> mo, toann -> toan)
-    q = re.sub(r'\b([b-df-hj-np-tv-z])\1+', r'\1', q, flags=re.IGNORECASE)
-    
-    # 3. Khử lặp nguyên âm vô tình (khoaa -> khoa, toann -> toan)
+    words = text.split()
+    cleaned_words = []
+
     telex_doubled = [
-        (r'\b([a-zA-Z]+)aa\b', r'\1a'),
-        (r'\b([a-zA-Z]+)ee\b', r'\1e'),
-        (r'\b([a-zA-Z]+)oo\b', r'\1o'),
-        (r'\b([a-zA-Z]+)uu\b', r'\1u'),
-        (r'\b([a-zA-Z]+)nn\b', r'\1n'),
-        (r'\b([a-zA-Z]+)hh\b', r'\1h'),
-        (r'\b([a-zA-Z]+)tt\b', r'\1t'),
-        (r'\b([a-zA-Z]+)cc\b', r'\1c'),
-        (r'\b([a-zA-Z]+)mm\b', r'\1m'),
-        (r'\b([a-zA-Z]+)gg\b', r'\1g'),
-        (r'\b([a-zA-Z]+)ss\b', r'\1s'),
-        (r'\b([a-zA-Z]+)jj\b', r'\1j'),
-        (r'\b([a-zA-Z]+)ff\b', r'\1f'),
-        (r'\b([a-zA-Z]+)xx\b', r'\1x'),
-        (r'\b([a-zA-Z]+)rr\b', r'\1r'),
+        (r'([a-zA-Z]+)aa\b', r'\1a'),
+        (r'([a-zA-Z]+)ee\b', r'\1e'),
+        (r'([a-zA-Z]+)oo\b', r'\1o'),
+        (r'([a-zA-Z]+)uu\b', r'\1u'),
+        (r'([a-zA-Z]+)nn\b', r'\1n'),
+        (r'([a-zA-Z]+)hh\b', r'\1h'),
+        (r'([a-zA-Z]+)tt\b', r'\1t'),
+        (r'([a-zA-Z]+)cc\b', r'\1c'),
+        (r'([a-zA-Z]+)mm\b', r'\1m'),
+        (r'([a-zA-Z]+)gg\b', r'\1g'),
+        (r'([a-zA-Z]+)ss\b', r'\1s'),
+        (r'([a-zA-Z]+)jj\b', r'\1j'),
+        (r'([a-zA-Z]+)ff\b', r'\1f'),
+        (r'([a-zA-Z]+)xx\b', r'\1x'),
+        (r'([a-zA-Z]+)rr\b', r'\1r'),
     ]
-    for pat, repl in telex_doubled:
-        q = re.sub(pat, repl, q, flags=re.IGNORECASE)
-    return q
+
+    for w in words:
+        w_clean = w.strip(".,!?;:\"'()[]{}").lower()
+        if w_clean in WHITELISTED_SHORT_ACRONYMS:
+            cleaned_words.append(w)
+            continue
+
+        w_curr = re.sub(r'([a-zA-Z]+)chsh\b', r'\1ch', w, flags=re.IGNORECASE)
+        w_curr = re.sub(r'([a-zA-Z]+)sh\b', r'\1s', w_curr, flags=re.IGNORECASE)
+        w_curr = re.sub(r'\b([b-df-hj-np-tv-z])\1+', r'\1', w_curr, flags=re.IGNORECASE)
+        for pat, repl in telex_doubled:
+            w_curr = re.sub(pat, repl, w_curr, flags=re.IGNORECASE)
+
+        cleaned_words.append(w_curr)
+
+    return " ".join(cleaned_words)
 
 
 def fuzzy_match_phrase(
@@ -615,6 +625,17 @@ STUDENT_FILLERS_MAP = {
     r"\blun\b": "luôn",
     r"\bđc\b": "được",
     r"\bdc\b": "được",
+    r"\bthư\s+ciện\b": "thư viện",
+    r"\bthu\s+cien\b": "thư viện",
+    r"\bthư\s+viên\b": "thư viện",
+    r"\bthu\s+vien\b": "thư viện",
+    r"\bciện\b": "viện",
+    r"\bqui\s+định\b": "quy định",
+    r"\bqui\s+dinh\b": "quy định",
+    r"\bqui\s+chế\b": "quy chế",
+    r"\bqui\s+che\b": "quy chế",
+    r"\bnội\s+qui\b": "nội quy",
+    r"\bnoi\s+qui\b": "nội quy",
 }
 
 
