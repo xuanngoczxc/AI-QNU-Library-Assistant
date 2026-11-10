@@ -2,8 +2,8 @@
 
 - **Hệ thống đánh giá:** QNU Library Assistant Standard Benchmark (QNU-LAB)
 - **Phiên bản:** 2.0.0
-- **Thời gian chạy:** 2026-11-10 12:04:24
-- **Tổng điểm đạt được:** **113.0 / 115.0 (98.3%)**
+- **Thời gian chạy:** 2026-11-10 14:30:09
+- **Tổng điểm đạt được:** **112.0 / 115.0 (97.4%)**
 - **Xếp loại chất lượng:** **XUẤT SẮC (EXCELLENT)**
 
 ---
@@ -13,7 +13,7 @@
 | Chỉ số đo lường | Giá trị đạt được | Tiêu chuẩn chất lượng | Trạng thái |
 | :--- | :---: | :---: | :---: |
 | **Retrieval Hit Rate@K** | **66.7%** | >= 85.0% | ⚠️ Chưa đạt |
-| **SLA Latency Compliance** | **70.8%** | >= 90.0% | ⚠️ Chưa đạt |
+| **SLA Latency Compliance** | **62.5%** | >= 90.0% | ⚠️ Chưa đạt |
 | **Negative Constraint Adherence** | **100.0%** | 100.0% | ✅ Hoàn hảo |
 | **Adversarial Safety Rejection** | **100.0%** | 100.0% | ✅ Hoàn hảo |
 
@@ -23,10 +23,10 @@
 
 | Nhóm nghiệp vụ (Category) | Số ca test | Số ca Đạt | Điểm số đạt được | Tỷ lệ chính xác |
 | :--- | :---: | :---: | :---: | :---: |
-| `TITLE_SEARCH` | 4 | 4 | 20.0 / 20.0 | **100.0%** |
+| `TITLE_SEARCH` | 4 | 3 | 19.5 / 20.0 | **97.5%** |
 | `AUTHOR_SEARCH` | 3 | 3 | 15.0 / 15.0 | **100.0%** |
 | `MULTI_CONSTRAINT` | 1 | 1 | 10.0 / 10.0 | **100.0%** |
-| `MAJOR_FILTER` | 2 | 1 | 8.0 / 10.0 | **80.0%** |
+| `MAJOR_FILTER` | 2 | 0 | 7.5 / 10.0 | **75.0%** |
 | `TEEN_CODE_SLANG` | 1 | 1 | 10.0 / 10.0 | **100.0%** |
 | `LIBRARY_POLICY` | 4 | 4 | 20.0 / 20.0 | **100.0%** |
 | `ADVERSARIAL_GATE` | 1 | 1 | 10.0 / 10.0 | **100.0%** |
@@ -40,14 +40,14 @@
 
 | Mã ca test | Tên kiểm thử | Nhóm | Trọng số | Điểm đạt | Trạng thái |
 | :--- | :--- | :--- | :---: | :---: | :---: |
-| `TC_PREF_001` | Bóc tách tiền tố trường Excel 'nhan đề : ' | `TITLE_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
+| `TC_PREF_001` | Bóc tách tiền tố trường Excel 'nhan đề : ' | `TITLE_SEARCH` | 5.0đ | **4.5đ** | ❌ FAIL |
 | `TC_PREF_002` | Bóc tách tiền tố 'Nhan đề chính ' có dấu | `TITLE_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_PREF_003` | Bảo toàn từ 'cho' bên trong nhan đề sách thực tế | `TITLE_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_PREF_004` | Bóc tách tiền tố dính liền dấu hai chấm 'nhan đề:' | `TITLE_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_AUTH_001` | Tác giả nước ngoài có tên viết tắt và dấu chấm (Alexander, L.G.) | `AUTHOR_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_AUTH_002` | Tác giả nước ngoài họ trước tên sau (West, Morris L.) | `AUTHOR_SEARCH` | 5.0đ | **5.0đ** | ✅ PASS |
 | `TC_CONS_001` | Tác giả + Nhan đề + Lọc năm xuất bản (Trần Thiên Thành sau năm 2020) | `MULTI_CONSTRAINT` | 10.0đ | **10.0đ** | ✅ PASS |
-| `TC_MAJ_001` | Khử nhiễu Tháp Chăm Bánh Ít (Không bị kích hoạt nhầm ngành CNTT) | `MAJOR_FILTER` | 5.0đ | **5.0đ** | ✅ PASS |
+| `TC_MAJ_001` | Khử nhiễu Tháp Chăm Bánh Ít (Không bị kích hoạt nhầm ngành CNTT) | `MAJOR_FILTER` | 5.0đ | **4.5đ** | ❌ FAIL |
 | `TC_MAJ_002` | Khử nhiễu Đại Việt Sử Ký Toàn Thư (Không bị gán nhầm ngành Kế toán) | `MAJOR_FILTER` | 5.0đ | **3.0đ** | ❌ FAIL |
 | `TC_TEEN_001` | Chuẩn hóa tiếng lóng teen-code sinh viên (ctdl>, thầy nghĩa, zới, huhu) | `TEEN_CODE_SLANG` | 10.0đ | **10.0đ** | ✅ PASS |
 | `TC_POL_001` | Xác minh địa chỉ Thư viện QNU (Từ chối chi nhánh ảo Cù Lao Xanh) | `LIBRARY_POLICY` | 5.0đ | **5.0đ** | ✅ PASS |
