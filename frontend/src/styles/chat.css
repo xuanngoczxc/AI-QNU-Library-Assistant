@@ -467,7 +467,7 @@
 
 /* ══════════════════ COMPOSER ══════════════════ */
 .composer-wrap {
-  padding: 10px 20px 8px;
+  padding: 8px 20px 8px;
   background: var(--glass-bg-composer);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -475,24 +475,24 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
-  min-height: 76px;
-  height: 76px;
+  min-height: auto;
+  height: auto;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 4px;
 }
 
 .composer-form {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-end;
+  gap: 8px;
   background: var(--surface-container);
   border: 1.5px solid var(--outline-variant);
-  border-radius: var(--round-xl);
-  padding: 0 6px 0 12px;
-  height: 38px;
-  min-height: 38px;
+  border-radius: var(--round-lg);
+  padding: 4px 6px 4px 14px;
+  height: auto;
+  min-height: 40px;
   transition: var(--slow);
   box-shadow: var(--shadow-sm);
   box-sizing: border-box;
@@ -509,14 +509,29 @@
   border: none;
   background: transparent;
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--on-surface);
   outline: none;
   resize: none;
-  min-height: 20px;
-  max-height: 120px;
-  line-height: 1.35;
-  padding: 4px 0;
+  min-height: 22px;
+  max-height: 140px;
+  line-height: 1.45;
+  padding: 5px 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.composer-textarea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.composer-textarea::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 4px;
+}
+
+.composer-textarea::-webkit-scrollbar-thumb:hover {
+  background: var(--outline);
 }
 
 .composer-textarea::placeholder {
@@ -528,6 +543,7 @@
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  margin-bottom: 1px;
 }
 
 .voice-btn,
@@ -590,12 +606,11 @@
 }
 
 .composer-hint {
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--on-surface-tertiary);
   margin-top: 2px;
   text-align: center;
-  line-height: 12px;
-  height: 12px;
+  line-height: 14px;
   font-weight: 500;
   user-select: none;
 }

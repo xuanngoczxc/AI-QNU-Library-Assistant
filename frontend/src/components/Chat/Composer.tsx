@@ -39,8 +39,10 @@ export const Composer: React.FC<ComposerProps> = ({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      const scrollH = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = `${Math.min(Math.max(scrollH, 24), 140)}px`;
+      if (inputText) {
+        const scrollH = textareaRef.current.scrollHeight;
+        textareaRef.current.style.height = `${Math.min(Math.max(scrollH, 22), 140)}px`;
+      }
     }
   }, [inputText]);
 
