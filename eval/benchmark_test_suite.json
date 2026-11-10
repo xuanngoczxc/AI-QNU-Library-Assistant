@@ -1,0 +1,548 @@
+{
+  "metadata": {
+    "benchmark_name": "QNU Library Assistant Standard Benchmark (QNU-LAB)",
+    "version": "2.0.0",
+    "description": "Bộ tiêu chuẩn đánh giá toàn diện năng lực Chatbot Thư viện QNU: Phân loại ý định, Tra cứu thư mục BM25, Trích xuất thực thể, Dialogue State Tracking (DST), Nhận diện chuyên ngành, Teen-code sinh viên, An toàn đối kháng và SLA hiệu năng.",
+    "endpoint": "http://127.0.0.1:8001/chat",
+    "max_total_score": 100.0,
+    "passing_score": 80.0,
+    "excellent_score": 90.0,
+    "rubric_weights": {
+      "intent_classification": 20.0,
+      "retrieval_relevance": 30.0,
+      "constraint_adherence": 20.0,
+      "factuality_and_safety": 20.0,
+      "latency_sla": 10.0
+    }
+  },
+  "test_cases": [
+    {
+      "id": "TC_PREF_001",
+      "category": "TITLE_SEARCH",
+      "name": "Bóc tách tiền tố trường Excel 'nhan đề : '",
+      "difficulty": "Easy",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "nhan đề : The Cambridge English Course 2"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_contain": ["Cambridge", "Course 2"],
+            "must_not_contain": ["Mình là trợ lý Thư viện, mình có thể giúp bạn: •"],
+            "sla_max_ms": 3000
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 2.0,
+            "factuality_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_PREF_002",
+      "category": "TITLE_SEARCH",
+      "name": "Bóc tách tiền tố 'Nhan đề chính ' có dấu",
+      "difficulty": "Easy",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Nhan đề chính Chẩn đoán X quang lâm sàng"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_contain": ["Chẩn đoán X quang lâm sàng"],
+            "must_not_contain": ["Mình là trợ lý Thư viện, mình có thể giúp bạn:"],
+            "top_source_must_contain": "Chẩn đoán X quang lâm sàng",
+            "sla_max_ms": 2500
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 2.0,
+            "factuality_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_PREF_003",
+      "category": "TITLE_SEARCH",
+      "name": "Bảo toàn từ 'cho' bên trong nhan đề sách thực tế",
+      "difficulty": "Medium",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "nhan đề : Tiếng Anh dành cho người dịch thuật"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_contain": ["Tiếng Anh dành cho người dịch thuật"],
+            "must_not_contain": ["Tiếng Anh dành\""],
+            "sla_max_ms": 2500
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 2.0,
+            "factuality_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_PREF_004",
+      "category": "TITLE_SEARCH",
+      "name": "Bóc tách tiền tố dính liền dấu hai chấm 'nhan đề:'",
+      "difficulty": "Easy",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "nhan đề:Unforgettable days"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_contain": ["Unforgettable days"],
+            "top_source_must_contain": "Unforgettable days",
+            "sla_max_ms": 2000
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 2.0,
+            "factuality_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_AUTH_001",
+      "category": "AUTHOR_SEARCH",
+      "name": "Tác giả nước ngoài có tên viết tắt và dấu chấm (Alexander, L.G.)",
+      "difficulty": "Medium",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "tác giả Alexander, L.G."
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_contain": ["L.G. Alexander"],
+            "must_not_contain": ["chưa tìm thấy tài liệu nào"],
+            "sla_max_ms": 1500
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 2.0,
+            "factuality_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_AUTH_002",
+      "category": "AUTHOR_SEARCH",
+      "name": "Tác giả nước ngoài họ trước tên sau (West, Morris L.)",
+      "difficulty": "Medium",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "sách của tác giả West, Morris L."
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_contain": ["Morris West"],
+            "must_not_contain": ["chưa tìm thấy tài liệu nào"],
+            "sla_max_ms": 1500
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 2.0,
+            "factuality_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_CONS_001",
+      "category": "MULTI_CONSTRAINT",
+      "name": "Tác giả + Nhan đề + Lọc năm xuất bản (Trần Thiên Thành sau năm 2020)",
+      "difficulty": "Hard",
+      "weight": 10.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Cấu trúc dữ liệu và giải thuật của Trần Thiên Thành sau năm 2020"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "must_contain": ["Trần Thiên Thành", "2003"],
+            "must_not_contain": ["Trần Thiên Thành Sau"],
+            "sla_max_ms": 2000
+          },
+          "rubric": {
+            "intent_points": 2.0,
+            "retrieval_points": 3.0,
+            "constraint_points": 3.5,
+            "sla_points": 1.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_MAJ_001",
+      "category": "MAJOR_FILTER",
+      "name": "Khử nhiễu Tháp Chăm Bánh Ít (Không bị kích hoạt nhầm ngành CNTT)",
+      "difficulty": "Hard",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Tìm các công trình nghiên cứu về Cụm tháp Chăm Bánh Ít và Tháp Đôi tại Quy Nhơn?"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_not_contain": ["Công nghệ thông tin", "ngành CNTT"],
+            "sla_max_ms": 5000
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 2.0,
+            "constraint_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_MAJ_002",
+      "category": "MAJOR_FILTER",
+      "name": "Khử nhiễu Đại Việt Sử Ký Toàn Thư (Không bị gán nhầm ngành Kế toán)",
+      "difficulty": "Hard",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Bộ 'Đại Việt Sử ký Toàn thư' thư viện có trọn bộ bao nhiêu tập? Có bị thiếu tập nào không?"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_not_contain": ["ngành Kế toán", "thuộc ngành Kế toán"],
+            "sla_max_ms": 7500
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 2.0,
+            "constraint_points": 1.5,
+            "sla_points": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_TEEN_001",
+      "category": "TEEN_CODE_SLANG",
+      "name": "Chuẩn hóa tiếng lóng teen-code sinh viên (ctdl>, thầy nghĩa, zới, huhu)",
+      "difficulty": "Hard",
+      "weight": 10.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "ad ơiiii, tìm giùm t cuốn ctdl> của thầy nghĩa zới, chìu nay thi ròi huhu k bít kệ nèo lun"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_contain": ["Nguyễn Đức Nghĩa"],
+            "sla_max_ms": 2500
+          },
+          "rubric": {
+            "intent_points": 2.0,
+            "retrieval_points": 4.0,
+            "factuality_points": 3.0,
+            "sla_points": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_POL_001",
+      "category": "LIBRARY_POLICY",
+      "name": "Xác minh địa chỉ Thư viện QNU (Từ chối chi nhánh ảo Cù Lao Xanh)",
+      "difficulty": "Medium",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Cho biết thư viện QNU tại Cù Lao Xanh mở cửa lúc mấy giờ?"
+          },
+          "expected": {
+            "expected_intent": "live_info",
+            "must_contain": ["170 An Dương Vương", "KHÔNG có chi nhánh hay cơ sở tại Cù Lao Xanh"],
+            "must_not_contain": ["tác giả \"Lúc Mấy Giờ\""],
+            "sla_max_ms": 1000
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "factuality_points": 3.0,
+            "sla_points": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_POL_002",
+      "category": "LIBRARY_POLICY",
+      "name": "Hỏi thời gian làm việc & giờ mở cửa chính thức",
+      "difficulty": "Easy",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Thư viện trường mở cửa vào những khung giờ nào?"
+          },
+          "expected": {
+            "expected_intent": "live_info",
+            "must_contain": ["07:00", "11:30", "13:30", "17:00", "Thứ Hai đến Thứ Sáu"],
+            "sla_max_ms": 1500
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "factuality_points": 3.0,
+            "sla_points": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_ADV_001",
+      "category": "ADVERSARIAL_GATE",
+      "name": "Relevance Gating: Chặn mã định danh rác đối kháng không tồn tại",
+      "difficulty": "Hard",
+      "weight": 10.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "ABCXYZ123456 Không Tồn Tại"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "max_sources": 0,
+            "must_contain": ["không tìm thấy tài liệu nào khớp với từ khóa hoặc mã"],
+            "sla_max_ms": 1000
+          },
+          "rubric": {
+            "intent_points": 2.0,
+            "safety_points": 6.0,
+            "sla_points": 2.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_FAST_001",
+      "category": "FAST_PATH_SUGGEST",
+      "name": "Phản hồi tức thì nút 'Gợi ý tài liệu phổ biến'",
+      "difficulty": "Easy",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Gợi ý tài liệu phổ biến"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 3,
+            "must_contain": ["tài liệu & giáo trình phổ biến tại Thư viện QNU"],
+            "sla_max_ms": 3000
+          },
+          "rubric": {
+            "intent_points": 1.0,
+            "retrieval_points": 3.0,
+            "sla_points": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_DST_001",
+      "category": "MULTI_TURN_DST",
+      "name": "Hội thoại nhiều lượt: Từ chủ đề rộng thu hẹp và lọc top K",
+      "difficulty": "Hard",
+      "weight": 5.0,
+      "multi_turn": true,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Tìm tài liệu về công nghệ thông tin"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "sla_max_ms": 2500
+          },
+          "rubric": {
+            "intent_points": 0.5,
+            "retrieval_points": 1.0
+          }
+        },
+        {
+          "turn_index": 2,
+          "request": {
+            "query": "Thu hẹp vào trí tuệ nhân tạo"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "must_contain": ["Trí tuệ nhân tạo"],
+            "sla_max_ms": 2500
+          },
+          "rubric": {
+            "retrieval_points": 0.5,
+            "constraint_points": 1.0
+          }
+        },
+        {
+          "turn_index": 3,
+          "request": {
+            "query": "Chọn 3 tài liệu phù hợp nhất"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "max_sources": 3,
+            "must_contain": ["3 tài liệu phù hợp nhất"],
+            "sla_max_ms": 1000
+          },
+          "rubric": {
+            "retrieval_points": 1.0,
+            "factuality_points": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_DST_002",
+      "category": "MULTI_TURN_DST",
+      "name": "Hội thoại nhiều lượt: Thay đổi điều kiện năm xuất bản",
+      "difficulty": "Hard",
+      "weight": 5.0,
+      "multi_turn": true,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Tìm sách về lập trình Python"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "sla_max_ms": 2000
+          },
+          "rubric": {
+            "retrieval_points": 1.0
+          }
+        },
+        {
+          "turn_index": 2,
+          "request": {
+            "query": "Chỉ lấy sách xuất bản từ năm 2020 trở đi"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "must_contain": ["Python"],
+            "sla_max_ms": 2000
+          },
+          "rubric": {
+            "constraint_points": 2.0
+          }
+        },
+        {
+          "turn_index": 3,
+          "request": {
+            "query": "Không giới hạn năm xuất bản nữa"
+          },
+          "expected": {
+            "expected_intent": "catalog_search",
+            "min_sources": 1,
+            "sla_max_ms": 2000
+          },
+          "rubric": {
+            "constraint_points": 1.0,
+            "retrieval_points": 1.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "TC_TOC_001",
+      "category": "CONTENT_TOC_QA",
+      "name": "Hỏi số chương / Mục lục sách (Minh bạch giới hạn CSDL thư mục)",
+      "difficulty": "Medium",
+      "weight": 5.0,
+      "multi_turn": false,
+      "turns": [
+        {
+          "turn_index": 1,
+          "request": {
+            "query": "Cuốn sách Quản trị học này có bao nhiêu chương và nội dung chương 3 nói về gì?"
+          },
+          "expected": {
+            "must_contain": ["chưa có mục lục chi tiết số lượng chương hoặc nội dung từng chương", "đến xem trực tiếp cuốn sách"],
+            "sla_max_ms": 1500
+          },
+          "rubric": {
+            "factuality_points": 3.5,
+            "safety_points": 1.5
+          }
+        }
+      ]
+    }
+  ]
+}

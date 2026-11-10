@@ -2438,7 +2438,7 @@ def handle_library_policy_inquiry(query: str):
 
     # 1. Giờ mở cửa / Lịch phục vụ / Thời gian làm việc
     hours_patterns = [
-        r"\b(?:gio\s+mo\s+cua|mo\s+cua\s+luc\s+may\s+gio|may\s+gio\s+mo\s+cua|may\s+gio\s+dong\s+cua|thoi\s+gian\s+mo\s+cua|thoi\s+gian\s+phuc\s+vu|lich\s+phuc\s+vu|lich\s+mo\s+cua|gio\s+lam\s+viec|mo\s+cua\s+ngay\s+nao|co\s+mo\s+cua\s+thu\s+7|co\s+mo\s+cua\s+chu\s+nhat|cuoi\s+tuan\s+co\s+mo\s+cua)\b",
+        r"\b(?:khung\s+gio\s+nao|khung\s+gio|gio\s+mo\s+cua|mo\s+cua\s+luc\s+may\s+gio|may\s+gio\s+mo\s+cua|may\s+gio\s+dong\s+cua|thoi\s+gian\s+mo\s+cua|thoi\s+gian\s+phuc\s+vu|lich\s+phuc\s+vu|lich\s+mo\s+cua|gio\s+lam\s+viec|mo\s+cua\s+ngay\s+nao|co\s+mo\s+cua\s+thu\s+7|co\s+mo\s+cua\s+chu\s+nhat|cuoi\s+tuan\s+co\s+mo\s+cua)\b",
         r"\b(?:khi\s+nao\s+thu\s+vien\s+mo\s+cua|thu\s+vien\s+mo\s+cua\s+khi\s+nao|thu\s+vien\s+mo\s+cua\s+luc\s+nao|thu\s+vien\s+may\s+gio\s+mo|thu\s+vien\s+mo\s+cua\s+luc\s+may\s+gio)\b",
     ]
     if any(re.search(p, q) for p in hours_patterns):
